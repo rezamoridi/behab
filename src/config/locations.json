@@ -1,0 +1,276 @@
+{
+  "provinces": [
+    {
+      "id": "lorestan",
+      "name": "لرستان",
+      "counties": [
+        {
+          "id": "khorramabad",
+          "name": "خرم‌آباد",
+          "bakhshs": [
+            {
+              "id": "markazi",
+              "name": "مرکزی",
+              "dehestans": [
+                {
+                  "id": "robat",
+                  "name": "رباط",
+                  "villages": [
+                    { "id": "huki", "name": "هوکی" },
+                    { "id": "tajare-sadat", "name": "تجره‌سادات" },
+                    { "id": "nay-angiz", "name": "نای‌انگیز" },
+                    { "id": "garmeh", "name": "گرمه" },
+                    { "id": "cham-senjed", "name": "چم سنجد" }
+                  ]
+                },
+                {
+                  "id": "dehpir",
+                  "name": "دهپیر",
+                  "villages": [
+                    { "id": "mir-abad", "name": "میرآباد" },
+                    { "id": "cheshmeh-papi", "name": "چشمه‌پاپی" },
+                    { "id": "deh-noruz", "name": "ده‌نوروز" },
+                    { "id": "cham-divin", "name": "چم دیوین" },
+                    { "id": "baba-abbas", "name": "باباعباس" }
+                  ]
+                },
+                {
+                  "id": "kargah",
+                  "name": "کرگاه",
+                  "villages": [
+                    { "id": "kargah", "name": "کرگاه" },
+                    { "id": "sar-cham", "name": "سرچم" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "papi",
+              "name": "پاپی",
+              "dehestans": [
+                {
+                  "id": "cham-anjir",
+                  "name": "چم انجیر",
+                  "villages": [
+                    { "id": "cham-anjir", "name": "چم انجیر" },
+                    { "id": "afrineh", "name": "آفرینه" },
+                    { "id": "kaleh-nou", "name": "کاله نو" }
+                  ]
+                },
+                {
+                  "id": "sepiddasht",
+                  "name": "سپیددشت",
+                  "villages": [
+                    { "id": "sepiddasht", "name": "سپیددشت" },
+                    { "id": "bisheh", "name": "بیشه" },
+                    { "id": "tange-haft", "name": "تنگ هفت" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "zagheh",
+              "name": "زاغه",
+              "dehestans": [
+                {
+                  "id": "zagheh-markazi",
+                  "name": "زاغه",
+                  "villages": [
+                    { "id": "zagheh", "name": "زاغه" },
+                    { "id": "gushvar", "name": "گوشور" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "delfan",
+          "name": "دلفان",
+          "bakhshs": [
+            {
+              "id": "markazi",
+              "name": "مرکزی",
+              "dehestans": [
+                {
+                  "id": "mirbeg",
+                  "name": "میربگ",
+                  "villages": [
+                    { "id": "nurabad", "name": "نورآباد" },
+                    { "id": "mirbeg", "name": "میربگ" },
+                    { "id": "hoseynabad", "name": "حسین‌آباد" }
+                  ]
+                },
+                {
+                  "id": "nurabad",
+                  "name": "نورآباد",
+                  "villages": [
+                    { "id": "nurabad-markazi", "name": "نورآباد" },
+                    { "id": "sar-kesh", "name": "سرکش" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "kakavand",
+              "name": "کاکاوند",
+              "dehestans": [
+                {
+                  "id": "kakavand-sharqi",
+                  "name": "کاکاوند شرقی",
+                  "villages": [
+                    { "id": "hoseynabad-kakavand", "name": "حسین‌آباد کاکاوند" },
+                    { "id": "darreh-hoseyn", "name": "دره‌حسین" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "khaveh",
+              "name": "خاوه",
+              "dehestans": [
+                {
+                  "id": "khaveh-shomali",
+                  "name": "خاوه شمالی",
+                  "villages": [
+                    { "id": "khaveh", "name": "خاوه" },
+                    { "id": "chenar-pareh", "name": "چنارپره" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "aligudarz",
+          "name": "الیگودرز",
+          "bakhshs": [
+            {
+              "id": "markazi",
+              "name": "مرکزی",
+              "dehestans": [
+                {
+                  "id": "borborud-sharqi",
+                  "name": "بربرود شرقی",
+                  "villages": [
+                    { "id": "aligudarz", "name": "الیگودرز" },
+                    { "id": "shahrestan", "name": "شهرستان" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "zagheh",
+              "name": "زاغه",
+              "dehestans": [
+                {
+                  "id": "zagheh-aligudarz",
+                  "name": "زاغه",
+                  "villages": [
+                    { "id": "zagheh-aligudarz", "name": "زاغه" },
+                    { "id": "chaman-soltan", "name": "چمن‌سلطان" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "borujerd",
+          "name": "بروجرد",
+          "bakhshs": [
+            {
+              "id": "markazi",
+              "name": "مرکزی",
+              "dehestans": [
+                {
+                  "id": "hemmatabad",
+                  "name": "همت‌آباد",
+                  "villages": [
+                    { "id": "borujerd", "name": "بروجرد" },
+                    { "id": "hemmatabad", "name": "همت‌آباد" }
+                  ]
+                },
+                {
+                  "id": "shirvan",
+                  "name": "شیروان",
+                  "villages": [
+                    { "id": "shirvan", "name": "شیروان" },
+                    { "id": "vanai", "name": "ونایی" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "oshtorinan",
+              "name": "اشترینان",
+              "dehestans": [
+                {
+                  "id": "oshtorinan-markazi",
+                  "name": "اشترینان",
+                  "villages": [
+                    { "id": "oshtorinan", "name": "اشترینان" },
+                    { "id": "bardsir", "name": "بردسیر" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "dorud",
+          "name": "دورود",
+          "bakhshs": [
+            {
+              "id": "markazi",
+              "name": "مرکزی",
+              "dehestans": [
+                {
+                  "id": "dorud-markazi",
+                  "name": "دورود",
+                  "villages": [
+                    { "id": "dorud", "name": "دورود" },
+                    { "id": "chalanchulan", "name": "چالانچولان" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "kuhdasht",
+          "name": "کوهدشت",
+          "bakhshs": [
+            {
+              "id": "markazi",
+              "name": "مرکزی",
+              "dehestans": [
+                {
+                  "id": "kuhdasht-markazi",
+                  "name": "کوهدشت",
+                  "villages": [
+                    { "id": "kuhdasht", "name": "کوهدشت" },
+                    { "id": "gol-gol", "name": "گل‌گل" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "tarhan",
+              "name": "طرhan",
+              "dehestans": [
+                {
+                  "id": "tarhan-markazi",
+                  "name": "طرhan",
+                  "villages": [
+                    { "id": "tarhan", "name": "طرhan" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

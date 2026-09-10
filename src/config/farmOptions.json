@@ -1,0 +1,68 @@
+{
+  "landTypes": [
+    { "id": "keshavarzi", "name": "زراعی" },
+    { "id": "baghi", "name": "باغی" },
+    { "id": "marat", "name": "مرتع" },
+    { "id": "biyabani", "name": "بیابانی" },
+    { "id": "maskooni", "name": "مسکونی" },
+    { "id": "sanati", "name": "صنعتی" },
+    { "id": "kargahi", "name": "کارگاهی" },
+    { "id": "zamin-bayer", "name": "زمین بایر" }
+  ],
+  "crops": [
+    { "id": "gandom", "name": "گندم" },
+    { "id": "jo", "name": "جو" },
+    { "id": "zorat", "name": "ذرت" },
+    { "id": "piaz", "name": "پیاز" },
+    { "id": "adas", "name": "عدس" },
+    { "id": "choghandar-ghand", "name": "چغندرقند" },
+    { "id": "zorat-danei", "name": "ذرت دانه‌ای" },
+    { "id": "aftabgardan", "name": "آفتابگردان" },
+    { "id": "kolza", "name": "کلزا" },
+    { "id": "yonjeh", "name": "یونجه" },
+    { "id": "kamelina", "name": "کاملینا" },
+    { "id": "hendevaneh", "name": "هندوانه" },
+    { "id": "zorat-silui", "name": "ذرت سیلویی" },
+    { "id": "nokhod", "name": "نخود" },
+    { "id": "lubia", "name": "لوبیا" },
+    { "id": "sib-zamini", "name": "سیب‌زمینی" },
+    { "id": "gojeh-farangi", "name": "گوجه‌فرنگی" },
+    { "id": "kharbozeh", "name": "خربزه" },
+    { "id": "berenj", "name": "برنج" },
+    { "id": "sabzijat", "name": "سبزیجات" },
+    { "id": "pesteh", "name": "پسته" },
+    { "id": "zaferan", "name": "زعفران" },
+    { "id": "konjed", "name": "کنجد" },
+    { "id": "panbeh", "name": "پنبه" }
+  ],
+  "waterSources": [
+    { "id": "chah", "name": "چاه" },
+    { "id": "rudkhaneh", "name": "رودخانه" },
+    { "id": "ghanat", "name": "قنات" },
+    { "id": "tasfiyeh-fazelab", "name": "تصفیه فاضلاب" },
+    { "id": "cheshmeh", "name": "چشمه" },
+    { "id": "sad", "name": "سد" }
+  ],
+  "irrigationSystems": [
+    { "id": "ghatrei", "name": "قطره‌ای" },
+    { "id": "barani", "name": "بارانی" },
+    { "id": "sathi", "name": "سطحی" },
+    { "id": "navari", "name": "نواری" },
+    { "id": "taht-feshar", "name": "تحت فشار" }
+  ],
+  "irrigationTypes": [
+    { "id": "aabi", "name": "آبی" },
+    { "id": "dim", "name": "دیم" }
+  ],
+  "coverageStatuses": [
+    { "id": "taht-poshesh", "name": "تحت پوشش شبکه آب رسانی" },
+    { "id": "dar-hal-tose", "name": "در حال توسعه" },
+    { "id": "adam-poshesh", "name": "عدم پوشش شبکه" }
+  ],
+  "studyAreas": [
+    { "id": "mantiqeh-1", "name": "محدوده ۱" },
+    { "id": "mantiqeh-2", "name": "محدوده ۲" },
+    { "id": "mantiqeh-3", "name": "محدوده ۳" }
+  ],
+  "waterRequirementPerHa": 5000
+}
