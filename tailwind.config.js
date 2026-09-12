@@ -1,9 +1,10 @@
+// tailwind.config.js
+import forms from '@tailwindcss/forms';
+import typography from '@tailwindcss/typography';
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,jsx,ts,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
       fontFamily: {
@@ -24,17 +25,14 @@ export default {
         },
       },
       zIndex: {
-        'map': '400',
+        map: '400',
         'map-overlay': '500',
-        'dropdown': '1000',
+        dropdown: '1000',
         'modal-overlay': '9998',
-        'modal': '9999',
-        'toast': '10000',
+        modal: '9999',
+        toast: '10000',
       },
     },
   },
-  plugins: [
-    require('@tailwindcss/forms'),
-    require('@tailwindcss/typography'),
-  ],
-}
+  plugins: [forms, typography],
+};
