@@ -51,7 +51,7 @@ export const useChangePasswordMutation = () => {
 };
 
 // ============================================
-// Hook ترکیبی
+// ✅ Hook ترکیبی — این export است که SettingsPage.jsx می‌خواهد
 // ============================================
 export const useProfileSettings = () => {
   const profileQuery = useProfileQuery();
@@ -96,3 +96,5 @@ export const useProfileSettings = () => {
     isChangingPassword: passwordMutation.isPending,
   };
 };
+
+export default useProfileSettings;

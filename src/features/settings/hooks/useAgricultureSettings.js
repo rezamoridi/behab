@@ -140,7 +140,7 @@ export const useDeleteCropWaterRateMutation = () => {
 };
 
 // ============================================
-// Hook ترکیبی
+// ✅ Hook ترکیبی — این export است که SettingsPage.jsx می‌خواهد
 // ============================================
 export const useAgricultureSettings = () => {
   const settingsQuery = useAgricultureSettingsQuery();
@@ -156,18 +156,15 @@ export const useAgricultureSettings = () => {
   const deleteCropRateMutation = useDeleteCropWaterRateMutation();
 
   return {
-    // Data
     settings: settingsQuery.data,
     waterRates: waterRatesQuery.data || [],
     cropWaterRates: cropRatesQuery.data || [],
 
-    // Loading
     isLoading:
       settingsQuery.isLoading ||
       waterRatesQuery.isLoading ||
       cropRatesQuery.isLoading,
 
-    // Actions
     updateSettings: async (data) => {
       try {
         await updateSettingsMutation.mutateAsync(data);
@@ -243,3 +240,5 @@ export const useAgricultureSettings = () => {
     },
   };
 };
+
+export default useAgricultureSettings;
