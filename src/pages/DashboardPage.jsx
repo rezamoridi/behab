@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -8,10 +8,10 @@ import {
   Map as MapIcon,
   Plus,
   Wheat,
-  Loader2,
   AlertCircle,
 } from 'lucide-react';
 import { fetchFarms } from '../services/api/farmApi';
+import { farmKeys } from '../features/farm-registration/hooks/useFarmsQuery';
 
 // ============================================
 // Farm Card
@@ -20,6 +20,8 @@ const FarmCard = ({ farm }) => {
   if (!farm) return null;
 
   const area = Number(farm.area_ha) || 0;
+  // ✅ پشتیبانی از farm_id و id
+  const farmId = farm.farm_id || farm.id || '---';
 
   return (
     <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
@@ -32,7 +34,7 @@ const FarmCard = ({ farm }) => {
           {farm.farmer_name || 'بدون نام'}
         </div>
         <div className="text-xs text-gray-500 mt-0.5">
-          شناسه: {farm.farm_id || '---'}
+          شناسه: {farmId}
         </div>
         <div className="text-xs text-primary-700 mt-0.5">
           📐 {area.toFixed(2)} هکتار
@@ -78,14 +80,17 @@ const DashboardPage = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Debounce search
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
     }, 400);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Fetch farms with TanStack Query
+  // ============================================
+  // ✅ Fetch farms with TanStack Query
+  // از farmKeys استفاده می‌کنیم تا با Mutation ها همگام باشد
+  // ============================================
   const {
     data,
     isLoading,
@@ -94,7 +99,11 @@ const DashboardPage = () => {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ['farms', { page: 1, pageSize: 20, search: debouncedSearch }],
+    queryKey: farmKeys.list({
+      page: 1,
+      pageSize: 20,
+      search: debouncedSearch || null,
+    }),
     queryFn: () =>
       fetchFarms({
         page: 1,
@@ -104,18 +113,15 @@ const DashboardPage = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const farms = useMemo(() => {
-    if (!data) return [];
-    return data.data || data.items || data.farms || [];
-  }, [data]);
-
-  const totalFarms = useMemo(() => {
-    if (!data) return 0;
-    return data.total || data.total_count || farms.length;
-  }, [data, farms]);
+  // ✅ ساختار نرمال‌شده: { farms, total, totalPages, page, pageSize, raw }
+  const farms = useMemo(() => data?.farms || [], [data]);
+  const totalFarms = useMemo(() => data?.total || 0, [data]);
 
   return (
-    <div className="h-full overflow-auto bg-gray-50 p-6 font-vazir" dir="rtl">
+    <div
+      className="h-full overflow-auto bg-gray-50 p-6 font-vazir"
+      dir="rtl"
+    >
       {/* Header */}
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -202,7 +208,9 @@ const DashboardPage = () => {
               className="mx-auto text-red-600 mb-2"
             />
             <div className="text-red-700 font-medium mb-3">
-              {error?.message || 'خطا در دریافت لیست مزارع'}
+              {error?.response?.data?.detail ||
+                error?.message ||
+                'خطا در دریافت لیست مزارع'}
             </div>
             <button
               onClick={() => refetch()}
@@ -227,7 +235,10 @@ const DashboardPage = () => {
         {!isLoading &&
           !isError &&
           farms.map((farm) => (
-            <FarmCard key={farm.farm_id || farm.id} farm={farm} />
+            <FarmCard
+              key={farm.farm_id || farm.id || Math.random()}
+              farm={farm}
+            />
           ))}
       </div>
 

@@ -27,12 +27,43 @@ import {
 import { calculateAreaInHectares } from '../features/map/utils/areaCalculations';
 
 // ============================================
-// ثابت‌های مشترک — باید با useFarmMutation یکسان باشد
+// ثابت‌های مشترک
 // ============================================
 const FARM_LIST_QUERY_PARAMS = {
   page: 1,
   pageSize: 50,
   search: null,
+};
+
+// ============================================================
+// ✅ نرمال‌سازی geojson به آرایه‌ای از features
+//
+// پشتیبانی از همه‌ی ساختارهای ممکن:
+// - FeatureCollection → features
+// - Array → خودش
+// - Feature → [feature]
+// - Geometry خام (Polygon/MultiPolygon) → [Feature wrapped]
+// ============================================================
+const normalizeGeojsonToFeatures = (geojson) => {
+  if (!geojson) return [];
+
+  if (geojson.type === 'FeatureCollection') {
+    return geojson.features || [];
+  }
+
+  if (Array.isArray(geojson)) {
+    return geojson;
+  }
+
+  if (geojson.type === 'Feature') {
+    return [geojson];
+  }
+
+  if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
+    return [{ type: 'Feature', properties: {}, geometry: geojson }];
+  }
+
+  return [];
 };
 
 const MapViewPage = () => {
@@ -74,7 +105,10 @@ const MapViewPage = () => {
   const queryClient = useQueryClient();
 
   // ============================================
-  // Fetch Farms
+  // ✅ Fetch Farms
+  //
+  // useFarmsQuery خودش نرمال‌سازی می‌کند و
+  // { farms, total, totalPages, page, pageSize, raw } برمی‌گرداند.
   // ============================================
   const { data, isLoading } = useFarmsQuery(FARM_LIST_QUERY_PARAMS);
 
@@ -130,12 +164,9 @@ const MapViewPage = () => {
     [selectedFarmId, isGeometryEditMode]
   );
 
-  // ============================================
+  // ============================================================
   // ✅ شروع ویرایش لایه از روی پاپ‌آپ
-  //
-  // نکته‌ی مهم: geojson ممکن است در cache detail نباشد، پس
-  // از fetchFarmById برای داده کامل استفاده می‌کنیم.
-  // ============================================
+  // ============================================================
   const handleFarmEditGeometry = useCallback(
     async (farm) => {
       if (!farm || !farm.farm_id) {
@@ -147,7 +178,7 @@ const MapViewPage = () => {
       isEditTriggeredRef.current = true;
 
       try {
-        // 1. گرفتن داده کامل مزرعه (اول cache، بعد سرور)
+        // 1. خواندن داده کامل مزرعه
         const cached = queryClient.getQueryData(
           farmKeys.detail(farm.farm_id)
         );
@@ -160,20 +191,8 @@ const MapViewPage = () => {
           throw new Error('اطلاعات مزرعه یافت نشد');
         }
 
-        // 2. نرمال‌سازی geojson به آرایه‌ای از features
-        let geojsons = [];
-        if (farmData.geojson) {
-          if (farmData.geojson.type === 'FeatureCollection') {
-            geojsons = farmData.geojson.features || [];
-          } else if (Array.isArray(farmData.geojson)) {
-            geojsons = farmData.geojson;
-          } else if (farmData.geojson.type === 'Feature') {
-            geojsons = [farmData.geojson];
-          } else {
-            // Geometry خام (Polygon/MultiPolygon)
-            geojsons = [farmData.geojson];
-          }
-        }
+        // 2. نرمال‌سازی geojson به آرایه‌ی features
+        const geojsons = normalizeGeojsonToFeatures(farmData.geojson);
 
         if (geojsons.length === 0) {
           alert('این مزرعه هندسه‌ای برای ویرایش ندارد.');
@@ -214,13 +233,12 @@ const MapViewPage = () => {
     [queryClient]
   );
 
-  // ============================================
+  // ============================================================
   // ✅ ذخیره تغییرات لایه
   //
-  // این تابع عمداً cache را دستکاری نمی‌کند — mutation
-  // خودش داده canonical را از سرور می‌خواند و cache را
-  // به‌روز می‌کند.
-  // ============================================
+  // cache را مستقیماً دستکاری نمی‌کنیم — مسئولیت با mutation
+  // است که داده canonical را از سرور می‌خواند.
+  // ============================================================
   const handleSaveGeometry = useCallback(async () => {
     if (!editingGeometryFarm || !editingGeometryFarm.farm_id) {
       alert('اطلاعات مزرعه موجود نیست.');
@@ -245,7 +263,6 @@ const MapViewPage = () => {
       const totalArea = calculateTotalArea(polygonGeojsons) || areaHa;
       const finalAreaHa = Number(totalArea.toFixed(4));
 
-      // ✅ فقط به mutation می‌سپاریم — خودش cache را از سرور پر می‌کند
       await updateFarmGeometry({
         farmId: editingGeometryFarm.farm_id,
         payload: {
@@ -303,9 +320,9 @@ const MapViewPage = () => {
     setClearDrawTrigger((prev) => prev + 1);
   }, [isSavingGeometry]);
 
-  // ============================================
+  // ============================================================
   // ویرایش فرم (از پاپ‌آپ)
-  // ============================================
+  // ============================================================
   const handleFarmEdit = useCallback(
     async (farm) => {
       if (!farm || !farm.farm_id) return;
@@ -339,20 +356,10 @@ const MapViewPage = () => {
           setAreaHa(area);
         }
 
-        let geojsons = [];
-        if (farmData.geojson) {
-          if (farmData.geojson.type === 'FeatureCollection') {
-            geojsons = farmData.geojson.features || [];
-          } else if (Array.isArray(farmData.geojson)) {
-            geojsons = farmData.geojson;
-          } else if (farmData.geojson.type === 'Feature') {
-            geojsons = [farmData.geojson];
-          } else {
-            geojsons = [farmData.geojson];
-          }
-          setPolygonGeojsons(geojsons);
-          setPolygonCount(geojsons.length);
-        }
+        // نرمال‌سازی geojson
+        const geojsons = normalizeGeojsonToFeatures(farmData.geojson);
+        setPolygonGeojsons(geojsons);
+        setPolygonCount(geojsons.length);
 
         if (geojsons.length > 0 && area === 0) {
           let totalArea = 0;
@@ -388,13 +395,12 @@ const MapViewPage = () => {
     [queryClient]
   );
 
-  // ============================================
+  // ============================================================
   // ✅ ذخیره فرم (Create/Edit) — بدون دستکاری مستقیم cache
   //
-  // این تابع عمداً setQueryData نمی‌زند. مسئولیت cache با mutation
-  // است (useCreateFarmMutation / useUpdateFarmMutation).
-  // فقط modal را می‌بندد و trigger پاک‌سازی لایه‌های رسم را می‌دهد.
-  // ============================================
+  // cache توسط mutation ها بروز می‌شود. اینجا فقط modal را
+  // می‌بندیم و trigger پاک‌سازی لایه‌های رسم را می‌دهیم.
+  // ============================================================
   const handleSaveFarm = useCallback(
     (savedFarm) => {
       if (isSavingRef.current) return;
@@ -417,8 +423,7 @@ const MapViewPage = () => {
         setSelectedFarmId(null);
         isEditTriggeredRef.current = false;
 
-        // invalidate لیست (mutation هم invalidate کرده، این یک لایه‌ی
-        // اطمینان است)
+        // invalidate لیست — همه‌ی کلیدهای زیر ['farms', 'list'] بروز می‌شوند
         queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
 
         // اگر savedFarm شناسه دارد، detail را هم invalidate کن
