@@ -1,15 +1,11 @@
 // src/features/map/hooks/useMapDrawing.js
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import L from 'leaflet';
 import { calculateAreaInHectares } from '../utils/areaCalculations';
+import { snapLatLngArray } from '../utils/snapUtils';
 
 // ============================================================
-// ✅ تابع کمکی مشترک: تبدیل GeoJSON geometry به آرایه‌ای از L.Polygon
-//
-// - Polygon → یک L.Polygon با حلقه‌ی بیرونی + حفره‌ها
-// - MultiPolygon → یک L.Polygon برای هر جزء (با حفظ حفره‌های هر جزء)
-//
-// خروجی: آرایه‌ای از L.Polygon (ممکن است خالی باشد اگر هندسه نامعتبر باشد)
+// ✅ تبدیل GeoJSON geometry به آرایه‌ای از L.Polygon
 // ============================================================
 export const geometryToLeafletPolygons = (geometry, styleOptions = {}) => {
   if (!geometry) return [];
@@ -25,9 +21,6 @@ export const geometryToLeafletPolygons = (geometry, styleOptions = {}) => {
     ...styleOptions,
   };
 
-  // ساخت یک L.Polygon از rings: rings[0] حلقه‌ی بیرونی، rings[1..] حفره‌ها
-  // ورودی مختصات GeoJSON: [lng, lat]
-  // خروجی Leaflet: [[lat, lng], ...]
   const buildPolygon = (rings) => {
     if (!rings || rings.length === 0) return null;
 
@@ -63,8 +56,7 @@ export const geometryToLeafletPolygons = (geometry, styleOptions = {}) => {
 };
 
 // ============================================================
-// ✅ تابع کمکی: تبدیل لیستی از Feature/Geometry به FeatureCollection
-// برای ذخیره در payload. حفره‌ها حفظ می‌شوند.
+// ✅ تبدیل لیستی از Feature/Geometry به FeatureCollection
 // ============================================================
 export const geojsonsToFeatureCollection = (geojsons) => {
   const features = (geojsons || [])
@@ -82,12 +74,58 @@ export const geojsonsToFeatureCollection = (geojsons) => {
 };
 
 // ============================================================
+// ✅ استخراج رئوس از یک L.Polygon
+// خروجی: آرایه‌ای از [lng, lat]
+// ============================================================
+const extractPolygonVertices = (polygonLayer) => {
+  const vertices = [];
+  if (!polygonLayer) return vertices;
+
+  try {
+    const latlngs = polygonLayer.getLatLngs();
+    const processRing = (ring) => {
+      if (!Array.isArray(ring)) return;
+      for (const ll of ring) {
+        if (!ll) continue;
+        if (typeof ll.lat === 'number' && typeof ll.lng === 'number') {
+          vertices.push([ll.lng, ll.lat]);
+        } else {
+          processRing(ll);
+        }
+      }
+    };
+    processRing(latlngs);
+  } catch (err) {
+    console.warn('extractPolygonVertices failed:', err);
+  }
+
+  return vertices;
+};
+
+// ============================================================
 // useMapDrawing
 // ============================================================
-export const useMapDrawing = (onPolygonsUpdate) => {
+export const useMapDrawing = (
+  onPolygonsUpdate,
+  snapEnabled = false,
+  snapVertices = [],
+  snapPolygons = []
+) => {
   const [polygons, setPolygons] = useState([]);
+  const [drawnVertices, setDrawnVertices] = useState([]);
   const drawnItems = useRef(new L.FeatureGroup());
   const isProcessingRef = useRef(false);
+
+  // ✅ refs برای جلوگیری از stale closure
+  const snapEnabledRef = useRef(snapEnabled);
+  const snapVerticesRef = useRef(snapVertices);
+  const snapPolygonsRef = useRef(snapPolygons);
+
+  useEffect(() => {
+    snapEnabledRef.current = snapEnabled;
+    snapVerticesRef.current = snapVertices;
+    snapPolygonsRef.current = snapPolygons;
+  }, [snapEnabled, snapVertices, snapPolygons]);
 
   // ============================================
   // Tooltip مساحت
@@ -113,10 +151,7 @@ export const useMapDrawing = (onPolygonsUpdate) => {
 
   // ============================================================
   // ✅ updatePolygons — همیشه از همه‌ی polygonهای drawnItems می‌سازد
-  //
-  // این تابع دیگر به e.layers وابسته نیست. برای هر یک از رویدادهای
-  // CREATED/EDITED/DELETED صدا زده می‌شود و کل drawnItems را
-  // می‌خواند. این تضمین می‌کند که قطعات دست‌نخورده هم حفظ شوند.
+  //    و رئوس لایه‌های در حال رسم رو هم استخراج می‌کند.
   // ============================================================
   const updatePolygons = useCallback(() => {
     if (isProcessingRef.current) return;
@@ -128,6 +163,14 @@ export const useMapDrawing = (onPolygonsUpdate) => {
         (layer) => layer instanceof L.Polygon
       );
 
+      // ✅ استخراج رئوس لایه‌های در حال رسم
+      const allDrawnVertices = [];
+      for (const layer of polygonLayers) {
+        const verts = extractPolygonVertices(layer);
+        for (const v of verts) allDrawnVertices.push(v);
+      }
+      setDrawnVertices(allDrawnVertices);
+
       if (polygonLayers.length === 0) {
         setPolygons([]);
         onPolygonsUpdate?.({ totalArea: 0, geojsons: [], count: 0 });
@@ -138,7 +181,7 @@ export const useMapDrawing = (onPolygonsUpdate) => {
       const geojsons = [];
 
       for (const layer of polygonLayers) {
-        const geojson = layer.toGeoJSON(); // Feature با Polygon/MultiPolygon
+        const geojson = layer.toGeoJSON();
         const area = calculateAreaInHectares(geojson);
         totalArea += area;
 
@@ -176,43 +219,79 @@ export const useMapDrawing = (onPolygonsUpdate) => {
   }, [onPolygonsUpdate, createAreaTooltip]);
 
   // ============================================
-  // Handlers
-  // ============================================
+  // handleCreated
+  // ============================================================
   const handleCreated = useCallback(
     (event) => {
       const layer = event.layer;
 
       if (layer instanceof L.Polygon) {
+        if (snapEnabledRef.current) {
+          try {
+            // ✅ رئوس لایه‌های موجود در drawnItems
+            const existingVertices = [];
+            const existingLayers = drawnItems.current.getLayers();
+            for (const existingLayer of existingLayers) {
+              if (existingLayer instanceof L.Polygon) {
+                const verts = extractPolygonVertices(existingLayer);
+                for (const v of verts) existingVertices.push(v);
+              }
+            }
+
+            // ✅ ترکیب رئوس مزارع ذخیره‌شده + رئوس لایه‌های در حال رسم
+            const combinedVertices = [
+              ...snapVerticesRef.current,
+              ...existingVertices,
+            ];
+
+            if (combinedVertices.length > 0) {
+              const latlngs = layer.getLatLngs();
+              const isNested = Array.isArray(latlngs[0]);
+              const rings = isNested ? latlngs : [latlngs];
+
+              const snappedRings = rings.map((ring) =>
+                snapLatLngArray(
+                  ring,
+                  combinedVertices,
+                  snapPolygonsRef.current
+                )
+              );
+
+              layer.setLatLngs(snappedRings);
+            }
+          } catch (err) {
+            console.warn('Snap on created failed:', err);
+          }
+        }
+
         drawnItems.current.addLayer(layer);
 
         const geojson = layer.toGeoJSON();
         const area = calculateAreaInHectares(geojson);
         createAreaTooltip(layer, area);
 
-        // بدون setTimeout — مستقیم update کن
         updatePolygons();
       }
     },
     [updatePolygons, createAreaTooltip]
   );
 
+  // ============================================
+  // handleDeleted
+  // ============================================
   const handleDeleted = useCallback(() => {
-    // بعد از حذف، از همه‌ی polygonهای باقی‌مانده geojson بساز
     updatePolygons();
   }, [updatePolygons]);
 
+  // ============================================
+  // handleEdited
+  // ============================================
   const handleEdited = useCallback(() => {
-    // بعد از ویرایش، از همه‌ی polygonهای drawnItems (نه فقط edited)
     updatePolygons();
   }, [updatePolygons]);
 
   // ============================================================
-  // ✅ loadGeometriesForEdit — MultiPolygon → چند polygon مستقل
-  //
-  // این تابع برای ویرایش با leaflet-draw طراحی شده:
-  // - هر Polygon در geojson ورودی → یک L.Polygon
-  // - هر MultiPolygon → چند L.Polygon (یکی برای هر جزء)
-  // - حفره‌های هر Polygon حفظ می‌شوند
+  // ✅ loadGeometriesForEdit
   // ============================================================
   const loadGeometriesForEdit = useCallback(
     (geojsons) => {
@@ -222,6 +301,7 @@ export const useMapDrawing = (onPolygonsUpdate) => {
 
         if (!geojsons || geojsons.length === 0) {
           setPolygons([]);
+          setDrawnVertices([]);
           onPolygonsUpdate?.({ totalArea: 0, geojsons: [], count: 0 });
           return;
         }
@@ -263,6 +343,7 @@ export const useMapDrawing = (onPolygonsUpdate) => {
     try {
       drawnItems.current.clearLayers();
       setPolygons([]);
+      setDrawnVertices([]);
       onPolygonsUpdate?.({ totalArea: 0, geojsons: [], count: 0 });
       isProcessingRef.current = false;
     } catch (error) {
@@ -270,6 +351,9 @@ export const useMapDrawing = (onPolygonsUpdate) => {
     }
   }, [onPolygonsUpdate]);
 
+  // ============================================
+  // Helpers
+  // ============================================
   const hasPolygons = useCallback(() => {
     return drawnItems.current
       .getLayers()
@@ -285,6 +369,7 @@ export const useMapDrawing = (onPolygonsUpdate) => {
   return {
     drawnItems,
     polygons,
+    drawnVertices,
     handleCreated,
     handleDeleted,
     handleEdited,
@@ -293,5 +378,10 @@ export const useMapDrawing = (onPolygonsUpdate) => {
     hasPolygons,
     getPolygonCount,
     loadGeometriesForEdit,
+    _snapRefs: {
+      snapEnabledRef,
+      snapVerticesRef,
+      snapPolygonsRef,
+    },
   };
 };

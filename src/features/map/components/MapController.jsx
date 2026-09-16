@@ -1,8 +1,49 @@
 // src/features/map/components/MapController.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useMapDrawing } from '../hooks/useMapDrawing';
+import {
+  extractVertices,
+  extractPolygons,
+  findSnapVertex,
+} from '../utils/snapUtils';
+
+// ============================================================
+// ✅ استخراج زنده‌ی رئوس از drawnItems
+//
+// این تابع در mousemove صدا زده میشه و همیشه آخرین وضعیت
+// لایه‌های در حال رسم رو برمی‌گردونه.
+// ============================================================
+const getLiveDrawnVertices = (drawnItems) => {
+  const vertices = [];
+  if (!drawnItems?.current) return vertices;
+
+  try {
+    const layers = drawnItems.current.getLayers();
+    for (const layer of layers) {
+      if (!(layer instanceof L.Polygon)) continue;
+
+      const latlngs = layer.getLatLngs();
+      const processRing = (ring) => {
+        if (!Array.isArray(ring)) return;
+        for (const ll of ring) {
+          if (!ll) continue;
+          if (typeof ll.lat === 'number' && typeof ll.lng === 'number') {
+            vertices.push([ll.lng, ll.lat]);
+          } else {
+            processRing(ll);
+          }
+        }
+      };
+      processRing(latlngs);
+    }
+  } catch (err) {
+    console.warn('getLiveDrawnVertices failed:', err);
+  }
+
+  return vertices;
+};
 
 const MapController = ({
   onPolygonsUpdate,
@@ -10,8 +51,21 @@ const MapController = ({
   clearTrigger = null,
   editGeometryTrigger = null,
   geometriesToEdit = null,
+  snapEnabled = false,
 }) => {
   const map = useMap();
+
+  // ✅ رئوس و polygonهای مزارع ذخیره‌شده
+  const snapVertices = useMemo(() => {
+    if (!snapEnabled) return [];
+    return extractVertices(savedFarms);
+  }, [savedFarms, snapEnabled]);
+
+  const snapPolygons = useMemo(() => {
+    if (!snapEnabled) return [];
+    return extractPolygons(savedFarms);
+  }, [savedFarms, snapEnabled]);
+
   const {
     drawnItems,
     handleCreated,
@@ -19,9 +73,19 @@ const MapController = ({
     handleEdited,
     clearPolygons,
     loadGeometriesForEdit,
-  } = useMapDrawing(onPolygonsUpdate);
+  } = useMapDrawing(onPolygonsUpdate, snapEnabled, snapVertices, snapPolygons);
 
-  // Setup Draw controls
+  const snapEnabledRef = useRef(snapEnabled);
+  const snapVerticesRef = useRef(snapVertices);
+  const snapPolygonsRef = useRef(snapPolygons);
+
+  useEffect(() => {
+    snapEnabledRef.current = snapEnabled;
+    snapVerticesRef.current = snapVertices;
+    snapPolygonsRef.current = snapPolygons;
+  }, [snapEnabled, snapVertices, snapPolygons]);
+
+  // ✅ Setup Draw controls + snap mousemove
   useEffect(() => {
     map.addLayer(drawnItems.current);
 
@@ -60,13 +124,73 @@ const MapController = ({
 
     map.addControl(drawControl);
 
-    map.on(L.Draw.Event.DRAWSTART, () => {
-      map.getContainer().style.cursor = 'crosshair';
-    });
+    let snapIndicator = null;
 
-    map.on(L.Draw.Event.DRAWSTOP, () => {
+    const clearSnapIndicator = () => {
+      if (snapIndicator) {
+        try {
+          snapIndicator.remove();
+        } catch {
+          /* ignore */
+        }
+        snapIndicator = null;
+      }
+    };
+
+    const handleSnapMouseMove = (e) => {
+      if (!snapEnabledRef.current) {
+        clearSnapIndicator();
+        return;
+      }
+
+      // ✅ ترکیب رئوس مزارع ذخیره‌شده + رئوس لایه‌های در حال رسم
+      const savedVerts = snapVerticesRef.current || [];
+      const drawnVerts = getLiveDrawnVertices(drawnItems);
+      const combinedVertices = [...savedVerts, ...drawnVerts];
+
+      if (combinedVertices.length === 0) {
+        clearSnapIndicator();
+        return;
+      }
+
+      const snapped = findSnapVertex(
+        e.latlng,
+        combinedVertices,
+        snapPolygonsRef.current
+      );
+
+      if (snapped) {
+        if (!snapIndicator) {
+          snapIndicator = L.circleMarker(snapped, {
+            radius: 6,
+            color: '#FF6B35',
+            fillColor: '#FF6B35',
+            fillOpacity: 0.85,
+            weight: 2,
+            interactive: false,
+            pane: 'markerPane',
+          }).addTo(map);
+        } else {
+          snapIndicator.setLatLng(snapped);
+        }
+      } else {
+        clearSnapIndicator();
+      }
+    };
+
+    const handleDrawStart = () => {
+      map.getContainer().style.cursor = 'crosshair';
+      map.on('mousemove', handleSnapMouseMove);
+    };
+
+    const handleDrawStop = () => {
       map.getContainer().style.cursor = '';
-    });
+      map.off('mousemove', handleSnapMouseMove);
+      clearSnapIndicator();
+    };
+
+    map.on(L.Draw.Event.DRAWSTART, handleDrawStart);
+    map.on(L.Draw.Event.DRAWSTOP, handleDrawStop);
 
     map.on(L.Draw.Event.CREATED, handleCreated);
     map.on(L.Draw.Event.DELETED, handleDeleted);
@@ -76,8 +200,10 @@ const MapController = ({
       map.off(L.Draw.Event.CREATED, handleCreated);
       map.off(L.Draw.Event.DELETED, handleDeleted);
       map.off(L.Draw.Event.EDITED, handleEdited);
-      map.off(L.Draw.Event.DRAWSTART);
-      map.off(L.Draw.Event.DRAWSTOP);
+      map.off(L.Draw.Event.DRAWSTART, handleDrawStart);
+      map.off(L.Draw.Event.DRAWSTOP, handleDrawStop);
+      map.off('mousemove', handleSnapMouseMove);
+      clearSnapIndicator();
       map.removeControl(drawControl);
       map.removeLayer(drawnItems.current);
       map.getContainer().style.cursor = '';
@@ -94,7 +220,7 @@ const MapController = ({
     }
   }, [clearTrigger, clearPolygons]);
 
-  // ✅ Edit geometry trigger
+  // Edit geometry trigger
   useEffect(() => {
     if (
       editGeometryTrigger !== null &&

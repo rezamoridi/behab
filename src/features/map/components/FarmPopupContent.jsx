@@ -83,12 +83,6 @@ const FarmPopupContent = ({
 
       {/* Details */}
       <div className="flex flex-col gap-1.5">
-        <InfoRow
-          icon={MapPin}
-          label="شناسه"
-          value={farmId}
-          valueClass="text-gray-900"
-        />
 
         <InfoRow
           icon={MapPin}

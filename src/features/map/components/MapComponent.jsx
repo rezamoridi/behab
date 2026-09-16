@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, ScaleControl } from 'react-leaflet';
 import SearchLocationController from './SearchLocationController';
 import MapController from './MapController';
 import SavedFarmsLayer from './SavedFarmsLayer';
+import SnapToggleControl from './SnapToggleControl';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
@@ -19,6 +20,9 @@ const MapComponent = ({
   selectedFarmId = null,
   editGeometryTrigger = null,
   geometriesToEdit = null,
+  snapEnabled = false,
+  onToggleSnap,
+  snapToggleHidden = false,
 }) => {
   const mapCenter = useMemo(() => [35.6892, 51.389], []);
   const mapStyle = useMemo(() => ({ height: '100%', width: '100%' }), []);
@@ -48,6 +52,13 @@ const MapComponent = ({
 
       <ScaleControl position="bottomleft" imperial={false} metric={true} />
 
+      {/* ✅ دکمه اسنپ به صورت کنترل Leaflet در گوشه بالا-چپ */}
+      <SnapToggleControl
+        enabled={snapEnabled}
+        onToggle={onToggleSnap}
+        hidden={snapToggleHidden}
+      />
+
       <SearchLocationController selectedLocation={selectedLocation} />
       <MapController
         onPolygonsUpdate={handlePolygonsUpdate}
@@ -55,6 +66,7 @@ const MapComponent = ({
         clearTrigger={clearTrigger}
         editGeometryTrigger={editGeometryTrigger}
         geometriesToEdit={geometriesToEdit}
+        snapEnabled={snapEnabled}
       />
       <SavedFarmsLayer
         farms={savedFarms}

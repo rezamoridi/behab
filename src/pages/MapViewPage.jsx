@@ -37,12 +37,6 @@ const FARM_LIST_QUERY_PARAMS = {
 
 // ============================================================
 // ✅ نرمال‌سازی geojson به آرایه‌ای از features
-//
-// پشتیبانی از همه‌ی ساختارهای ممکن:
-// - FeatureCollection → features
-// - Array → خودش
-// - Feature → [feature]
-// - Geometry خام (Polygon/MultiPolygon) → [Feature wrapped]
 // ============================================================
 const normalizeGeojsonToFeatures = (geojson) => {
   if (!geojson) return [];
@@ -85,6 +79,11 @@ const MapViewPage = () => {
   const [selectedFarmId, setSelectedFarmId] = useState(null);
 
   // ============================================
+  // State - Snap to Vertex
+  // ============================================
+  const [snapEnabled, setSnapEnabled] = useState(false);
+
+  // ============================================
   // State - Geometry Edit Mode
   // ============================================
   const [isGeometryEditMode, setIsGeometryEditMode] = useState(false);
@@ -106,9 +105,6 @@ const MapViewPage = () => {
 
   // ============================================
   // ✅ Fetch Farms
-  //
-  // useFarmsQuery خودش نرمال‌سازی می‌کند و
-  // { farms, total, totalPages, page, pageSize, raw } برمی‌گرداند.
   // ============================================
   const { data, isLoading } = useFarmsQuery(FARM_LIST_QUERY_PARAMS);
 
@@ -147,7 +143,6 @@ const MapViewPage = () => {
   // ============================================
   const handleFarmClick = useCallback(
     (farm) => {
-      // در حالت ویرایش لایه، کلیک روی مزرعه را نادیده بگیر
       if (isGeometryEditMode) return;
 
       if (!farm) {
@@ -178,7 +173,6 @@ const MapViewPage = () => {
       isEditTriggeredRef.current = true;
 
       try {
-        // 1. خواندن داده کامل مزرعه
         const cached = queryClient.getQueryData(
           farmKeys.detail(farm.farm_id)
         );
@@ -191,7 +185,6 @@ const MapViewPage = () => {
           throw new Error('اطلاعات مزرعه یافت نشد');
         }
 
-        // 2. نرمال‌سازی geojson به آرایه‌ی features
         const geojsons = normalizeGeojsonToFeatures(farmData.geojson);
 
         if (geojsons.length === 0) {
@@ -200,19 +193,16 @@ const MapViewPage = () => {
           return;
         }
 
-        // 3. بستن سایر مود‌ها
         setIsFormOpen(false);
         setIsEditMode(false);
         setEditingFarmId(null);
         setEditingFarmData(null);
 
-        // 4. فعال‌کردن مود ویرایش لایه
         setEditingGeometryFarm(farmData);
         setGeometriesToEdit(geojsons);
         setIsGeometryEditMode(true);
         setSelectedFarmId(farm.farm_id);
 
-        // 5. ابتدا لایه‌های موقت قبلی را پاک کن، بعد لایه‌های ویرایش را بارگذاری کن
         setClearDrawTrigger((prev) => prev + 1);
         setEditGeometryTrigger((prev) => prev + 1);
       } catch (error) {
@@ -235,9 +225,6 @@ const MapViewPage = () => {
 
   // ============================================================
   // ✅ ذخیره تغییرات لایه
-  //
-  // cache را مستقیماً دستکاری نمی‌کنیم — مسئولیت با mutation
-  // است که داده canonical را از سرور می‌خواند.
   // ============================================================
   const handleSaveGeometry = useCallback(async () => {
     if (!editingGeometryFarm || !editingGeometryFarm.farm_id) {
@@ -274,7 +261,6 @@ const MapViewPage = () => {
 
       alert('لایه با موفقیت ذخیره شد.');
 
-      // پاک‌سازی state ویرایش لایه
       setAreaHa(0);
       setPolygonGeojsons([]);
       setPolygonCount(0);
@@ -283,7 +269,6 @@ const MapViewPage = () => {
       setGeometriesToEdit(null);
       setSelectedFarmId(null);
 
-      // پاک کردن لایه‌های موقت drawnItems
       setClearDrawTrigger((prev) => prev + 1);
     } catch (error) {
       console.error('Error saving geometry:', error);
@@ -356,7 +341,6 @@ const MapViewPage = () => {
           setAreaHa(area);
         }
 
-        // نرمال‌سازی geojson
         const geojsons = normalizeGeojsonToFeatures(farmData.geojson);
         setPolygonGeojsons(geojsons);
         setPolygonCount(geojsons.length);
@@ -396,10 +380,7 @@ const MapViewPage = () => {
   );
 
   // ============================================================
-  // ✅ ذخیره فرم (Create/Edit) — بدون دستکاری مستقیم cache
-  //
-  // cache توسط mutation ها بروز می‌شود. اینجا فقط modal را
-  // می‌بندیم و trigger پاک‌سازی لایه‌های رسم را می‌دهیم.
+  // ✅ ذخیره فرم (Create/Edit)
   // ============================================================
   const handleSaveFarm = useCallback(
     (savedFarm) => {
@@ -407,7 +388,6 @@ const MapViewPage = () => {
       isSavingRef.current = true;
 
       try {
-        // در حالت Create، لایه‌های رسم را پاک کن
         if (!isEditMode) {
           setClearDrawTrigger((prev) => prev + 1);
           setAreaHa(0);
@@ -415,7 +395,6 @@ const MapViewPage = () => {
           setPolygonCount(0);
         }
 
-        // بستن modal
         setIsFormOpen(false);
         setIsEditMode(false);
         setEditingFarmId(null);
@@ -423,10 +402,8 @@ const MapViewPage = () => {
         setSelectedFarmId(null);
         isEditTriggeredRef.current = false;
 
-        // invalidate لیست — همه‌ی کلیدهای زیر ['farms', 'list'] بروز می‌شوند
         queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
 
-        // اگر savedFarm شناسه دارد، detail را هم invalidate کن
         if (savedFarm?.farm_id) {
           queryClient.invalidateQueries({
             queryKey: farmKeys.detail(savedFarm.farm_id),
@@ -485,6 +462,13 @@ const MapViewPage = () => {
   }, []);
 
   // ============================================
+  // Toggle Snap
+  // ============================================
+  const handleToggleSnap = useCallback(() => {
+    setSnapEnabled((prev) => !prev);
+  }, []);
+
+  // ============================================
   // Water Volume
   // ============================================
   const waterVolume = useMemo(() => {
@@ -510,6 +494,9 @@ const MapViewPage = () => {
           selectedFarmId={selectedFarmId}
           editGeometryTrigger={editGeometryTrigger}
           geometriesToEdit={geometriesToEdit}
+          snapEnabled={snapEnabled}
+          onToggleSnap={handleToggleSnap}
+          snapToggleHidden={isGeometryEditMode || isEditMode}
         />
       </MapErrorBoundary>
 
