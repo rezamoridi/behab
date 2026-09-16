@@ -1,8 +1,8 @@
 // src/features/farm-registration/forms/FarmFormContainer.jsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Droplet, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Droplet, Loader2 } from 'lucide-react';
 
 import { farmSchema, farmUpdateSchema } from '../schemas/farmSchema';
 import {
@@ -42,6 +42,7 @@ export const FarmFormContainer = ({
 }) => {
   const [activeTab, setActiveTab] = useState('location');
   const [submitError, setSubmitError] = useState(null);
+  const [submitSuccess, setSubmitSuccess] = useState(null);
 
   const { createFarm, updateFarm, isLoading: isMutating } =
     useFarmMutation();
@@ -76,17 +77,19 @@ export const FarmFormContainer = ({
   const {
     handleSubmit,
     reset,
-    formState: { isValid, isDirty },
+    formState: { isValid },
   } = methods;
 
-  // Reset form when initialData changes
+  // ✅ فقط وقتی isEditing یا initialData عوض می‌شود فرم را ریست کن
+  // نه وقتی geojson تغییر می‌کند
   useEffect(() => {
     if (isEditing && initialData) {
       reset(apiToForm(initialData));
     } else if (!isEditing) {
       reset({ ...DEFAULT_FARM_FORM_VALUES });
     }
-  }, [isEditing, initialData, reset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, initialData]);
 
   // ============================================
   // Compute Areas
@@ -108,6 +111,7 @@ export const FarmFormContainer = ({
   const onSubmit = useCallback(
     async (formData) => {
       setSubmitError(null);
+      setSubmitSuccess(null);
 
       try {
         const geometry = extractGeometry(geojson);
@@ -136,7 +140,21 @@ export const FarmFormContainer = ({
           result = await createFarm(payload);
         }
 
+        // ✅ پیام موفقیت نمایش بده (فرم بسته نمی‌شود)
+        setSubmitSuccess(
+          isEditing
+            ? 'تغییرات با موفقیت ذخیره شد.'
+            : 'مزرعه با موفقیت ثبت شد. می‌توانید مزرعه بعدی را ثبت کنید.'
+        );
+
+        // ✅ فرم را ریست نکن — بگذار کاربر همان اطلاعات را ببیند
+        // و اگر خواست مزرعه بعدی را ثبت کند، خودش فیلدها را تغییر دهد
+
+        // ✅ اطلاع به والد برای بروزرسانی لیست مزارع
         onSuccess?.(result);
+
+        // محو شدن پیام موفقیت بعد از ۴ ثانیه
+        setTimeout(() => setSubmitSuccess(null), 4000);
       } catch (err) {
         console.error('Form submission error:', err);
         const errorMessage =
@@ -181,6 +199,27 @@ export const FarmFormContainer = ({
         className="flex flex-col h-full"
         dir="rtl"
       >
+        {/* Success Banner */}
+        {submitSuccess && (
+          <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+            <CheckCircle2
+              size={18}
+              className="text-green-600 flex-shrink-0 mt-0.5"
+            />
+            <span className="text-sm text-green-700 flex-1">
+              {submitSuccess}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSubmitSuccess(null)}
+              className="text-green-500 hover:text-green-700 text-lg leading-none"
+              aria-label="بستن پیام"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Error Banner */}
         {submitError && (
           <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
@@ -195,6 +234,7 @@ export const FarmFormContainer = ({
               type="button"
               onClick={() => setSubmitError(null)}
               className="text-red-500 hover:text-red-700 text-lg leading-none"
+              aria-label="بستن پیام"
             >
               ×
             </button>

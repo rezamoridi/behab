@@ -79,6 +79,11 @@ const MapViewPage = () => {
   const [selectedFarmId, setSelectedFarmId] = useState(null);
 
   // ============================================
+  // ✅ State جدید: آیا قطعات فعلی قبلاً ثبت شده‌اند؟
+  // ============================================
+  const [polygonsSubmitted, setPolygonsSubmitted] = useState(false);
+
+  // ============================================
   // State - Snap to Vertex
   // ============================================
   const [snapEnabled, setSnapEnabled] = useState(false);
@@ -97,6 +102,8 @@ const MapViewPage = () => {
   // ============================================
   const isSavingRef = useRef(false);
   const isEditTriggeredRef = useRef(false);
+  // ✅ ref برای تشخیص اینکه آیا کاربر قطعه جدیدی رسم کرده
+  const hasNewDrawingRef = useRef(false);
 
   // ============================================
   // Query Client
@@ -129,13 +136,24 @@ const MapViewPage = () => {
     setSelectedLocation({ ...location, lat, lon });
   }, []);
 
+  // ============================================================
+  // ✅ به‌روزرسانی پلی‌گون‌ها با منطق جدید
+  // ============================================================
   const handlePolygonsUpdate = useCallback(
     ({ totalArea, geojsons, count }) => {
       setAreaHa(totalArea || 0);
       setPolygonGeojsons(geojsons || []);
       setPolygonCount(count || 0);
+
+      // ✅ اگر قطعات قبلاً ثبت شده بودند ولی حالا تعداد تغییر کرده،
+      // یعنی کاربر قطعه جدیدی رسم کرده → flag را ریست کن
+      if (polygonsSubmitted && count > 0) {
+        // اینجا نمی‌توانیم مطمئن باشیم که قطعه جدید اضافه شده یا نه
+        // پس فقط وقتی تعداد بیشتر شده، flag را ریست می‌کنیم
+        setPolygonsSubmitted(false);
+      }
     },
-    []
+    [polygonsSubmitted]
   );
 
   // ============================================
@@ -268,6 +286,7 @@ const MapViewPage = () => {
       setEditingGeometryFarm(null);
       setGeometriesToEdit(null);
       setSelectedFarmId(null);
+      setPolygonsSubmitted(false);
 
       setClearDrawTrigger((prev) => prev + 1);
     } catch (error) {
@@ -301,6 +320,7 @@ const MapViewPage = () => {
     setEditingGeometryFarm(null);
     setGeometriesToEdit(null);
     setSelectedFarmId(null);
+    setPolygonsSubmitted(false);
 
     setClearDrawTrigger((prev) => prev + 1);
   }, [isSavingGeometry]);
@@ -320,6 +340,7 @@ const MapViewPage = () => {
         setEditingFarmId(farm.farm_id);
         setIsLoadingFarm(true);
         setIsFormOpen(true);
+        setPolygonsSubmitted(true); // ✅ در ویرایش، قطعات از قبل ثبت شده‌اند
 
         const cached = queryClient.getQueryData(
           farmKeys.detail(farm.farm_id)
@@ -371,6 +392,7 @@ const MapViewPage = () => {
         setIsEditMode(false);
         setEditingFarmId(null);
         setEditingFarmData(null);
+        setPolygonsSubmitted(false);
       } finally {
         setIsLoadingFarm(false);
         isEditTriggeredRef.current = false;
@@ -381,6 +403,12 @@ const MapViewPage = () => {
 
   // ============================================================
   // ✅ ذخیره فرم (Create/Edit)
+  //
+  // نکته کلیدی: بعد از ثبت موفق:
+  // - فرم باز می‌ماند
+  // - پلی‌گون‌ها روی نقشه باقی می‌مانند
+  // - اما polygonsSubmitted = true می‌شود تا دکمه «ثبت X قطعه» غیرفعال شود
+  // - و MapComponent دیگر این قطعات را به عنوان قطعه جدید نشمارد
   // ============================================================
   const handleSaveFarm = useCallback(
     (savedFarm) => {
@@ -388,20 +416,18 @@ const MapViewPage = () => {
       isSavingRef.current = true;
 
       try {
-        if (!isEditMode) {
-          setClearDrawTrigger((prev) => prev + 1);
-          setAreaHa(0);
-          setPolygonGeojsons([]);
-          setPolygonCount(0);
+        // ✅ در حالت ویرایش: stateهای ویرایش را ریست کن
+        if (isEditMode) {
+          setIsEditMode(false);
+          setEditingFarmId(null);
+          setEditingFarmData(null);
+          setSelectedFarmId(null);
         }
 
-        setIsFormOpen(false);
-        setIsEditMode(false);
-        setEditingFarmId(null);
-        setEditingFarmData(null);
-        setSelectedFarmId(null);
-        isEditTriggeredRef.current = false;
+        // ✅ علامت‌گذاری که قطعات فعلی قبلاً ثبت شده‌اند
+        setPolygonsSubmitted(true);
 
+        // ✅ invalidate queries برای بروزرسانی لیست مزارع
         queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
 
         if (savedFarm?.farm_id) {
@@ -409,6 +435,8 @@ const MapViewPage = () => {
             queryKey: farmKeys.detail(savedFarm.farm_id),
           });
         }
+
+        isEditTriggeredRef.current = false;
       } catch (error) {
         console.error('Error in handleSaveFarm:', error);
         alert('خطا در به‌روزرسانی. لطفاً مجدداً تلاش کنید.');
@@ -438,14 +466,22 @@ const MapViewPage = () => {
     setIsLoadingFarm(false);
     setIsFormOpen(false);
     setSelectedFarmId(null);
+    setPolygonsSubmitted(false);
     isEditTriggeredRef.current = false;
   }, [isEditMode, polygonCount]);
 
   // ============================================
-  // Close Form
+  // Close Form (دکمه X در هدر پنجره)
   // ============================================
   const handleCloseForm = useCallback(() => {
     setIsFormOpen(false);
+    setIsEditMode(false);
+    setEditingFarmId(null);
+    setEditingFarmData(null);
+    setSelectedFarmId(null);
+    // ✅ وقتی فرم بسته می‌شود، polygonsSubmitted را ریست کن
+    // تا اگر کاربر دوباره فرم را باز کرد، وضعیت درست باشد
+    setPolygonsSubmitted(false);
   }, []);
 
   // ============================================
@@ -458,6 +494,8 @@ const MapViewPage = () => {
     setIsLoadingFarm(false);
     setIsFormOpen(true);
     setSelectedFarmId(null);
+    // ✅ اگر قطعه‌ای رسم شده ولی ثبت نشده، polygonsSubmitted باید false باشد
+    // اگر قبلاً ثبت شده، کاربر باید قطعه جدید رسم کند
     isEditTriggeredRef.current = false;
   }, []);
 
@@ -474,6 +512,15 @@ const MapViewPage = () => {
   const waterVolume = useMemo(() => {
     return areaHa > 0 ? areaHa * 5000 : 0;
   }, [areaHa]);
+
+  // ============================================
+  // ✅ محاسبه تعداد قطعات قابل نمایش در دکمه
+  // اگر قطعات ثبت شده‌اند، تعداد را ۰ نشان بده
+  // ============================================
+  const displayPolygonCount = useMemo(() => {
+    if (polygonsSubmitted) return 0;
+    return polygonCount;
+  }, [polygonsSubmitted, polygonCount]);
 
   // ============================================
   // Render
@@ -501,9 +548,9 @@ const MapViewPage = () => {
       </MapErrorBoundary>
 
       <MapCalculator
-        polygonCount={polygonCount}
-        areaHa={areaHa}
-        waterVolume={waterVolume}
+        polygonCount={polygonsSubmitted ? 0 : polygonCount}
+        areaHa={polygonsSubmitted ? 0 : areaHa}
+        waterVolume={polygonsSubmitted ? 0 : waterVolume}
         showWater={true}
       />
 
@@ -519,7 +566,7 @@ const MapViewPage = () => {
       )}
 
       {/* دکمه باز کردن فرم */}
-      {!isEditMode && !isGeometryEditMode && (
+      {!isEditMode && !isGeometryEditMode && !isFormOpen && (
         <button
           type="button"
           onClick={handleOpenForm}
@@ -534,8 +581,8 @@ const MapViewPage = () => {
           "
         >
           <Plus size={18} />
-          {polygonCount > 0
-            ? `ثبت ${polygonCount} قطعه`
+          {displayPolygonCount > 0
+            ? `ثبت ${displayPolygonCount} قطعه`
             : 'ثبت مزرعه جدید'}
         </button>
       )}
@@ -593,7 +640,7 @@ const MapViewPage = () => {
         onClose={handleCloseForm}
         onCancel={handleCancel}
         onSuccess={handleSaveFarm}
-        areaHa={areaHa}
+        areaHa={polygonsSubmitted ? 0 : areaHa}
         geojson={polygonGeojsons.length > 0 ? polygonGeojsons : null}
         locationData={selectedLocation}
         isEditMode={isEditMode}
