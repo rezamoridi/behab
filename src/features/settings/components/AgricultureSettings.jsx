@@ -1,14 +1,10 @@
 // src/features/settings/components/AgricultureSettings.jsx
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Settings2, Droplet } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 
 const AgricultureSettings = ({
   settings,
-  waterRates,
   onUpdateSettings,
-  onAddWaterRate,
-  onUpdateWaterRate,
-  onDeleteWaterRate,
   isLoading,
 }) => {
   const [formData, setFormData] = useState({
@@ -21,13 +17,6 @@ const AgricultureSettings = ({
     show_saved_farms: true,
   });
 
-  const [editingRate, setEditingRate] = useState(null);
-  const [rateForm, setRateForm] = useState({
-    province: '',
-    city: '',
-    price_per_cubic_meter: '',
-  });
-  const [showRateModal, setShowRateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -65,44 +54,6 @@ const AgricultureSettings = ({
     }
   };
 
-  const handleRateChange = (e) => {
-    const { name, value } = e.target;
-    setRateForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleAddRate = async () => {
-    if (!rateForm.province || !rateForm.price_per_cubic_meter) return;
-
-    try {
-      if (editingRate) {
-        await onUpdateWaterRate(editingRate.id, rateForm);
-      } else {
-        await onAddWaterRate(rateForm);
-      }
-      setRateForm({ province: '', city: '', price_per_cubic_meter: '' });
-      setEditingRate(null);
-      setShowRateModal(false);
-    } catch {
-      // Error handled in hook
-    }
-  };
-
-  const handleEditRate = (rate) => {
-    setEditingRate(rate);
-    setRateForm({
-      province: rate.province,
-      city: rate.city || '',
-      price_per_cubic_meter: String(rate.price_per_cubic_meter),
-    });
-    setShowRateModal(true);
-  };
-
-  const handleDeleteRate = async (id) => {
-    if (window.confirm('آیا از حذف این نرخ اطمینان دارید؟')) {
-      await onDeleteWaterRate(id);
-    }
-  };
-
   const unitOptions = {
     area: [
       { value: 'hectare', label: 'هکتار' },
@@ -130,7 +81,6 @@ const AgricultureSettings = ({
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Settings Form */}
       <form
         onSubmit={handleSubmit}
         className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5"
@@ -284,193 +234,6 @@ const AgricultureSettings = ({
           {isSubmitting ? 'در حال ذخیره...' : 'ذخیره تنظیمات'}
         </button>
       </form>
-
-      {/* Water Rates */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <Droplet size={18} className="text-primary-600" />
-            <h3 className="text-base font-semibold text-gray-900">
-              تعرفه‌های آب منطقه‌ای
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingRate(null);
-              setRateForm({
-                province: '',
-                city: '',
-                price_per_cubic_meter: '',
-              });
-              setShowRateModal(true);
-            }}
-            className="
-              px-4 py-2 bg-primary-600 text-white rounded-lg
-              text-xs font-semibold flex items-center gap-1.5
-              hover:bg-primary-700 transition-colors
-            "
-          >
-            <Plus size={14} />
-            افزودن تعرفه
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-right px-4 py-3 font-semibold text-gray-600 rounded-r-lg">
-                  استان
-                </th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">
-                  شهرستان / منطقه
-                </th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">
-                  قیمت هر متر مکعب (تومان)
-                </th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600 rounded-l-lg">
-                  عملیات
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {waterRates && waterRates.length > 0 ? (
-                waterRates.map((rate) => (
-                  <tr
-                    key={rate.id}
-                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3">{rate.province}</td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {rate.city || '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {rate.price_per_cubic_meter.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditRate(rate)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                          title="ویرایش"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteRate(rate.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          title="حذف"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="4"
-                    className="text-center py-8 text-gray-400 text-sm"
-                  >
-                    هیچ تعرفه‌ای ثبت نشده است
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Rate Modal */}
-      {showRateModal && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h4 className="text-base font-semibold text-gray-900">
-                {editingRate ? 'ویرایش تعرفه' : 'افزودن تعرفه جدید'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setShowRateModal(false)}
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  استان
-                </label>
-                <input
-                  type="text"
-                  name="province"
-                  value={rateForm.province}
-                  onChange={handleRateChange}
-                  placeholder="مثال: لرستان"
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  شهرستان / منطقه (اختیاری)
-                </label>
-                <input
-                  type="text"
-                  name="city"
-                  value={rateForm.city}
-                  onChange={handleRateChange}
-                  placeholder="مثال: خرم‌آباد"
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  قیمت هر متر مکعب (تومان)
-                </label>
-                <input
-                  type="number"
-                  name="price_per_cubic_meter"
-                  min="0"
-                  step="100"
-                  value={rateForm.price_per_cubic_meter}
-                  onChange={handleRateChange}
-                  placeholder="مثال: 5000"
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                  style={{ direction: 'ltr' }}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => setShowRateModal(false)}
-                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                انصراف
-              </button>
-              <button
-                type="button"
-                onClick={handleAddRate}
-                disabled={
-                  !rateForm.province || !rateForm.price_per_cubic_meter
-                }
-                className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
-              >
-                {editingRate ? 'ویرایش' : 'افزودن'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
