@@ -1,61 +1,48 @@
 // src/features/settings/hooks/useActiveCrops.js
-import { useCropsQuery, useCropWaterRatesQuery } from './useAgricultureSettings';
+import { useCropsQuery } from './useAgricultureSettings';
 import { useMemo } from 'react';
 
 // ============================================================
 // ✅ useActiveCrops
-// لیست محصولات فعال + نرخ آب هر کدام
-// استفاده در: LandSection، FarmFormContainer، MapViewPage
+// لیست محصولات فعال (شامل نرخ‌ها)
 // ============================================================
 export const useActiveCrops = () => {
-  const { data: crops = [], isLoading: cropsLoading } = useCropsQuery({
+  const { data: crops = [], isLoading } = useCropsQuery({
     activeOnly: true,
   });
 
-  const { data: rates = [], isLoading: ratesLoading } =
-    useCropWaterRatesQuery();
-
-  // ✅ merge: هر محصول با نرخ آبش
-  const cropsWithRates = useMemo(() => {
-    const rateMap = {};
-    rates.forEach((r) => {
-      rateMap[r.crop] = r;
-    });
-
-    return crops.map((crop) => ({
-      ...crop,
-      rate: rateMap[crop.name] || null,
-      requirement: rateMap[crop.name]?.requirement ?? null,
-      price: rateMap[crop.name]?.price ?? 0,
-    }));
-  }, [crops, rates]);
-
-  // ✅ lookup map برای دسترسی سریع
-  const ratesByName = useMemo(() => {
+  // ✅ lookup map بر اساس نام
+  const cropsByName = useMemo(() => {
     const map = {};
-    rates.forEach((r) => {
-      map[r.crop] = r;
+    crops.forEach((c) => {
+      map[c.name] = c;
     });
     return map;
-  }, [rates]);
+  }, [crops]);
 
-  // ✅ helper: گرفتن نرخ یک محصول خاص
-  const getRateByCrop = (cropName) => {
+  // ✅ helper: گرفتن محصول با نام
+  const getCropByName = (cropName) => {
     if (!cropName) return null;
-    return ratesByName[cropName] || null;
+    return cropsByName[cropName] || null;
   };
 
-  // ✅ helper: گرفتن requirement یک محصول
+  // ✅ helper: گرفتن requirement
   const getRequirement = (cropName) => {
-    return getRateByCrop(cropName)?.requirement ?? null;
+    return getCropByName(cropName)?.requirement ?? null;
+  };
+
+  // ✅ helper: گرفتن price
+  const getPrice = (cropName) => {
+    return getCropByName(cropName)?.price ?? 0;
   };
 
   return {
-    crops: cropsWithRates,
-    ratesByName,
-    isLoading: cropsLoading || ratesLoading,
-    getRateByCrop,
+    crops,
+    cropsByName,
+    isLoading,
+    getCropByName,
     getRequirement,
+    getPrice,
   };
 };
 

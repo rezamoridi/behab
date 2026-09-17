@@ -1,56 +1,20 @@
 // src/services/api/settingsApi.js
 import apiClient from './apiClient';
 
-// ============================================
-// Constants
-// ============================================
 const AGRICULTURE_BASE = '/agriculture-settings';
 const CROPS_BASE = '/crops';
 
-// ============================================
-// Settings API
-// ============================================
 export const settingsApi = {
-  // ----------------------------------------
   // Profile
-  // ----------------------------------------
   getProfile: () => apiClient.get('/me'),
   updateProfile: (data) => apiClient.put('/users/me', data),
   changePassword: (passwords) => apiClient.put('/users/me/password', passwords),
 
-  // ----------------------------------------
-  // Agriculture Settings
-  // ----------------------------------------
+  // Agriculture Settings (فقط تنظیمات عمومی)
   getAgricultureSettings: () => apiClient.get(AGRICULTURE_BASE),
   updateAgricultureSettings: (data) => apiClient.put(AGRICULTURE_BASE, data),
 
-  // ----------------------------------------
-  // Water Rates (نرخ آب محصولات)
-  // ----------------------------------------
-  getWaterRates: () => apiClient.get(`${AGRICULTURE_BASE}/water-rates`),
-
-  getWaterRate: (crop) =>
-    apiClient.get(
-      `${AGRICULTURE_BASE}/water-rates/${encodeURIComponent(crop)}`
-    ),
-
-  createWaterRate: (data) =>
-    apiClient.post(`${AGRICULTURE_BASE}/water-rates`, data),
-
-  updateWaterRate: (crop, data) =>
-    apiClient.put(
-      `${AGRICULTURE_BASE}/water-rates/${encodeURIComponent(crop)}`,
-      data
-    ),
-
-  deleteWaterRate: (crop) =>
-    apiClient.delete(
-      `${AGRICULTURE_BASE}/water-rates/${encodeURIComponent(crop)}`
-    ),
-
-  // ----------------------------------------
   // Users
-  // ----------------------------------------
   getUsers: (params) => apiClient.get('/users/list-users', { params }),
   createUser: (data) => apiClient.post('/users/create', data),
   updateUser: (id, data) => apiClient.put(`/users/update/${id}`, data),
@@ -58,7 +22,7 @@ export const settingsApi = {
 };
 
 // ============================================
-// Crop API (محصولات)
+// Crop API (محصولات + نرخ‌ها)
 // ============================================
 export const cropApi = {
   list: (activeOnly = false) =>

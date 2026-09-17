@@ -1,5 +1,5 @@
 // src/features/settings/components/CropSettingsManager.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Plus,
   X,
@@ -8,11 +8,10 @@ import {
   Info,
   Power,
   PowerOff,
-  CircleCheck,
   CircleSlash,
   Pencil,
-  Leaf,
   Trash2,
+  AlertCircle,
 } from "lucide-react";
 
 import {
@@ -62,24 +61,25 @@ const MetricCell = ({ config, value }) => {
 // Status Pill
 // ============================================================
 const StatusPill = ({ isActive, hasRate }) => {
-  let key = "active";
-  if (!isActive) key = "inactive";
-  else if (!hasRate) key = "missingRate";
+  if (!isActive) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-medium">
+        <CircleSlash size={9} />
+        غیرفعال
+      </span>
+    );
+  }
 
-  const cfg = STATUS_CONFIG[key];
-  const Icon = cfg.icon;
+  if (!hasRate) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-medium">
+        <AlertCircle size={9} />
+        نرخ تعریف نشده
+      </span>
+    );
+  }
 
-  return (
-    <span
-      className={`
-        inline-flex items-center gap-1 px-1.5 py-0.5 rounded
-        text-[10px] font-medium ${cfg.className}
-      `}
-    >
-      <Icon size={9} />
-      {cfg.label}
-    </span>
-  );
+  return null;
 };
 
 // ============================================================
@@ -87,12 +87,11 @@ const StatusPill = ({ isActive, hasRate }) => {
 // ============================================================
 const CropRow = ({
   crop,
-  onEditRate,
+  onEdit,
   onToggleActive,
   onDeleteCrop,
-  onRename,
 }) => {
-  const hasRate = crop.rate !== null && crop.rate !== undefined;
+  const hasRate = crop.hasRate;
 
   return (
     <div
@@ -135,24 +134,16 @@ const CropRow = ({
         <MetricCell key={m.key} config={m} value={crop.rate?.[m.key]} />
       ))}
 
-      {/* Actions */}
+      {/* Actions — فقط ۳ دکمه */}
       <div className="flex items-center justify-end gap-1">
+        {/* ✅ یک دکمه واحد برای ویرایش نام + نرخ‌ها */}
         <button
           type="button"
-          onClick={() => onEditRate(crop)}
+          onClick={() => onEdit(crop)}
           className={`p-2 rounded-lg transition-colors ${ACTION_CONFIG.edit.color}`}
-          title={hasRate ? "ویرایش نرخ‌ها" : "تنظیم نرخ‌ها"}
+          title={hasRate ? "ویرایش محصول" : "تنظیم نرخ‌ها"}
         >
           <Pencil size={14} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onRename(crop)}
-          className={`p-2 rounded-lg transition-colors ${ACTION_CONFIG.rename.color}`}
-          title={ACTION_CONFIG.rename.title}
-        >
-          <Leaf size={14} />
         </button>
 
         <button
@@ -185,11 +176,11 @@ const CropRow = ({
 };
 
 // ============================================================
-// Rate Modal
+// ✅ Edit Modal — نام + نرخ‌ها در یک مودال
 // ============================================================
-const RateModal = ({ crop, onClose, onSubmit }) => {
+const EditModal = ({ crop, onClose, onSubmit }) => {
   const [form, setForm] = useState(() => {
-    const initial = {};
+    const initial = { name: crop.name || "" };
     METRICS.forEach((m) => {
       const v = crop.rate?.[m.key];
       initial[m.key] = v != null ? String(v) : "";
@@ -197,26 +188,46 @@ const RateModal = ({ crop, onClose, onSubmit }) => {
     return initial;
   });
 
+  const [nameError, setNameError] = useState("");
+
   const handleChange = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (key === "name" && nameError) setNameError("");
   };
 
   const handleSubmit = () => {
-    const payload = {};
-    let hasAny = false;
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      setNameError("نام محصول الزامی است");
+      return;
+    }
+    if (trimmedName.length < 2) {
+      setNameError("نام محصول باید حداقل ۲ حرف باشد");
+      return;
+    }
+
+    const payload = {
+      name: trimmedName,
+      requirement: 0,
+      price: 0,
+      fertilizer: 0,
+      pesticide: 0,
+    };
+
+    let hasAnyRate = false;
 
     METRICS.forEach((m) => {
       const v = parseFloat(form[m.key]);
       if (Number.isFinite(v) && v >= 0) {
         payload[m.key] = v;
-        if (v > 0) hasAny = true;
-      } else {
-        payload[m.key] = 0;
+        if (v > 0) hasAnyRate = true;
       }
     });
 
-    if (!hasAny) {
-      alert("حداقل یک مقدار معتبر وارد کنید");
+    // اگه نام تغییر نکرده و هیچ نرخی هم وارد نشده → هشدار
+    const nameChanged = trimmedName !== crop.name;
+    if (!nameChanged && !hasAnyRate) {
+      alert("تغییری اعمال نشده است");
       return;
     }
 
@@ -226,17 +237,18 @@ const RateModal = ({ crop, onClose, onSubmit }) => {
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
-              <Sprout size={16} strokeWidth={2.2} />
+              <Pencil size={16} strokeWidth={2.2} />
             </div>
             <div>
               <h4 className="text-sm font-bold text-gray-900">
-                تنظیم نرخ‌های {crop.name}
+                ویرایش محصول
               </h4>
               <p className="text-[11px] text-gray-500 mt-0.5">
-                مقادیر خالی صفر در نظر گرفته می‌شوند
+                نام و نرخ‌های مصرفی را ویرایش کنید
               </p>
             </div>
           </div>
@@ -249,7 +261,51 @@ const RateModal = ({ crop, onClose, onSubmit }) => {
           </button>
         </div>
 
-        <div className="p-5 space-y-3">
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Name */}
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
+              <span className="flex items-center justify-center w-5 h-5 rounded-md bg-primary-50 text-primary-600">
+                <Sprout size={11} strokeWidth={2.4} />
+              </span>
+              نام محصول
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => handleChange("name", e.target.value)}
+              placeholder="مثال: گندم"
+              className={`
+                w-full px-3.5 py-2.5 rounded-lg border text-sm
+                focus:ring-2 outline-none transition-all
+                ${
+                  nameError
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+                    : "border-gray-200 focus:border-primary-500 focus:ring-primary-100"
+                }
+              `}
+              autoFocus
+            />
+            {nameError && (
+              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                <AlertCircle size={12} />
+                {nameError}
+              </p>
+            )}
+          </div>
+
+          {/* Separator */}
+          <div className="flex items-center gap-2">
+            <span className="h-px flex-1 bg-gray-100" />
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              نرخ‌های مصرفی
+            </span>
+            <span className="h-px flex-1 bg-gray-100" />
+          </div>
+
+          {/* Metrics */}
           {METRICS.map((m) => {
             const Icon = m.icon;
             return (
@@ -282,6 +338,7 @@ const RateModal = ({ crop, onClose, onSubmit }) => {
           })}
         </div>
 
+        {/* Footer */}
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
           <button
             type="button"
@@ -295,7 +352,7 @@ const RateModal = ({ crop, onClose, onSubmit }) => {
             onClick={handleSubmit}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors"
           >
-            ذخیره
+            ذخیره تغییرات
           </button>
         </div>
       </div>
@@ -304,10 +361,10 @@ const RateModal = ({ crop, onClose, onSubmit }) => {
 };
 
 // ============================================================
-// Name Modal
+// Name Modal — فقط برای افزودن محصول جدید
 // ============================================================
-const NameModal = ({ title, initialValue, onClose, onSubmit, submitLabel }) => {
-  const [value, setValue] = useState(initialValue || "");
+const AddCropModal = ({ onClose, onSubmit }) => {
+  const [value, setValue] = useState("");
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
@@ -315,9 +372,11 @@ const NameModal = ({ title, initialValue, onClose, onSubmit, submitLabel }) => {
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
-              <Sprout size={16} strokeWidth={2.2} />
+              <Plus size={16} strokeWidth={2.2} />
             </div>
-            <h4 className="text-sm font-bold text-gray-900">{title}</h4>
+            <h4 className="text-sm font-bold text-gray-900">
+              افزودن محصول جدید
+            </h4>
           </div>
           <button
             type="button"
@@ -337,7 +396,9 @@ const NameModal = ({ title, initialValue, onClose, onSubmit, submitLabel }) => {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && value.trim()) onSubmit(value.trim());
+              if (e.key === "Enter" && value.trim().length >= 2) {
+                onSubmit(value.trim());
+              }
             }}
             placeholder="مثال: گلرنگ"
             className="
@@ -347,6 +408,9 @@ const NameModal = ({ title, initialValue, onClose, onSubmit, submitLabel }) => {
             "
             autoFocus
           />
+          <p className="mt-2 text-[11px] text-gray-500">
+            بعد از افزودن، می‌توانید نرخ‌های مصرفی را تنظیم کنید.
+          </p>
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
@@ -359,11 +423,11 @@ const NameModal = ({ title, initialValue, onClose, onSubmit, submitLabel }) => {
           </button>
           <button
             type="button"
-            onClick={() => value.trim() && onSubmit(value.trim())}
-            disabled={!value.trim()}
+            onClick={() => value.trim().length >= 2 && onSubmit(value.trim())}
+            disabled={value.trim().length < 2}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
           >
-            {submitLabel || "ذخیره"}
+            افزودن
           </button>
         </div>
       </div>
@@ -509,24 +573,13 @@ const Legend = () => {
                 <div className="flex flex-col gap-2.5">
                   <div className="flex items-start gap-3">
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium flex-shrink-0 ${STATUS_CONFIG.active.className}`}
-                    >
-                      <CircleCheck size={12} strokeWidth={2.4} />
-                      {STATUS_CONFIG.active.label}
-                    </span>
-                    <span className="text-xs text-gray-600 pt-1">
-                      نرخ آب، کود یا سم برای این محصول تعریف شده است
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span
                       className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium flex-shrink-0 ${STATUS_CONFIG.missingRate.className}`}
                     >
-                      <CircleSlash size={12} strokeWidth={2.4} />
+                      <AlertCircle size={12} strokeWidth={2.4} />
                       {STATUS_CONFIG.missingRate.label}
                     </span>
                     <span className="text-xs text-gray-600 pt-1">
-                      محصول فعال است ولی نرخی برایش تنظیم نشده
+                      محصول فعال است ولی هنوز نرخی برایش تنظیم نشده
                     </span>
                   </div>
                   <div className="flex items-start gap-3">
@@ -552,25 +605,33 @@ const Legend = () => {
                   </span>
                   <span className="h-px flex-1 bg-indigo-100" />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {Object.values(ACTION_CONFIG).map((action, i) => {
-                    const Icon = action.icon;
-                    return (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg border border-gray-100"
-                      >
-                        <span
-                          className={`flex items-center justify-center w-8 h-8 rounded-lg ${action.legendBg}`}
-                        >
-                          <Icon size={14} strokeWidth={2.4} />
-                        </span>
-                        <span className="text-xs font-medium text-gray-700">
-                          {action.legend}
-                        </span>
-                      </div>
-                    );
-                  })}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-50 text-sky-600">
+                      <Pencil size={14} strokeWidth={2.4} />
+                    </span>
+                    <span className="text-xs font-medium text-gray-700">
+                      ویرایش محصول
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-50 text-green-600">
+                      <Power size={14} strokeWidth={2.4} />
+                    </span>
+                    <span className="text-xs font-medium text-gray-700">
+                      فعال / غیرفعال
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-500">
+                      <Trash2 size={14} strokeWidth={2.4} />
+                    </span>
+                    <span className="text-xs font-medium text-gray-700">
+                      حذف محصول
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -603,29 +664,20 @@ const CropSettingsManager = () => {
     isLoading,
     searchTerm,
     setSearchTerm,
-    rateModalCrop,
-    setRateModalCrop,
+    editModalCrop,
+    setEditModalCrop,
     addModalOpen,
     setAddModalOpen,
-    renameModalCrop,
-    setRenameModalCrop,
     handleAddCrop,
-    handleRename,
     handleToggleActive,
     handleDeleteCrop,
-    handleSubmitRate,
+    handleSubmitEdit,
   } = useCropSettings();
 
-  // ============================================
-  // Loading
-  // ============================================
   if (isLoading) {
     return <CropSettingsManagerSkeleton />;
   }
 
-  // ============================================
-  // Render
-  // ============================================
   return (
     <div className="space-y-4" dir="rtl">
       {/* Stats */}
@@ -714,10 +766,9 @@ const CropSettingsManager = () => {
             <CropRow
               key={crop.id}
               crop={crop}
-              onEditRate={setRateModalCrop}
+              onEdit={setEditModalCrop}
               onToggleActive={handleToggleActive}
               onDeleteCrop={handleDeleteCrop}
-              onRename={setRenameModalCrop}
             />
           ))
         ) : (
@@ -744,31 +795,18 @@ const CropSettingsManager = () => {
       </div>
 
       {/* Modals */}
-      {rateModalCrop && (
-        <RateModal
-          crop={rateModalCrop}
-          onClose={() => setRateModalCrop(null)}
-          onSubmit={handleSubmitRate}
+      {editModalCrop && (
+        <EditModal
+          crop={editModalCrop}
+          onClose={() => setEditModalCrop(null)}
+          onSubmit={handleSubmitEdit}
         />
       )}
 
       {addModalOpen && (
-        <NameModal
-          title="افزودن محصول جدید"
-          initialValue=""
+        <AddCropModal
           onClose={() => setAddModalOpen(false)}
           onSubmit={handleAddCrop}
-          submitLabel="افزودن"
-        />
-      )}
-
-      {renameModalCrop && (
-        <NameModal
-          title={`تغییر نام «${renameModalCrop.name}»`}
-          initialValue={renameModalCrop.name}
-          onClose={() => setRenameModalCrop(null)}
-          onSubmit={handleRename}
-          submitLabel="ذخیره"
         />
       )}
     </div>

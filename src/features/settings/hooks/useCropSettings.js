@@ -2,79 +2,69 @@
 import { useState, useMemo } from "react";
 import { useAgricultureSettings } from "./useAgricultureSettings";
 
-// ============================================================
-// ✅ useCropSettings
-// منطق مدیریت محصولات + نرخ‌ها + state مدال‌ها
-// ============================================================
 export const useCropSettings = () => {
   const {
     crops,
-    cropWaterRates,
     isLoading,
     addCrop,
     updateCrop,
     deleteCrop,
-    addCropWaterRate,
-    updateCropWaterRate,
   } = useAgricultureSettings();
 
-  // ============================================
-  // UI State
-  // ============================================
   const [searchTerm, setSearchTerm] = useState("");
-  const [rateModalCrop, setRateModalCrop] = useState(null);
+  const [editModalCrop, setEditModalCrop] = useState(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [renameModalCrop, setRenameModalCrop] = useState(null);
 
   // ============================================
-  // Merge crops + rates
+  // داده‌ها
   // ============================================
   const cropsWithRate = useMemo(() => {
-    const rateMap = {};
-    cropWaterRates.forEach((r) => {
-      rateMap[r.crop] = r;
+    return crops.map((c) => {
+      const hasRate =
+        (c.requirement ?? 0) > 0 ||
+        (c.price ?? 0) > 0 ||
+        (c.fertilizer ?? 0) > 0 ||
+        (c.pesticide ?? 0) > 0;
+
+      return {
+        id: c.id,
+        name: c.name,
+        isActive: c.is_active,
+        requirement: c.requirement,
+        price: c.price,
+        fertilizer: c.fertilizer,
+        pesticide: c.pesticide,
+        hasRate,
+        rate: {
+          requirement: c.requirement,
+          price: c.price,
+          fertilizer: c.fertilizer,
+          pesticide: c.pesticide,
+        },
+      };
     });
+  }, [crops]);
 
-    return crops.map((c) => ({
-      id: c.id,
-      name: c.name,
-      isActive: c.is_active,
-      rate: rateMap[c.name] || null,
-    }));
-  }, [crops, cropWaterRates]);
-
-  // ============================================
-  // Filter
-  // ============================================
   const filteredCrops = useMemo(() => {
     if (!searchTerm.trim()) return cropsWithRate;
     return cropsWithRate.filter((c) => c.name.includes(searchTerm.trim()));
   }, [cropsWithRate, searchTerm]);
 
-  // ============================================
-  // Stats
-  // ============================================
   const stats = useMemo(() => {
     const total = cropsWithRate.length;
     const active = cropsWithRate.filter((c) => c.isActive).length;
     const withoutRate = cropsWithRate.filter(
-      (c) => c.isActive && c.rate === null,
+      (c) => c.isActive && !c.hasRate,
     ).length;
     return { total, active, withoutRate };
   }, [cropsWithRate]);
 
   // ============================================
-  // Handlers — Crops
+  // Handlers
   // ============================================
   const handleAddCrop = async (name) => {
     await addCrop({ name, is_active: true });
     setAddModalOpen(false);
-  };
-
-  const handleRename = async (newName) => {
-    if (!renameModalCrop) return;
-    await updateCrop(renameModalCrop.id, { name: newName });
-    setRenameModalCrop(null);
   };
 
   const handleToggleActive = async (crop) => {
@@ -82,55 +72,36 @@ export const useCropSettings = () => {
   };
 
   const handleDeleteCrop = async (crop) => {
-    if (
-      window.confirm(
-        `حذف محصول «${crop.name}»؟ نرخ‌های مربوطه هم حذف خواهند شد.`,
-      )
-    ) {
+    if (window.confirm(`حذف محصول «${crop.name}»؟`)) {
       await deleteCrop(crop.id);
     }
   };
 
-  // ============================================
-  // Handlers — Rate
-  // ============================================
-  const handleSubmitRate = async (payload) => {
-    if (!rateModalCrop) return;
-
-    if (rateModalCrop.rate) {
-      await updateCropWaterRate(rateModalCrop.name, payload);
-    } else {
-      await addCropWaterRate({ crop: rateModalCrop.name, ...payload });
-    }
-    setRateModalCrop(null);
+  // ✅ یک عملیات واحد برای ویرایش نام + نرخ‌ها
+  const handleSubmitEdit = async (payload) => {
+    if (!editModalCrop) return;
+    // payload = { name, requirement, price, fertilizer, pesticide }
+    await updateCrop(editModalCrop.id, payload);
+    setEditModalCrop(null);
   };
 
-  // ============================================
-  // Return
-  // ============================================
   return {
-    // Data
     crops: cropsWithRate,
     filteredCrops,
     stats,
     isLoading,
 
-    // UI State
     searchTerm,
     setSearchTerm,
-    rateModalCrop,
-    setRateModalCrop,
+    editModalCrop,
+    setEditModalCrop,
     addModalOpen,
     setAddModalOpen,
-    renameModalCrop,
-    setRenameModalCrop,
 
-    // Handlers
     handleAddCrop,
-    handleRename,
     handleToggleActive,
     handleDeleteCrop,
-    handleSubmitRate,
+    handleSubmitEdit,
   };
 };
 
