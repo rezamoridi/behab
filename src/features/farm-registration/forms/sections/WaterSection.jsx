@@ -1,11 +1,10 @@
 // src/features/farm-registration/forms/sections/WaterSection.jsx
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
-import { MapPinned } from 'lucide-react';
+import { MapPinned, Droplet } from 'lucide-react';
 import {
   getStudyAreas,
   getCoverageStatuses,
-  getWaterRequirementPerHa,
 } from '../../constants/farmOptions';
 
 export const WaterSection = ({
@@ -13,16 +12,18 @@ export const WaterSection = ({
   totalArea,
   geojson,
   getPolygonArea,
+  waterRequirement = 5000, // ✅ از والد میاد
 }) => {
   const { register, watch } = useFormContext();
 
   const irrigationType = watch('irrigationType');
+  const selectedCrop = watch('crop');
 
   const studyAreas = getStudyAreas();
   const coverageStatuses = getCoverageStatuses();
-  const waterPerHa = getWaterRequirementPerHa();
 
-  const waterVolume = totalArea > 0 ? totalArea * waterPerHa : 0;
+  // ✅ محاسبه بر اساس نرخ محصول
+  const waterVolume = totalArea > 0 ? totalArea * waterRequirement : 0;
   const isDim = irrigationType === 'dim';
 
   return (
@@ -64,6 +65,44 @@ export const WaterSection = ({
           </select>
         </div>
       </div>
+
+      {/* ✅ نمایش محاسبه آب بر اساس محصول */}
+      {selectedCrop && totalArea > 0 && (
+        <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Droplet size={14} className="text-sky-600" strokeWidth={2.4} />
+            <span className="text-xs font-semibold text-sky-800">
+              محاسبه آب بر اساس نرخ محصول
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div>
+              <div className="text-gray-500 mb-0.5">محصول</div>
+              <div className="font-semibold text-gray-800">
+                {selectedCrop}
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">نرخ آب</div>
+              <div
+                className="font-semibold text-sky-700"
+                style={{ direction: 'ltr' }}
+              >
+                {Number(waterRequirement).toLocaleString('fa-IR')} m³/ha
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">آب مورد نیاز</div>
+              <div
+                className="font-semibold text-primary-700"
+                style={{ direction: 'ltr' }}
+              >
+                {waterVolume.toLocaleString('fa-IR')} m³
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* پیام برای زمین دیم */}
       {isDim && (

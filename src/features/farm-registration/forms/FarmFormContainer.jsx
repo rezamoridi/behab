@@ -1,6 +1,6 @@
 // src/features/farm-registration/forms/FarmFormContainer.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, CheckCircle2, Droplet, Loader2 } from 'lucide-react';
 
@@ -18,6 +18,9 @@ import {
   getPolygonArea,
 } from '../utils/geometryUtils';
 
+// ✅ hook جدید
+import { useActiveCrops } from '../../settings/hooks/useActiveCrops';
+
 import { LocationSection } from './sections/LocationSection';
 import { FarmerSection } from './sections/FarmerSection';
 import { LandSection } from './sections/LandSection';
@@ -29,6 +32,9 @@ const SECTION_MAP = {
   land: LandSection,
   water: WaterSection,
 };
+
+// ✅ fallback در صورت نبود نرخ در DB
+const DEFAULT_WATER_REQUIREMENT = 5000;
 
 export const FarmFormContainer = ({
   initialData = null,
@@ -46,6 +52,9 @@ export const FarmFormContainer = ({
 
   const { createFarm, updateFarm, isLoading: isMutating } =
     useFarmMutation();
+
+  // ✅ نرخ محصولات از DB
+  const { getRequirement, isLoading: cropsLoading } = useActiveCrops();
 
   // ============================================
   // Default Values
@@ -77,11 +86,30 @@ export const FarmFormContainer = ({
   const {
     handleSubmit,
     reset,
+    control,
     formState: { isValid },
   } = methods;
 
+  // ✅ تماشای محصول انتخاب‌شده
+  const selectedCrop = useWatch({
+    control,
+    name: 'crop',
+  });
+
+  // ✅ requirement بر اساس محصول از DB
+  const activeRequirement = useMemo(() => {
+    if (!selectedCrop) return DEFAULT_WATER_REQUIREMENT;
+    const req = getRequirement(selectedCrop);
+    return req ?? DEFAULT_WATER_REQUIREMENT;
+  }, [selectedCrop, getRequirement]);
+
+  // ✅ آیا نرخ واقعی از DB داریم؟
+  const hasRealRequirement = useMemo(() => {
+    if (!selectedCrop) return false;
+    return getRequirement(selectedCrop) !== null;
+  }, [selectedCrop, getRequirement]);
+
   // ✅ فقط وقتی isEditing یا initialData عوض می‌شود فرم را ریست کن
-  // نه وقتی geojson تغییر می‌کند
   useEffect(() => {
     if (isEditing && initialData) {
       reset(apiToForm(initialData));
@@ -104,6 +132,12 @@ export const FarmFormContainer = ({
     if (areaHa > 0) return areaHa;
     return calculateTotalArea(geojson);
   }, [areaHa, geojson]);
+
+  // ✅ محاسبه آب مورد نیاز بر اساس نرخ محصول از DB
+  const waterVolume = useMemo(() => {
+    if (computedTotalArea <= 0) return 0;
+    return computedTotalArea * activeRequirement;
+  }, [computedTotalArea, activeRequirement]);
 
   // ============================================
   // Submit Handler
@@ -140,20 +174,13 @@ export const FarmFormContainer = ({
           result = await createFarm(payload);
         }
 
-        // ✅ پیام موفقیت نمایش بده (فرم بسته نمی‌شود)
         setSubmitSuccess(
           isEditing
             ? 'تغییرات با موفقیت ذخیره شد.'
             : 'مزرعه با موفقیت ثبت شد. می‌توانید مزرعه بعدی را ثبت کنید.'
         );
 
-        // ✅ فرم را ریست نکن — بگذار کاربر همان اطلاعات را ببیند
-        // و اگر خواست مزرعه بعدی را ثبت کند، خودش فیلدها را تغییر دهد
-
-        // ✅ اطلاع به والد برای بروزرسانی لیست مزارع
         onSuccess?.(result);
-
-        // محو شدن پیام موفقیت بعد از ۴ ثانیه
         setTimeout(() => setSubmitSuccess(null), 4000);
       } catch (err) {
         console.error('Form submission error:', err);
@@ -188,9 +215,9 @@ export const FarmFormContainer = ({
     geojson,
     locationData,
     getPolygonArea,
+    // ✅ پاس دادن نرخ به WaterSection
+    waterRequirement: activeRequirement,
   };
-
-  const waterVolume = computedTotalArea * 5000;
 
   return (
     <FormProvider {...methods}>
@@ -263,7 +290,7 @@ export const FarmFormContainer = ({
           ))}
         </div>
 
-        {/* Body - Fixed height with internal scroll */}
+        {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 min-h-[380px] max-h-[420px]">
           <ActiveSection {...sectionProps} />
         </div>
@@ -276,6 +303,19 @@ export const FarmFormContainer = ({
             <strong className="text-primary-700" dir="ltr">
               {waterVolume.toLocaleString('fa-IR')} m³
             </strong>
+            {selectedCrop && (
+              <span
+                className={`
+                  text-[10px] px-1.5 py-0.5 rounded
+                  ${hasRealRequirement
+                    ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'}
+                `}
+                style={{ direction: 'ltr' }}
+              >
+                {Number(activeRequirement).toLocaleString('fa-IR')} m³/ha
+              </span>
+            )}
           </div>
 
           <div className="flex gap-3">

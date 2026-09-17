@@ -1,5 +1,5 @@
 // src/features/farm-registration/forms/sections/LandSection.jsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   Sprout,
@@ -9,14 +9,15 @@ import {
   AlertCircle,
   Check,
   Layers,
+  Loader2,
 } from 'lucide-react';
 import {
   getLandTypes,
-  getCrops,
   getIrrigationTypes,
   getWaterSources,
   getIrrigationSystems,
 } from '../../constants/farmOptions';
+import { useActiveCrops } from '../../../settings/hooks/useActiveCrops';
 
 export const LandSection = ({ isSubmitting }) => {
   const {
@@ -26,17 +27,25 @@ export const LandSection = ({ isSubmitting }) => {
     formState: { errors },
   } = useFormContext();
 
+  // ✅ محصولات فعال از دیتابیس
+  const { crops: dbCrops, isLoading: cropsLoading } = useActiveCrops();
+
   const irrigationType = watch('irrigationType');
+  const selectedCrop = watch('crop');
   const selectedWaterSources = watch('waterSources') || [];
   const selectedIrrigationSystems = watch('irrigationSystems') || [];
 
+  // این‌ها هنوز از config میان
   const landTypes = getLandTypes();
-  const crops = getCrops();
   const irrigationTypes = getIrrigationTypes();
   const waterSources = getWaterSources();
   const irrigationSystems = getIrrigationSystems();
 
-  // آیکون بر اساس نوع آبیاری
+  // ✅ اطلاعات محصول انتخاب‌شده
+  const selectedCropInfo = useMemo(() => {
+    return dbCrops.find((c) => c.name === selectedCrop) || null;
+  }, [dbCrops, selectedCrop]);
+
   const irrigationIcons = {
     aabi: Droplets,
     dim: CloudRain,
@@ -75,6 +84,7 @@ export const LandSection = ({ isSubmitting }) => {
           </select>
         </div>
 
+        {/* ✅ نوع محصول — از دیتابیس */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             نوع محصول
@@ -82,21 +92,46 @@ export const LandSection = ({ isSubmitting }) => {
           <div className="relative">
             <Sprout
               size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10"
             />
             <select
               {...register('crop')}
-              disabled={isSubmitting}
-              className="w-full pr-9 pl-3 py-2 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+              disabled={isSubmitting || cropsLoading}
+              className="w-full pr-9 pl-3 py-2 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm appearance-none"
             >
-              <option value="">انتخاب کنید...</option>
-              {crops.map((crop) => (
+              <option value="">
+                {cropsLoading ? 'در حال بارگذاری...' : 'انتخاب کنید...'}
+              </option>
+              {dbCrops.map((crop) => (
                 <option key={crop.id} value={crop.name}>
                   {crop.name}
                 </option>
               ))}
             </select>
+            {cropsLoading && (
+              <Loader2
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-600 animate-spin pointer-events-none"
+              />
+            )}
           </div>
+
+          {/* ✅ نمایش نرخ آب محصول انتخاب‌شده */}
+          {selectedCropInfo && selectedCropInfo.requirement ? (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-2 py-1">
+              <Droplets size={11} strokeWidth={2.4} />
+              <span>نیاز آبی این محصول:</span>
+              <strong className="font-bold" style={{ direction: 'ltr' }}>
+                {Number(selectedCropInfo.requirement).toLocaleString('fa-IR')}
+              </strong>
+              <span className="text-sky-500">m³/ha</span>
+            </div>
+          ) : selectedCropInfo ? (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+              <AlertCircle size={11} strokeWidth={2.4} />
+              <span>نرخ آبی برای این محصول تعریف نشده</span>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -144,10 +179,9 @@ export const LandSection = ({ isSubmitting }) => {
         </div>
       </div>
 
-      {/* ✅ بخش منبع آب و سیستم آبیاری - فقط در حالت آبی */}
+      {/* بخش منبع آب و سیستم آبیاری */}
       {isAabi && (
         <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200 space-y-4">
-          {/* سرتیتر */}
           <div className="flex items-center gap-2 pb-2 border-b border-blue-200">
             <Droplets size={16} className="text-blue-600" />
             <span className="text-sm font-semibold text-blue-800">
@@ -155,7 +189,6 @@ export const LandSection = ({ isSubmitting }) => {
             </span>
           </div>
 
-          {/* منبع تأمین آب */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               منبع تأمین آب <span className="text-red-500">*</span>
@@ -211,7 +244,6 @@ export const LandSection = ({ isSubmitting }) => {
             )}
           </div>
 
-          {/* سیستم آبیاری */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
               <Layers size={14} className="text-blue-600" />
