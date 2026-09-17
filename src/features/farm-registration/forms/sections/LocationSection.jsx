@@ -1,5 +1,5 @@
 // src/features/farm-registration/forms/sections/LocationSection.jsx
-import React, { useMemo, useEffect, useId } from 'react';
+import { useMemo, useEffect, useId } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
 import {

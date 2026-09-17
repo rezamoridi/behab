@@ -1,5 +1,4 @@
 // src/features/farm-registration/forms/sections/WaterSection.jsx
-import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import { MapPinned, Droplet } from 'lucide-react';
 import {

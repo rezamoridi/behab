@@ -23,4 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
+*.rardocs/
+scripts/
+docs/
 *.rar
+*.zip

@@ -1,5 +1,5 @@
 // src/shared/hooks/useSessionState.js
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 /**
  * useSessionState

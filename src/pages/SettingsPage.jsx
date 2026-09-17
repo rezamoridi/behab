@@ -1,5 +1,5 @@
 // src/pages/SettingsPage.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Settings, X } from 'lucide-react';
 
 import SettingsTabs from '../features/settings/components/SettingsTabs';

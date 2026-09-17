@@ -1,5 +1,5 @@
 // src/features/farm-registration/forms/sections/LandSection.jsx
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   Sprout,

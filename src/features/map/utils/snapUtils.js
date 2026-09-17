@@ -1,5 +1,10 @@
 // src/features/map/utils/snapUtils.js
-import * as turf from '@turf/turf';
+import { point as turfPoint, polygon } from "@turf/helpers";
+import distance from "@turf/distance";
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+import pointToPolygonDistance from "@turf/point-to-polygon-distance";
+import center from "@turf/center";
+import { centroid } from "@turf/centroid";
 
 // ============================================================
 // آستانه‌های اسنپ
@@ -7,13 +12,10 @@ import * as turf from '@turf/turf';
 const SNAP_THRESHOLD_METERS = 15;
 
 // ✅ فاصله‌ی ایمنی از لبه‌ی مزرعه ذخیره‌شده (متر)
-// نقطه اسنپ‌شده نباید داخل یا روی لبه بیفتد؛ این مقدار آن را
-// به بیرون هل می‌دهد.
 const SNAP_OFFSET_METERS = 0.5;
 
 // ============================================================
 // استخراج همه‌ی رئوس مزارع ذخیره‌شده
-// (بدون تغییر — همان نسخه قبلی)
 // ============================================================
 export function extractVertices(farms) {
   const vertices = [];
@@ -52,9 +54,6 @@ export function extractVertices(farms) {
 
 // ============================================================
 // ✅ استخراج polygonهای کامل مزارع ذخیره‌شده
-//
-// برای تشخیص "داخل بودن" نقطه در polygon استفاده می‌شود.
-// خروجی: آرایه‌ای از { polygon: turf.Polygon, feature: GeoJSON Feature }
 // ============================================================
 export function extractPolygons(farms) {
   const polygons = [];
@@ -71,21 +70,20 @@ export function extractPolygons(farms) {
       const geometry = feature?.geometry || feature;
       if (!geometry) continue;
 
-      // فقط Polygon و MultiPolygon
-      if (geometry.type === 'Polygon') {
+      if (geometry.type === "Polygon") {
         try {
-          const poly = turf.polygon(geometry.coordinates);
+          const poly = polygon(geometry.coordinates);
           polygons.push({ polygon: poly, feature });
         } catch (err) {
-          console.warn('Invalid polygon in extractPolygons:', err);
+          console.warn("Invalid polygon in extractPolygons:", err);
         }
-      } else if (geometry.type === 'MultiPolygon') {
+      } else if (geometry.type === "MultiPolygon") {
         for (const coords of geometry.coordinates) {
           try {
-            const poly = turf.polygon(coords);
+            const poly = polygon(coords);
             polygons.push({ polygon: poly, feature });
           } catch (err) {
-            console.warn('Invalid multipolygon part:', err);
+            console.warn("Invalid multipolygon part:", err);
           }
         }
       }
@@ -105,25 +103,25 @@ function normalizeToFeatures(geojson) {
     return geojson
       .map((item) => {
         if (!item) return null;
-        if (item.type === 'Feature') return item;
-        if (item.type === 'Polygon' || item.type === 'MultiPolygon') {
-          return { type: 'Feature', properties: {}, geometry: item };
+        if (item.type === "Feature") return item;
+        if (item.type === "Polygon" || item.type === "MultiPolygon") {
+          return { type: "Feature", properties: {}, geometry: item };
         }
         return null;
       })
       .filter(Boolean);
   }
 
-  if (geojson.type === 'FeatureCollection') {
+  if (geojson.type === "FeatureCollection") {
     return geojson.features || [];
   }
 
-  if (geojson.type === 'Feature') {
+  if (geojson.type === "Feature") {
     return [geojson];
   }
 
-  if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
-    return [{ type: 'Feature', properties: {}, geometry: geojson }];
+  if (geojson.type === "Polygon" || geojson.type === "MultiPolygon") {
+    return [{ type: "Feature", properties: {}, geometry: geojson }];
   }
 
   return [];
@@ -135,11 +133,11 @@ function normalizeToFeatures(geojson) {
 function getRings(geometry) {
   if (!geometry) return [];
 
-  if (geometry.type === 'Polygon') {
+  if (geometry.type === "Polygon") {
     return geometry.coordinates || [];
   }
 
-  if (geometry.type === 'MultiPolygon') {
+  if (geometry.type === "MultiPolygon") {
     const rings = [];
     for (const polygonCoords of geometry.coordinates || []) {
       for (const ring of polygonCoords || []) {
@@ -154,22 +152,16 @@ function getRings(geometry) {
 
 // ============================================================
 // ✅ بررسی آیا نقطه داخل یا روی لبه‌ی هر polygon است
-//
-// از turf.booleanPointInPolygon استفاده می‌کنیم که نقاط روی لبه را
-// به صورت پیش‌فرض "خارج" در نظر می‌گیرد، ولی برای احتیاط از یک
-// بافر کوچک هم استفاده می‌کنیم.
 // ============================================================
-function isPointInsideAnyPolygon(point, polygons) {
+function isPointInsideAnyPolygon(pointFeature, polygons) {
   if (!polygons || polygons.length === 0) return false;
 
-  for (const { polygon } of polygons) {
+  for (const { polygon: poly } of polygons) {
     try {
-      // booleanPointInPolygon نقاط روی لبه را خارج در نظر می‌گیرد
-      // ولی ما می‌خواهیم نقاط "نزدیک لبه" هم رد شوند
-      if (turf.booleanPointInPolygon(point, polygon)) {
+      if (booleanPointInPolygon(pointFeature, poly)) {
         return true;
       }
-    } catch (err) {
+    } catch {
       // نادیده بگیر
     }
   }
@@ -178,17 +170,6 @@ function isPointInsideAnyPolygon(point, polygons) {
 
 // ============================================================
 // ✅ یافتن نزدیک‌ترین vertex با offset به بیرون
-//
-// نکته کلیدی: به جای snap دقیق روی رأس، نقطه را کمی در جهت
-// شعاعی (از مرکز polygon به سمت رأس) به بیرون هل می‌دهیم.
-// اینطوری لبه‌ها با هم تماس پیدا نمی‌کنند ولی خیلی نزدیک می‌مانند.
-//
-// ورودی:
-//   latlng: { lat, lng } از Leaflet
-//   vertices: آرایه‌ای از [lng, lat]
-//   polygons: آرایه‌ای از { polygon: turf.Polygon }
-//
-// خروجی: { lat, lng } | null
 // ============================================================
 export function findSnapVertex(latlng, vertices, polygons = []) {
   if (!latlng || !Array.isArray(vertices) || vertices.length === 0) {
@@ -199,15 +180,15 @@ export function findSnapVertex(latlng, vertices, polygons = []) {
   const lng = Number(latlng.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-  const point = turf.point([lng, lat]);
+  const searchPoint = turfPoint([lng, lat]);
   let closest = null;
   let minDist = Infinity;
 
   for (const [vLng, vLat] of vertices) {
     if (!Number.isFinite(vLng) || !Number.isFinite(vLat)) continue;
 
-    const candidate = turf.point([vLng, vLat]);
-    const dist = turf.distance(point, candidate, { units: 'meters' });
+    const candidate = turfPoint([vLng, vLat]);
+    const dist = distance(searchPoint, candidate, { units: "meters" });
 
     if (dist <= SNAP_THRESHOLD_METERS && dist < minDist) {
       minDist = dist;
@@ -217,84 +198,67 @@ export function findSnapVertex(latlng, vertices, polygons = []) {
 
   if (!closest) return null;
 
-  // ✅ حالا نقطه را کمی به بیرون از polygon هل می‌دهیم
   return offsetPointOutward(closest, polygons);
 }
 
 // ============================================================
 // ✅ هل دادن نقطه به بیرون از polygon
-//
-// استراتژی:
-// 1. نزدیک‌ترین polygon به نقطه را پیدا کن
-// 2. مرکز polygon را حساب کن
-// 3. بردار از مرکز به نقطه را نرمال کن
-// 4. نقطه را به اندازه SNAP_OFFSET_METERS در آن جهت جابه‌جا کن
-// 5. بررسی کن که نقطه جدید داخل هیچ polygon نباشد
-//    (اگر بود، فاصله را افزایش بده تا خارج شود)
 // ============================================================
-function offsetPointOutward(point, polygons) {
+function offsetPointOutward(pointObj, polygons) {
   if (!polygons || polygons.length === 0) {
-    // هیچ polygon ای نیست؛ همان نقطه را برگردان
-    return point;
+    return pointObj;
   }
 
-  const pointTurf = turf.point([point.lng, point.lat]);
+  const pointFeature = turfPoint([pointObj.lng, pointObj.lat]);
 
-  // اگر نقطه داخل هیچ polygon نیست، مشکلی نیست — همان را برگردان
-  if (!isPointInsideAnyPolygon(pointTurf, polygons)) {
-    return point;
+  if (!isPointInsideAnyPolygon(pointFeature, polygons)) {
+    return pointObj;
   }
 
-  // نزدیک‌ترین polygon را پیدا کن
   let closestPolygon = null;
   let minDistToPolygon = Infinity;
 
-  for (const { polygon } of polygons) {
+  for (const { polygon: poly } of polygons) {
     try {
-      // distance از turf روی Polygon → فاصله تا لبه
-      const dist = turf.pointToPolygonDistance(pointTurf, polygon, {
-        units: 'meters',
+      const dist = pointToPolygonDistance(pointFeature, poly, {
+        units: "meters",
       });
 
       if (dist < minDistToPolygon) {
         minDistToPolygon = dist;
-        closestPolygon = polygon;
+        closestPolygon = poly;
       }
-    } catch (err) {
-      // اگر pointToPolygonDistance در دسترس نبود، از center استفاده کن
+    } catch {
       try {
-        const center = turf.center(polygon);
-        const dist = turf.distance(pointTurf, center, { units: 'meters' });
+        const centerFeature = center(poly);
+        const dist = distance(pointFeature, centerFeature, { units: "meters" });
         if (dist < minDistToPolygon) {
           minDistToPolygon = dist;
-          closestPolygon = polygon;
+          closestPolygon = poly;
         }
-      } catch (e) {
+      } catch {
         // نادیده بگیر
       }
     }
   }
 
-  if (!closestPolygon) return point;
+  if (!closestPolygon) return pointObj;
 
-  // مرکز polygon
-  let center;
+  let centerFeature;
   try {
-    center = turf.centerOfMass(closestPolygon);
+    centerFeature = centroid(closestPolygon);
   } catch {
-    center = turf.center(closestPolygon);
+    centerFeature = center(closestPolygon);
   }
 
-  const centerCoord = center.geometry.coordinates;
-  const pointCoord = [point.lng, point.lat];
+  const centerCoord = centerFeature.geometry.coordinates;
+  const pointCoord = [pointObj.lng, pointObj.lat];
 
-  // بردار از مرکز به نقطه
   let dx = pointCoord[0] - centerCoord[0];
   let dy = pointCoord[1] - centerCoord[1];
   const mag = Math.sqrt(dx * dx + dy * dy);
 
   if (mag < 1e-10) {
-    // نقطه روی مرکز است؛ یک جهت پیش‌فرض انتخاب کن
     dx = 1;
     dy = 0;
   } else {
@@ -302,64 +266,54 @@ function offsetPointOutward(point, polygons) {
     dy /= mag;
   }
 
-  // تبدیل offset از متر به درجه
-  // 1 درجه عرض ≈ 111_320 متر
-  // 1 درجه طول ≈ 111_320 * cos(lat)
-  const latRad = (point.lat * Math.PI) / 180;
+  const latRad = (pointObj.lat * Math.PI) / 180;
   const metersPerDegLat = 111320;
   const metersPerDegLng = 111320 * Math.cos(latRad);
 
   const offsetLat = (dy * SNAP_OFFSET_METERS) / metersPerDegLat;
   const offsetLng = (dx * SNAP_OFFSET_METERS) / Math.max(metersPerDegLng, 1e-6);
 
-  // نقطه offset‌شده
   let result = {
-    lat: point.lat + offsetLat,
-    lng: point.lng + offsetLng,
+    lat: pointObj.lat + offsetLat,
+    lng: pointObj.lng + offsetLng,
   };
 
-  // ✅ بررسی نهایی: اگر هنوز داخل polygon است، فاصله را بیشتر کن
   let attempts = 0;
   const MAX_ATTEMPTS = 5;
   const STEP_MULTIPLIER = 2;
 
   while (attempts < MAX_ATTEMPTS) {
-    const checkPoint = turf.point([result.lng, result.lat]);
-    if (!isPointInsideAnyPolygon(checkPoint, polygons)) {
+    const checkFeature = turfPoint([result.lng, result.lat]);
+    if (!isPointInsideAnyPolygon(checkFeature, polygons)) {
       return result;
     }
 
-    // فاصله را دو برابر کن
     attempts += 1;
     const factor = Math.pow(STEP_MULTIPLIER, attempts);
 
     result = {
-      lat: point.lat + offsetLat * factor,
-      lng: point.lng + offsetLng * factor,
+      lat: pointObj.lat + offsetLat * factor,
+      lng: pointObj.lng + offsetLng * factor,
     };
   }
 
-  // اگر بعد از همه تلاش‌ها همچنان داخل بود، null برگردان
-  // (بهتر از ایجاد overlap است)
-  console.warn('Could not find non-overlapping snap point');
+  console.warn("Could not find non-overlapping snap point");
   return null;
 }
 
 // ============================================================
-// ✅ اسنپ کردن یک حلقه (ring) از latlngها با در نظر گرفتن polygons
+// ✅ اسنپ کردن یک حلقه (ring) از latlngها
 // ============================================================
 export function snapLatLngArray(latlngs, vertices, polygons = []) {
   if (!Array.isArray(latlngs)) {
     return latlngs;
   }
 
-  // اگر نه vertex داریم نه polygon، هیچ کاری نکن
   if (vertices.length === 0 && polygons.length === 0) {
     return latlngs.map((ll) => [ll.lat, ll.lng]);
   }
 
   return latlngs.map((ll) => {
-    // اگر vertex داریم، snap کن
     if (vertices.length > 0) {
       const snapped = findSnapVertex(ll, vertices, polygons);
       if (snapped) {
@@ -367,13 +321,12 @@ export function snapLatLngArray(latlngs, vertices, polygons = []) {
       }
     }
 
-    // اگر vertex نزدیک نبود ولی نقطه داخل polygon بود، به بیرون هل بده
     if (polygons.length > 0) {
-      const pointTurf = turf.point([ll.lng, ll.lat]);
-      if (isPointInsideAnyPolygon(pointTurf, polygons)) {
+      const pointFeature = turfPoint([ll.lng, ll.lat]);
+      if (isPointInsideAnyPolygon(pointFeature, polygons)) {
         const offset = offsetPointOutward(
           { lat: ll.lat, lng: ll.lng },
-          polygons
+          polygons,
         );
         if (offset) {
           return [offset.lat, offset.lng];

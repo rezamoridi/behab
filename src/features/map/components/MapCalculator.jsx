@@ -6,7 +6,6 @@ import {
   Sprout,
   AlertCircle,
   ChevronDown,
-  Eye,
   EyeOff,
   Calculator,
 } from "lucide-react";

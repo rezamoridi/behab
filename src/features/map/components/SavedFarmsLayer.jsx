@@ -1,5 +1,5 @@
 // src/features/map/components/SavedFarmsLayer.jsx
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { createRoot } from 'react-dom/client';

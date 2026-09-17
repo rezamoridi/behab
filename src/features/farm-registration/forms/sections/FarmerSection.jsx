@@ -1,5 +1,4 @@
 // src/features/farm-registration/forms/sections/FarmerSection.jsx
-import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import { AlertCircle, User, CreditCard, Phone } from 'lucide-react';
 

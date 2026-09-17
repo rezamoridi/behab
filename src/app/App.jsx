@@ -1,5 +1,5 @@
 // src/app/App.jsx
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedLayout from './ProtectedLayout';
 import ErrorBoundary from '../shared/components/ErrorBoundary/ErrorBoundary';

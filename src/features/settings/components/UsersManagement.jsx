@@ -1,5 +1,5 @@
 // src/features/settings/components/UsersManagement.jsx
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, X, Search, Users } from 'lucide-react';
 import { settingsApi } from '../../../services/api/settingsApi';

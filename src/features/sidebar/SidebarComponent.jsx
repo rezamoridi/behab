@@ -1,5 +1,5 @@
 // src/features/sidebar/SidebarComponent.jsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -12,7 +12,7 @@ import {
   getCurrentUser,
   logout as logoutApi,
 } from '../../services/api/authApi';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 const NAV_ITEMS = [
   { label: 'داشبورد', icon: LayoutDashboard, path: '/' },

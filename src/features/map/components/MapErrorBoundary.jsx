@@ -1,5 +1,4 @@
 // src/features/map/components/MapErrorBoundary.jsx
-import React from 'react';
 import ErrorBoundary from '../../../shared/components/ErrorBoundary/ErrorBoundary';
 
 const MapErrorBoundary = ({ children }) => {

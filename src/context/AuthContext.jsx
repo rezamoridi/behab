@@ -1,11 +1,5 @@
 // src/context/AuthContext.jsx
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from 'react';
+import { createContext, useState, useCallback } from 'react';
 import {
   getAuthToken,
   removeAuthToken,
@@ -13,59 +7,64 @@ import {
   setUserData as saveUserData,
 } from '../services/api/authApi';
 
-const AuthContext = createContext(null);
+// ✅ AuthContext را export می‌کنیم (نه default)
+export const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const checkAuth = useCallback(() => {
+// ============================================================
+// تابع اولیه‌سازی state از localStorage
+// ============================================================
+const getInitialAuthState = () => {
+  try {
     const token = getAuthToken();
     const userData = getUserData();
+    return {
+      isAuthenticated: !!token,
+      user: userData || null,
+    };
+  } catch (error) {
+    console.warn('Failed to read auth state:', error);
+    return {
+      isAuthenticated: false,
+      user: null,
+    };
+  }
+};
 
-    const authenticated = !!token;
-    setIsAuthenticated(authenticated);
-    setUser(userData || null);
-    setLoading(false);
-
-    return authenticated;
-  }, []);
+export const AuthProvider = ({ children }) => {
+  const [authState, setAuthState] = useState(getInitialAuthState);
 
   const login = useCallback((userData) => {
     if (userData) {
       saveUserData(userData);
     }
-    setIsAuthenticated(true);
-    setUser(userData || null);
+    setAuthState({
+      isAuthenticated: true,
+      user: userData || null,
+    });
   }, []);
 
   const logout = useCallback(() => {
     removeAuthToken();
-    setIsAuthenticated(false);
-    setUser(null);
+    setAuthState({
+      isAuthenticated: false,
+      user: null,
+    });
   }, []);
 
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  const checkAuth = useCallback(() => {
+    const newState = getInitialAuthState();
+    setAuthState(newState);
+    return newState.isAuthenticated;
+  }, []);
 
   const value = {
-    isAuthenticated,
-    user,
-    loading,
+    isAuthenticated: authState.isAuthenticated,
+    user: authState.user,
+    loading: false,
     login,
     logout,
     checkAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
 };

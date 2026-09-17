@@ -1,8 +1,7 @@
 // src/app/ProtectedLayout.jsx
-import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import Layout from './Layout';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import LoadingSpinner from '../shared/components/LoadingSpinner/LoadingSpinner';
 
 const ProtectedLayout = () => {

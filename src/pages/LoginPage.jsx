@@ -1,8 +1,8 @@
 // src/pages/LoginPage.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginWithCredentials, verifyOTP } from '../services/api/authApi';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 const OTP_LENGTH = 6;
 const RESEND_TIMEOUT = 120;

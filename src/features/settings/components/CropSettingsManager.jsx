@@ -1,5 +1,5 @@
 // src/features/settings/components/CropSettingsManager.jsx
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Plus,
   X,
@@ -21,8 +21,9 @@ import {
   STATUS_CONFIG,
   ACTION_CONFIG,
   STATS_CONFIG,
-  CropSettingsManagerSkeleton,
 } from "../constants/cropSettingsConfig";
+import { CropSettingsManagerSkeleton } from "../constants/cropSettingsSkeletons";
+
 import {
   CROP_COLOR_PALETTE,
   DEFAULT_FARM_COLOR,
@@ -34,15 +35,14 @@ import { useCropSettings } from "../hooks/useCropSettings";
 
 // ============================================================
 // ColorPicker — انتخاب رنگ از پالت یا ورودی دستی
+//
+// ⚠️ نکته:
+// برای reset شدن state داخلی (customInput) هنگام تغییر مقدار از
+// بیرون، والد باید key بدهد: key={`color-picker-${value}`}
 // ============================================================
 const ColorPicker = ({ value, onChange, disabled = false }) => {
   const safeValue = normalizeHex(value) || DEFAULT_FARM_COLOR;
   const [customInput, setCustomInput] = useState(safeValue);
-
-  // همگام‌سازی وقتی value از بیرون عوض می‌شود
-  React.useEffect(() => {
-    setCustomInput(normalizeHex(value) || DEFAULT_FARM_COLOR);
-  }, [value]);
 
   const handlePaletteClick = (color) => {
     if (disabled) return;
@@ -331,7 +331,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
 
     const payload = {
       name: trimmedName,
-      color: safeColor, // ✅
+      color: safeColor,
       requirement: 0,
       price: 0,
       fertilizer: 0,
@@ -437,7 +437,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
             )}
           </div>
 
-          {/* ✅ Color */}
+          {/* ✅ Color — با key برای reset خودکار */}
           <div>
             <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
               <span
@@ -456,6 +456,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
               رنگ نمایش لایه روی نقشه
             </label>
             <ColorPicker
+              key={`color-picker-edit-${form.color}`}
               value={form.color}
               onChange={(c) => handleChange("color", c)}
               disabled={isSubmitting}
@@ -608,13 +609,14 @@ const AddCropModal = ({ onClose, onSubmit }) => {
             />
           </div>
 
-          {/* ✅ Color */}
+          {/* ✅ Color — با key برای reset خودکار */}
           <div>
             <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
               <Palette size={12} strokeWidth={2.4} />
               رنگ نمایش لایه
             </label>
             <ColorPicker
+              key={`color-picker-add-${color}`}
               value={color}
               onChange={setColor}
               disabled={isSubmitting}
@@ -893,7 +895,6 @@ const Legend = () => {
 // ============================================================
 const CropSettingsManager = () => {
   const {
-    crops,
     filteredCrops,
     stats,
     isLoading,

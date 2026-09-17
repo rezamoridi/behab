@@ -1,5 +1,5 @@
 // src/features/farm-registration/components/DraggableFarmWindow.jsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -134,4 +134,4 @@ export const DraggableFarmWindow = ({
   );
 };
 
-export default React.memo(DraggableFarmWindow);
+export default memo(DraggableFarmWindow);

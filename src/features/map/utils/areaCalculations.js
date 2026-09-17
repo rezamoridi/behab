@@ -1,5 +1,5 @@
 // src/features/map/utils/areaCalculations.js
-import * as turf from '@turf/turf';
+import area from '@turf/area';
 
 /**
  * محاسبه مساحت چندضلعی به هکتار
@@ -8,7 +8,7 @@ export const calculateAreaInHectares = (geojson) => {
   if (!geojson) return 0;
 
   try {
-    const areaSquareMeters = turf.area(geojson);
+    const areaSquareMeters = area(geojson);
     const areaHectares = areaSquareMeters / 10000;
     return Number(areaHectares.toFixed(4));
   } catch (error) {

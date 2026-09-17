@@ -1,40 +1,36 @@
 // src/features/settings/components/AgricultureSettings.jsx
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Settings2 } from 'lucide-react';
+
+// ============================================================
+// تبدیل settings به formData
+// این تابع pure است و می‌تواند در initializer یا render استفاده شود
+// ============================================================
+const settingsToForm = (settings) => ({
+  default_area_unit: settings?.default_area_unit || 'hectare',
+  default_water_unit: settings?.default_water_unit || 'cubic_meter',
+  default_map_center_lat: settings?.default_map_center_lat || 35.6892,
+  default_map_center_lng: settings?.default_map_center_lng || 51.389,
+  default_map_zoom: settings?.default_map_zoom || 6,
+  default_map_layer: settings?.default_map_layer || 'osm',
+  show_saved_farms:
+    settings?.show_saved_farms !== undefined
+      ? settings.show_saved_farms
+      : true,
+});
+
 
 const AgricultureSettings = ({
   settings,
   onUpdateSettings,
   isLoading,
 }) => {
-  const [formData, setFormData] = useState({
-    default_area_unit: 'hectare',
-    default_water_unit: 'cubic_meter',
-    default_map_center_lat: 35.6892,
-    default_map_center_lng: 51.389,
-    default_map_zoom: 6,
-    default_map_layer: 'osm',
-    show_saved_farms: true,
-  });
+  // ✅ initializer function — فقط یک بار در mount از settings می‌خواند
+  // برای reset شدن با تغییر settings، والد باید key بدهد:
+  //   <AgricultureSettings key={settings?.id || 'new'} ... />
+  const [formData, setFormData] = useState(() => settingsToForm(settings));
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (settings) {
-      setFormData({
-        default_area_unit: settings.default_area_unit || 'hectare',
-        default_water_unit: settings.default_water_unit || 'cubic_meter',
-        default_map_center_lat: settings.default_map_center_lat || 35.6892,
-        default_map_center_lng: settings.default_map_center_lng || 51.389,
-        default_map_zoom: settings.default_map_zoom || 6,
-        default_map_layer: settings.default_map_layer || 'osm',
-        show_saved_farms:
-          settings.show_saved_farms !== undefined
-            ? settings.show_saved_farms
-            : true,
-      });
-    }
-  }, [settings]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;

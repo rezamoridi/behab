@@ -1,5 +1,5 @@
 // src/features/settings/components/ProfileSettings.jsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const ProfileSettings = ({
