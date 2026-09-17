@@ -1,5 +1,5 @@
 // src/features/settings/components/CropSettingsManager.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Plus,
   X,
@@ -12,6 +12,7 @@ import {
   Pencil,
   Trash2,
   AlertCircle,
+  Palette,
 } from "lucide-react";
 
 import {
@@ -22,7 +23,123 @@ import {
   STATS_CONFIG,
   CropSettingsManagerSkeleton,
 } from "../constants/cropSettingsConfig";
+import {
+  CROP_COLOR_PALETTE,
+  DEFAULT_FARM_COLOR,
+  normalizeHex,
+  isValidHexColor,
+  withAlpha,
+} from "../constants/cropColors";
 import { useCropSettings } from "../hooks/useCropSettings";
+
+// ============================================================
+// ColorPicker — انتخاب رنگ از پالت یا ورودی دستی
+// ============================================================
+const ColorPicker = ({ value, onChange, disabled = false }) => {
+  const safeValue = normalizeHex(value) || DEFAULT_FARM_COLOR;
+  const [customInput, setCustomInput] = useState(safeValue);
+
+  // همگام‌سازی وقتی value از بیرون عوض می‌شود
+  React.useEffect(() => {
+    setCustomInput(normalizeHex(value) || DEFAULT_FARM_COLOR);
+  }, [value]);
+
+  const handlePaletteClick = (color) => {
+    if (disabled) return;
+    onChange(color);
+  };
+
+  const handleColorInput = (e) => {
+    const v = e.target.value;
+    setCustomInput(v);
+    const normalized = normalizeHex(v);
+    if (normalized) onChange(normalized);
+  };
+
+  const handleTextInput = (e) => {
+    const v = e.target.value;
+    setCustomInput(v);
+    const normalized = normalizeHex(v);
+    if (normalized) onChange(normalized);
+  };
+
+  const isCustomValid = isValidHexColor(customInput);
+
+  return (
+    <div className="space-y-2.5">
+      {/* پالت آماده */}
+      <div className="flex flex-wrap gap-1.5">
+        {CROP_COLOR_PALETTE.map((c) => {
+          const isActive = safeValue.toUpperCase() === c.toUpperCase();
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => handlePaletteClick(c)}
+              disabled={disabled}
+              className={`
+                w-7 h-7 rounded-full border-2 transition-all
+                ${
+                  isActive
+                    ? "border-gray-800 scale-110 shadow-md"
+                    : "border-white shadow"
+                }
+                ${
+                  disabled
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:scale-110 cursor-pointer"
+                }
+              `}
+              style={{ backgroundColor: c }}
+              title={c}
+              aria-label={`انتخاب رنگ ${c}`}
+              aria-pressed={isActive}
+            />
+          );
+        })}
+      </div>
+
+      {/* ورودی دستی */}
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={safeValue}
+          onChange={handleColorInput}
+          disabled={disabled}
+          className="
+            w-10 h-9 rounded-lg border border-gray-200 cursor-pointer
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+          title="انتخاب رنگ دلخواه"
+        />
+        <input
+          type="text"
+          value={customInput}
+          onChange={handleTextInput}
+          disabled={disabled}
+          placeholder="#RRGGBB"
+          maxLength={7}
+          className={`
+            flex-1 px-3 py-2 rounded-lg border text-xs font-mono
+            outline-none transition-all
+            ${
+              isCustomValid
+                ? "border-gray-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                : "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-100"
+            }
+            ${disabled ? "bg-gray-50 cursor-not-allowed" : "bg-white"}
+          `}
+          style={{ direction: "ltr" }}
+        />
+        {!isCustomValid && (
+          <span className="text-[10px] text-red-600 whitespace-nowrap">
+            نامعتبر
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // ============================================================
 // Metric Cell
@@ -85,13 +202,9 @@ const StatusPill = ({ isActive, hasRate }) => {
 // ============================================================
 // Crop Row
 // ============================================================
-const CropRow = ({
-  crop,
-  onEdit,
-  onToggleActive,
-  onDeleteCrop,
-}) => {
+const CropRow = ({ crop, onEdit, onToggleActive, onDeleteCrop }) => {
   const hasRate = crop.hasRate;
+  const color = normalizeHex(crop.color) || DEFAULT_FARM_COLOR;
 
   return (
     <div
@@ -102,20 +215,23 @@ const CropRow = ({
         ${!crop.isActive ? "bg-gray-50/60" : "hover:bg-gray-50"}
       `}
     >
-      {/* Name + Status */}
+      {/* Name + Color Dot + Status */}
       <div className="flex items-center gap-2.5 min-w-0">
+        {/* ✅ دایره رنگ محصول */}
         <div
-          className={`
-            w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
-            ${
-              crop.isActive
-                ? "bg-primary-50 text-primary-600"
-                : "bg-gray-100 text-gray-400"
-            }
-          `}
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border"
+          style={{
+            backgroundColor: withAlpha(color, 0.15),
+            borderColor: withAlpha(color, 0.4),
+          }}
+          title={`رنگ لایه: ${color}`}
         >
-          <Sprout size={14} strokeWidth={2.2} />
+          <span
+            className="w-3.5 h-3.5 rounded-full shadow-inner"
+            style={{ backgroundColor: color }}
+          />
         </div>
+
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span
             className={`
@@ -134,14 +250,13 @@ const CropRow = ({
         <MetricCell key={m.key} config={m} value={crop.rate?.[m.key]} />
       ))}
 
-      {/* Actions — فقط ۳ دکمه */}
+      {/* Actions */}
       <div className="flex items-center justify-end gap-1">
-        {/* ✅ یک دکمه واحد برای ویرایش نام + نرخ‌ها */}
         <button
           type="button"
           onClick={() => onEdit(crop)}
           className={`p-2 rounded-lg transition-colors ${ACTION_CONFIG.edit.color}`}
-          title={hasRate ? "ویرایش محصول" : "تنظیم نرخ‌ها"}
+          title={hasRate ? "ویرایش محصول" : "تنظیم نرخ‌ها و رنگ"}
         >
           <Pencil size={14} />
         </button>
@@ -176,11 +291,16 @@ const CropRow = ({
 };
 
 // ============================================================
-// ✅ Edit Modal — نام + نرخ‌ها در یک مودال
+// Edit Modal
 // ============================================================
 const EditModal = ({ crop, onClose, onSubmit }) => {
+  const initialColor = normalizeHex(crop.color) || DEFAULT_FARM_COLOR;
+
   const [form, setForm] = useState(() => {
-    const initial = { name: crop.name || "" };
+    const initial = {
+      name: crop.name || "",
+      color: initialColor,
+    };
     METRICS.forEach((m) => {
       const v = crop.rate?.[m.key];
       initial[m.key] = v != null ? String(v) : "";
@@ -189,13 +309,14 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
   });
 
   const [nameError, setNameError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (key === "name" && nameError) setNameError("");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const trimmedName = form.name.trim();
     if (!trimmedName) {
       setNameError("نام محصول الزامی است");
@@ -206,8 +327,11 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
       return;
     }
 
+    const safeColor = normalizeHex(form.color) || DEFAULT_FARM_COLOR;
+
     const payload = {
       name: trimmedName,
+      color: safeColor, // ✅
       requirement: 0,
       price: 0,
       fertilizer: 0,
@@ -215,7 +339,6 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
     };
 
     let hasAnyRate = false;
-
     METRICS.forEach((m) => {
       const v = parseFloat(form[m.key]);
       if (Number.isFinite(v) && v >= 0) {
@@ -224,45 +347,62 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
       }
     });
 
-    // اگه نام تغییر نکرده و هیچ نرخی هم وارد نشده → هشدار
     const nameChanged = trimmedName !== crop.name;
-    if (!nameChanged && !hasAnyRate) {
+    const colorChanged = safeColor !== initialColor;
+
+    if (!nameChanged && !hasAnyRate && !colorChanged) {
       alert("تغییری اعمال نشده است");
       return;
     }
 
-    onSubmit(payload);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(payload);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
-              <Pencil size={16} strokeWidth={2.2} />
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center border"
+              style={{
+                backgroundColor: withAlpha(form.color, 0.15),
+                borderColor: withAlpha(form.color, 0.4),
+              }}
+            >
+              <Pencil
+                size={16}
+                strokeWidth={2.2}
+                style={{ color: form.color }}
+              />
             </div>
             <div>
               <h4 className="text-sm font-bold text-gray-900">
                 ویرایش محصول
               </h4>
               <p className="text-[11px] text-gray-500 mt-0.5">
-                نام و نرخ‌های مصرفی را ویرایش کنید
+                نام، رنگ و نرخ‌های مصرفی را ویرایش کنید
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Name */}
           <div>
             <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
@@ -277,6 +417,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
               value={form.name}
               onChange={(e) => handleChange("name", e.target.value)}
               placeholder="مثال: گندم"
+              disabled={isSubmitting}
               className={`
                 w-full px-3.5 py-2.5 rounded-lg border text-sm
                 focus:ring-2 outline-none transition-all
@@ -294,6 +435,31 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
                 {nameError}
               </p>
             )}
+          </div>
+
+          {/* ✅ Color */}
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
+              <span
+                className="flex items-center justify-center w-5 h-5 rounded-md border"
+                style={{
+                  backgroundColor: withAlpha(form.color, 0.2),
+                  borderColor: withAlpha(form.color, 0.5),
+                }}
+              >
+                <Palette
+                  size={11}
+                  strokeWidth={2.4}
+                  style={{ color: form.color }}
+                />
+              </span>
+              رنگ نمایش لایه روی نقشه
+            </label>
+            <ColorPicker
+              value={form.color}
+              onChange={(c) => handleChange("color", c)}
+              disabled={isSubmitting}
+            />
           </div>
 
           {/* Separator */}
@@ -326,6 +492,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
                   value={form[m.key]}
                   onChange={(e) => handleChange(m.key, e.target.value)}
                   placeholder="0"
+                  disabled={isSubmitting}
                   className="
                     w-full px-3.5 py-2.5 rounded-lg border border-gray-200
                     text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100
@@ -339,19 +506,24 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             انصراف
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors"
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
+            {isSubmitting && (
+              <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            )}
             ذخیره تغییرات
           </button>
         </div>
@@ -361,18 +533,41 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
 };
 
 // ============================================================
-// Name Modal — فقط برای افزودن محصول جدید
+// Add Crop Modal
 // ============================================================
 const AddCropModal = ({ onClose, onSubmit }) => {
   const [value, setValue] = useState("");
+  const [color, setColor] = useState(CROP_COLOR_PALETTE[0]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAdd = async () => {
+    const trimmed = value.trim();
+    if (trimmed.length < 2) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        name: trimmed,
+        color: normalizeHex(color) || DEFAULT_FARM_COLOR,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
-              <Plus size={16} strokeWidth={2.2} />
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center border"
+              style={{
+                backgroundColor: withAlpha(color, 0.15),
+                borderColor: withAlpha(color, 0.4),
+              }}
+            >
+              <Plus size={16} strokeWidth={2.2} style={{ color }} />
             </div>
             <h4 className="text-sm font-bold text-gray-900">
               افزودن محصول جدید
@@ -381,34 +576,52 @@ const AddCropModal = ({ onClose, onSubmit }) => {
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-5">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-            نام محصول
-          </label>
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && value.trim().length >= 2) {
-                onSubmit(value.trim());
-              }
-            }}
-            placeholder="مثال: گلرنگ"
-            className="
-              w-full px-3.5 py-2.5 rounded-lg border border-gray-200
-              text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100
-              outline-none transition-all
-            "
-            autoFocus
-          />
-          <p className="mt-2 text-[11px] text-gray-500">
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              نام محصول
+            </label>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && value.trim().length >= 2) {
+                  handleAdd();
+                }
+              }}
+              placeholder="مثال: گلرنگ"
+              disabled={isSubmitting}
+              className="
+                w-full px-3.5 py-2.5 rounded-lg border border-gray-200
+                text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100
+                outline-none transition-all
+              "
+              autoFocus
+            />
+          </div>
+
+          {/* ✅ Color */}
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1.5">
+              <Palette size={12} strokeWidth={2.4} />
+              رنگ نمایش لایه
+            </label>
+            <ColorPicker
+              value={color}
+              onChange={setColor}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <p className="text-[11px] text-gray-500">
             بعد از افزودن، می‌توانید نرخ‌های مصرفی را تنظیم کنید.
           </p>
         </div>
@@ -417,16 +630,20 @@ const AddCropModal = ({ onClose, onSubmit }) => {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             انصراف
           </button>
           <button
             type="button"
-            onClick={() => value.trim().length >= 2 && onSubmit(value.trim())}
-            disabled={value.trim().length < 2}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
+            onClick={handleAdd}
+            disabled={value.trim().length < 2 || isSubmitting}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
+            {isSubmitting && (
+              <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            )}
             افزودن
           </button>
         </div>
@@ -498,7 +715,6 @@ const Legend = () => {
             className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col"
             dir="rtl"
           >
-            {/* Header */}
             <div className="flex items-center justify-between gap-2.5 px-5 py-4 bg-indigo-50/60 border-b border-indigo-100 rounded-t-2xl flex-shrink-0">
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700">
@@ -523,7 +739,6 @@ const Legend = () => {
               </button>
             </div>
 
-            {/* Body */}
             <div className="p-5 overflow-y-auto">
               {/* Metrics */}
               <div className="mb-5">
@@ -558,6 +773,27 @@ const Legend = () => {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Color */}
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="h-px flex-1 bg-indigo-100" />
+                  <span className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">
+                    رنگ لایه
+                  </span>
+                  <span className="h-px flex-1 bg-indigo-100" />
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex-shrink-0">
+                    <Palette size={15} strokeWidth={2.4} />
+                  </span>
+                  <p className="text-xs text-gray-600 pt-1.5">
+                    رنگ انتخاب‌شده برای هر محصول، روی لایه‌ی آن محصول در
+                    نقشه اعمال می‌شود. مزارعی که محصول ندارند با رنگ خاکستری
+                    پیش‌فرض نمایش داده می‌شوند.
+                  </p>
                 </div>
               </div>
 
@@ -636,7 +872,6 @@ const Legend = () => {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="flex justify-end px-5 py-3 border-t border-gray-100 flex-shrink-0">
               <button
                 type="button"
@@ -694,7 +929,7 @@ const CropSettingsManager = () => {
             <div>
               <h3 className="text-sm font-bold text-gray-900">محصولات</h3>
               <p className="text-[11px] text-gray-500 mt-0.5">
-                مدیریت محصولات و نرخ‌های مصرفی
+                مدیریت محصولات، رنگ لایه و نرخ‌های مصرفی
               </p>
             </div>
           </div>

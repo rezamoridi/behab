@@ -14,6 +14,7 @@ export const DEFAULT_FARM_FORM_VALUES = {
   phone: '',
   landType: '',
   crop: '',
+  cropId: null,              // ✅
   irrigationType: '',
   waterSources: [],
   irrigationSystems: [],
@@ -52,6 +53,7 @@ export const apiToForm = (apiData) => {
     phone: apiData.phone_number || '',
     landType: apiData.land_type || '',
     crop: apiData.crop || '',
+    cropId: apiData.crop_id ?? null,           // ✅
     irrigationType: apiData.irrigation_type || '',
     waterSources,
     irrigationSystems,
@@ -64,7 +66,13 @@ export const apiToForm = (apiData) => {
 // ============================================
 // تبدیل فرم به Payload API
 // ============================================
-export const formToApi = ({ formData, areaHa, polygonCount, geometry }) => {
+export const formToApi = ({
+  formData,
+  areaHa,
+  polygonCount,
+  geometry,
+  cropId = null,                             // ✅
+}) => {
   return {
     // موقعیت
     province: formData.province || null,
@@ -81,6 +89,7 @@ export const formToApi = ({ formData, areaHa, polygonCount, geometry }) => {
     // زمین
     land_type: formData.landType || null,
     crop: formData.crop || null,
+    crop_id: cropId ?? null,                 // ✅
     irrigation_type: formData.irrigationType || null,
 
     // هندسه

@@ -11,9 +11,6 @@ import {
 
 // ============================================================
 // ✅ استخراج زنده‌ی رئوس از drawnItems
-//
-// این تابع در mousemove صدا زده میشه و همیشه آخرین وضعیت
-// لایه‌های در حال رسم رو برمی‌گردونه.
 // ============================================================
 const getLiveDrawnVertices = (drawnItems) => {
   const vertices = [];
@@ -51,6 +48,7 @@ const MapController = ({
   clearTrigger = null,
   editGeometryTrigger = null,
   geometriesToEdit = null,
+  editGeometryOptions = null,   // ✅ جدید
   snapEnabled = false,
 }) => {
   const map = useMap();
@@ -143,7 +141,6 @@ const MapController = ({
         return;
       }
 
-      // ✅ ترکیب رئوس مزارع ذخیره‌شده + رئوس لایه‌های در حال رسم
       const savedVerts = snapVerticesRef.current || [];
       const drawnVerts = getLiveDrawnVertices(drawnItems);
       const combinedVertices = [...savedVerts, ...drawnVerts];
@@ -220,7 +217,7 @@ const MapController = ({
     }
   }, [clearTrigger, clearPolygons]);
 
-  // Edit geometry trigger
+  // Edit geometry trigger — ✅ با options
   useEffect(() => {
     if (
       editGeometryTrigger !== null &&
@@ -228,11 +225,19 @@ const MapController = ({
       geometriesToEdit
     ) {
       const timeoutId = setTimeout(() => {
-        loadGeometriesForEdit(geometriesToEdit);
+        loadGeometriesForEdit(
+          geometriesToEdit,
+          editGeometryOptions || undefined
+        );
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [editGeometryTrigger, geometriesToEdit, loadGeometriesForEdit]);
+  }, [
+    editGeometryTrigger,
+    geometriesToEdit,
+    editGeometryOptions,
+    loadGeometriesForEdit,
+  ]);
 
   return null;
 };

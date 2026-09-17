@@ -1,6 +1,7 @@
 // src/features/settings/hooks/useCropSettings.js
 import { useState, useMemo } from "react";
 import { useAgricultureSettings } from "./useAgricultureSettings";
+import { DEFAULT_FARM_COLOR, normalizeHex } from "../constants/cropColors";
 
 export const useCropSettings = () => {
   const {
@@ -30,6 +31,7 @@ export const useCropSettings = () => {
         id: c.id,
         name: c.name,
         isActive: c.is_active,
+        color: normalizeHex(c.color) || DEFAULT_FARM_COLOR, // ✅
         requirement: c.requirement,
         price: c.price,
         fertilizer: c.fertilizer,
@@ -62,8 +64,19 @@ export const useCropSettings = () => {
   // ============================================
   // Handlers
   // ============================================
-  const handleAddCrop = async (name) => {
-    await addCrop({ name, is_active: true });
+
+  // ✅ حالا آبجکت { name, color } می‌گیرد
+  const handleAddCrop = async (payload) => {
+    const data =
+      typeof payload === "string"
+        ? { name: payload }
+        : payload;
+
+    await addCrop({
+      name: data.name,
+      color: data.color || DEFAULT_FARM_COLOR,
+      is_active: true,
+    });
     setAddModalOpen(false);
   };
 
@@ -77,10 +90,9 @@ export const useCropSettings = () => {
     }
   };
 
-  // ✅ یک عملیات واحد برای ویرایش نام + نرخ‌ها
   const handleSubmitEdit = async (payload) => {
     if (!editModalCrop) return;
-    // payload = { name, requirement, price, fertilizer, pesticide }
+    // payload = { name, color, requirement, price, fertilizer, pesticide }
     await updateCrop(editModalCrop.id, payload);
     setEditModalCrop(null);
   };

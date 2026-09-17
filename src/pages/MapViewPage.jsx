@@ -4,27 +4,35 @@ import React, {
   useCallback,
   useMemo,
   useRef,
-} from 'react';
-import { Plus, Save, X, Pencil } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+  useEffect,
+} from "react";
+import { Plus, Save, X, Pencil } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import MapComponent from '../features/map/components/MapComponent';
-import LocationPicker from '../features/location/components/LocationPicker';
-import MapCalculator from '../features/map/components/MapCalculator';
-import MapErrorBoundary from '../features/map/components/MapErrorBoundary';
-import DraggableFarmWindow from '../features/farm-registration/components/DraggableFarmWindow';
+import MapComponent from "../features/map/components/MapComponent";
+import LocationPicker from "../features/location/components/LocationPicker";
+import MapCalculator from "../features/map/components/MapCalculator";
+import MapErrorBoundary from "../features/map/components/MapErrorBoundary";
+import DraggableFarmWindow from "../features/farm-registration/components/DraggableFarmWindow";
 
 import {
   useFarmsQuery,
   farmKeys,
-} from '../features/farm-registration/hooks/useFarmsQuery';
-import { useFarmMutation } from '../features/farm-registration/hooks/useFarmMutation';
-import { fetchFarmById } from '../services/api/farmApi';
+} from "../features/farm-registration/hooks/useFarmsQuery";
+import { useFarmMutation } from "../features/farm-registration/hooks/useFarmMutation";
+import { fetchFarmById } from "../services/api/farmApi";
 import {
   extractGeometry,
   calculateTotalArea,
-} from '../features/farm-registration/utils/geometryUtils';
-import { calculateAreaInHectares } from '../features/map/utils/areaCalculations';
+} from "../features/farm-registration/utils/geometryUtils";
+import { calculateAreaInHectares } from "../features/map/utils/areaCalculations";
+
+// ✅ همه‌ی محصولات (فعال + غیرفعال) برای fallback رنگ
+import { useCropsQuery } from "../features/settings/hooks/useAgricultureSettings";
+
+// ✅ هوک‌های persistence
+import useSessionState from "../shared/hooks/useSessionState";
+import useLocalStorageState from "../shared/hooks/useLocalStorageState";
 
 // ============================================
 // ثابت‌های مشترک
@@ -36,12 +44,12 @@ const FARM_LIST_QUERY_PARAMS = {
 };
 
 // ============================================================
-// ✅ نرمال‌سازی geojson به آرایه‌ای از features
+// نرمال‌سازی geojson به آرایه‌ای از features
 // ============================================================
 const normalizeGeojsonToFeatures = (geojson) => {
   if (!geojson) return [];
 
-  if (geojson.type === 'FeatureCollection') {
+  if (geojson.type === "FeatureCollection") {
     return geojson.features || [];
   }
 
@@ -49,12 +57,12 @@ const normalizeGeojsonToFeatures = (geojson) => {
     return geojson;
   }
 
-  if (geojson.type === 'Feature') {
+  if (geojson.type === "Feature") {
     return [geojson];
   }
 
-  if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
-    return [{ type: 'Feature', properties: {}, geometry: geojson }];
+  if (geojson.type === "Polygon" || geojson.type === "MultiPolygon") {
+    return [{ type: "Feature", properties: {}, geometry: geojson }];
   }
 
   return [];
@@ -62,33 +70,49 @@ const normalizeGeojsonToFeatures = (geojson) => {
 
 const MapViewPage = () => {
   // ============================================
-  // State - Create/Edit Form
+  // ✅ State — با sessionStorage / localStorage
   // ============================================
-  const [selectedLocation, setSelectedLocation] = useState(null);
-  const [areaHa, setAreaHa] = useState(0);
-  const [polygonGeojsons, setPolygonGeojsons] = useState([]);
-  const [polygonCount, setPolygonCount] = useState(0);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  // --- Session state (بعد از refresh برمی‌گردد، بعد از بستن تب پاک می‌شود) ---
+  const [selectedLocation, setSelectedLocation] = useSessionState(
+    "map_selected_location",
+    null,
+  );
+  const [areaHa, setAreaHa] = useSessionState("map_area_ha", 0);
+  const [polygonGeojsons, setPolygonGeojsons] = useSessionState(
+    "map_polygon_geojsons",
+    [],
+  );
+  const [polygonCount, setPolygonCount] = useSessionState(
+    "map_polygon_count",
+    0,
+  );
+  const [isFormOpen, setIsFormOpen] = useSessionState("map_form_open", false);
+  const [selectedFarmId, setSelectedFarmId] = useSessionState(
+    "map_selected_farm_id",
+    null,
+  );
+  const [isEditMode, setIsEditMode] = useSessionState("map_edit_mode", false);
+  const [editingFarmId, setEditingFarmId] = useSessionState(
+    "map_editing_farm_id",
+    null,
+  );
+  const [editingFarmData, setEditingFarmData] = useSessionState(
+    "map_editing_farm_data",
+    null,
+  );
+
+  // --- Local state (ترجیح پایدار کاربر) ---
+  const [snapEnabled, setSnapEnabled] = useLocalStorageState(
+    "map_snap_enabled",
+    false,
+  );
+
+  // --- Local React state (نیازی به persistence ندارند) ---
   const [clearDrawTrigger, setClearDrawTrigger] = useState(0);
-
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingFarmId, setEditingFarmId] = useState(null);
-  const [editingFarmData, setEditingFarmData] = useState(null);
   const [isLoadingFarm, setIsLoadingFarm] = useState(false);
-
-  const [selectedFarmId, setSelectedFarmId] = useState(null);
-
-  // ✅ آیا قطعات فعلی قبلاً ثبت شده‌اند؟
   const [polygonsSubmitted, setPolygonsSubmitted] = useState(false);
 
-  // ============================================
-  // State - Snap to Vertex
-  // ============================================
-  const [snapEnabled, setSnapEnabled] = useState(false);
-
-  // ============================================
-  // State - Geometry Edit Mode
-  // ============================================
   const [isGeometryEditMode, setIsGeometryEditMode] = useState(false);
   const [editingGeometryFarm, setEditingGeometryFarm] = useState(null);
   const [editGeometryTrigger, setEditGeometryTrigger] = useState(0);
@@ -100,6 +124,7 @@ const MapViewPage = () => {
   // ============================================
   const isSavingRef = useRef(false);
   const isEditTriggeredRef = useRef(false);
+  const hasRestoredRef = useRef(false);
 
   // ============================================
   // Query Client
@@ -114,40 +139,74 @@ const MapViewPage = () => {
   const farms = useMemo(() => data?.farms || [], [data]);
 
   // ============================================
+  // ✅ همه محصولات (فعال + غیرفعال) — برای fallback رنگ
+  // ============================================
+  const { data: allCrops = [] } = useCropsQuery({ activeOnly: false });
+
+  const colorByCrop = useMemo(() => {
+    const map = {};
+    allCrops.forEach((c) => {
+      if (c?.name && c?.color) {
+        map[c.name] = c.color;
+      }
+    });
+    return map;
+  }, [allCrops]);
+
+  // ============================================
   // Mutations
   // ============================================
   const { updateFarmGeometry } = useFarmMutation();
 
   // ============================================
-  // Location & Polygons handlers
+  // ✅ بازیابی پلی‌گون‌های در حال رسم از sessionStorage
+  // فقط یک بار در mount
   // ============================================
-  const handleLocationSelect = useCallback((location) => {
-    if (!location) return;
-    const lat = Number(location.lat);
-    const lon = Number(location.lon ?? location.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      console.warn('مختصات مکان انتخاب‌شده معتبر نیست:', location);
-      return;
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+
+    // اگر پلی‌گونی در sessionStorage هست ولی توی نقشه نیست، بارگذاری کن
+    if (
+      !isEditMode &&
+      !isGeometryEditMode &&
+      Array.isArray(polygonGeojsons) &&
+      polygonGeojsons.length > 0
+    ) {
+      setGeometriesToEdit(polygonGeojsons);
+      setEditGeometryTrigger((prev) => prev + 1);
     }
-    setSelectedLocation({ ...location, lat, lon });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ============================================================
-  // ✅ به‌روزرسانی پلی‌گون‌ها
-  // ============================================================
+  // ============================================
+  // Location & Polygons handlers
+  // ============================================
+  const handleLocationSelect = useCallback(
+    (location) => {
+      if (!location) return;
+      const lat = Number(location.lat);
+      const lon = Number(location.lon ?? location.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        console.warn("مختصات مکان انتخاب‌شده معتبر نیست:", location);
+        return;
+      }
+      setSelectedLocation({ ...location, lat, lon });
+    },
+    [setSelectedLocation],
+  );
+
   const handlePolygonsUpdate = useCallback(
     ({ totalArea, geojsons, count }) => {
       setAreaHa(totalArea || 0);
       setPolygonGeojsons(geojsons || []);
       setPolygonCount(count || 0);
 
-      // ✅ اگر قطعات قبلاً ثبت شده بودند ولی حالا تعداد تغییر کرده،
-      // یعنی کاربر قطعه جدیدی رسم کرده → flag را ریست کن
       if (polygonsSubmitted && count > 0) {
         setPolygonsSubmitted(false);
       }
     },
-    [polygonsSubmitted]
+    [polygonsSubmitted, setAreaHa, setPolygonGeojsons, setPolygonCount],
   );
 
   // ============================================
@@ -168,16 +227,16 @@ const MapViewPage = () => {
         setSelectedFarmId(farm.farm_id);
       }
     },
-    [selectedFarmId, isGeometryEditMode]
+    [selectedFarmId, isGeometryEditMode, setSelectedFarmId],
   );
 
   // ============================================================
-  // ✅ شروع ویرایش لایه از روی پاپ‌آپ
+  // شروع ویرایش لایه از روی پاپ‌آپ
   // ============================================================
   const handleFarmEditGeometry = useCallback(
     async (farm) => {
       if (!farm || !farm.farm_id) {
-        console.error('❌ Invalid farm for geometry edit');
+        console.error("❌ Invalid farm for geometry edit");
         return;
       }
 
@@ -185,22 +244,18 @@ const MapViewPage = () => {
       isEditTriggeredRef.current = true;
 
       try {
-        const cached = queryClient.getQueryData(
-          farmKeys.detail(farm.farm_id)
-        );
+        const cached = queryClient.getQueryData(farmKeys.detail(farm.farm_id));
         const farmData =
-          cached && cached.geojson
-            ? cached
-            : await fetchFarmById(farm.farm_id);
+          cached && cached.geojson ? cached : await fetchFarmById(farm.farm_id);
 
         if (!farmData) {
-          throw new Error('اطلاعات مزرعه یافت نشد');
+          throw new Error("اطلاعات مزرعه یافت نشد");
         }
 
         const geojsons = normalizeGeojsonToFeatures(farmData.geojson);
 
         if (geojsons.length === 0) {
-          alert('این مزرعه هندسه‌ای برای ویرایش ندارد.');
+          alert("این مزرعه هندسه‌ای برای ویرایش ندارد.");
           isEditTriggeredRef.current = false;
           return;
         }
@@ -218,11 +273,11 @@ const MapViewPage = () => {
         setClearDrawTrigger((prev) => prev + 1);
         setEditGeometryTrigger((prev) => prev + 1);
       } catch (error) {
-        console.error('Error entering geometry edit mode:', error);
+        console.error("Error entering geometry edit mode:", error);
         alert(
           error?.response?.data?.detail ||
             error?.message ||
-            'خطا در بارگذاری لایه. لطفاً دوباره تلاش کنید.'
+            "خطا در بارگذاری لایه. لطفاً دوباره تلاش کنید.",
         );
         setIsGeometryEditMode(false);
         setEditingGeometryFarm(null);
@@ -232,20 +287,27 @@ const MapViewPage = () => {
         isEditTriggeredRef.current = false;
       }
     },
-    [queryClient]
+    [
+      queryClient,
+      setIsFormOpen,
+      setIsEditMode,
+      setEditingFarmId,
+      setEditingFarmData,
+      setSelectedFarmId,
+    ],
   );
 
   // ============================================================
-  // ✅ ذخیره تغییرات لایه
+  // ذخیره تغییرات لایه
   // ============================================================
   const handleSaveGeometry = useCallback(async () => {
     if (!editingGeometryFarm || !editingGeometryFarm.farm_id) {
-      alert('اطلاعات مزرعه موجود نیست.');
+      alert("اطلاعات مزرعه موجود نیست.");
       return;
     }
 
     if (polygonCount === 0) {
-      alert('لطفاً حداقل یک قطعه روی نقشه داشته باشید.');
+      alert("لطفاً حداقل یک قطعه روی نقشه داشته باشید.");
       return;
     }
 
@@ -255,7 +317,7 @@ const MapViewPage = () => {
       const finalGeometry = extractGeometry(polygonGeojsons);
 
       if (!finalGeometry) {
-        alert('هندسه معتبر نیست. لطفاً مجدداً تلاش کنید.');
+        alert("هندسه معتبر نیست. لطفاً مجدداً تلاش کنید.");
         return;
       }
 
@@ -271,7 +333,7 @@ const MapViewPage = () => {
         },
       });
 
-      alert('لایه با موفقیت ذخیره شد.');
+      alert("لایه با موفقیت ذخیره شد.");
 
       setAreaHa(0);
       setPolygonGeojsons([]);
@@ -284,11 +346,11 @@ const MapViewPage = () => {
 
       setClearDrawTrigger((prev) => prev + 1);
     } catch (error) {
-      console.error('Error saving geometry:', error);
+      console.error("Error saving geometry:", error);
       const msg =
         error?.response?.data?.detail ||
         error?.message ||
-        'خطا در ذخیره لایه. لطفاً دوباره تلاش کنید.';
+        "خطا در ذخیره لایه. لطفاً دوباره تلاش کنید.";
       alert(msg);
     } finally {
       setIsSavingGeometry(false);
@@ -299,10 +361,14 @@ const MapViewPage = () => {
     polygonCount,
     areaHa,
     updateFarmGeometry,
+    setAreaHa,
+    setPolygonGeojsons,
+    setPolygonCount,
+    setSelectedFarmId,
   ]);
 
   // ============================================
-  // ✅ لغو ویرایش لایه
+  // لغو ویرایش لایه
   // ============================================
   const handleCancelGeometryEdit = useCallback(() => {
     if (isSavingGeometry) return;
@@ -317,7 +383,13 @@ const MapViewPage = () => {
     setPolygonsSubmitted(false);
 
     setClearDrawTrigger((prev) => prev + 1);
-  }, [isSavingGeometry]);
+  }, [
+    isSavingGeometry,
+    setAreaHa,
+    setPolygonGeojsons,
+    setPolygonCount,
+    setSelectedFarmId,
+  ]);
 
   // ============================================================
   // ویرایش فرم (از پاپ‌آپ)
@@ -336,16 +408,12 @@ const MapViewPage = () => {
         setIsFormOpen(true);
         setPolygonsSubmitted(true);
 
-        const cached = queryClient.getQueryData(
-          farmKeys.detail(farm.farm_id)
-        );
+        const cached = queryClient.getQueryData(farmKeys.detail(farm.farm_id));
         const farmData =
-          cached && cached.geojson
-            ? cached
-            : await fetchFarmById(farm.farm_id);
+          cached && cached.geojson ? cached : await fetchFarmById(farm.farm_id);
 
         if (!farmData) {
-          throw new Error('اطلاعات مزرعه یافت نشد');
+          throw new Error("اطلاعات مزرعه یافت نشد");
         }
 
         setEditingFarmData(farmData);
@@ -367,7 +435,7 @@ const MapViewPage = () => {
               const a = calculateAreaInHectares(g);
               if (a > 0) totalArea += a;
             } catch (e) {
-              console.warn('Error calculating area:', e);
+              console.warn("Error calculating area:", e);
             }
           });
           if (totalArea > 0) setAreaHa(totalArea);
@@ -376,11 +444,11 @@ const MapViewPage = () => {
         queryClient.setQueryData(farmKeys.detail(farm.farm_id), farmData);
         setSelectedFarmId(farm.farm_id);
       } catch (error) {
-        console.error('Error fetching farm:', error);
+        console.error("Error fetching farm:", error);
         alert(
           error?.response?.data?.detail ||
             error?.message ||
-            'خطا در دریافت اطلاعات مزرعه. لطفاً مجدداً تلاش کنید.'
+            "خطا در دریافت اطلاعات مزرعه. لطفاً مجدداً تلاش کنید.",
         );
         setIsFormOpen(false);
         setIsEditMode(false);
@@ -392,11 +460,21 @@ const MapViewPage = () => {
         isEditTriggeredRef.current = false;
       }
     },
-    [queryClient]
+    [
+      queryClient,
+      setIsEditMode,
+      setEditingFarmId,
+      setIsFormOpen,
+      setEditingFarmData,
+      setAreaHa,
+      setPolygonGeojsons,
+      setPolygonCount,
+      setSelectedFarmId,
+    ],
   );
 
   // ============================================================
-  // ✅ ذخیره فرم (Create/Edit)
+  // ذخیره فرم (Create/Edit)
   // ============================================================
   const handleSaveFarm = useCallback(
     (savedFarm) => {
@@ -413,6 +491,12 @@ const MapViewPage = () => {
 
         setPolygonsSubmitted(true);
 
+        // ✅ پاک کردن polygon ها از sessionStorage (کار نیمه‌کاره تمام شد)
+        // ولی خود نقشه دست‌نخورده می‌ماند چون clearDrawTrigger نمی‌زنیم
+        setPolygonGeojsons([]);
+        setPolygonCount(0);
+        setAreaHa(0);
+
         queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
 
         if (savedFarm?.farm_id) {
@@ -423,15 +507,25 @@ const MapViewPage = () => {
 
         isEditTriggeredRef.current = false;
       } catch (error) {
-        console.error('Error in handleSaveFarm:', error);
-        alert('خطا در به‌روزرسانی. لطفاً مجدداً تلاش کنید.');
+        console.error("Error in handleSaveFarm:", error);
+        alert("خطا در به‌روزرسانی. لطفاً مجدداً تلاش کنید.");
       } finally {
         setTimeout(() => {
           isSavingRef.current = false;
         }, 500);
       }
     },
-    [isEditMode, queryClient]
+    [
+      isEditMode,
+      queryClient,
+      setIsEditMode,
+      setEditingFarmId,
+      setEditingFarmData,
+      setSelectedFarmId,
+      setPolygonGeojsons,
+      setPolygonCount,
+      setAreaHa,
+    ],
   );
 
   // ============================================
@@ -453,7 +547,18 @@ const MapViewPage = () => {
     setSelectedFarmId(null);
     setPolygonsSubmitted(false);
     isEditTriggeredRef.current = false;
-  }, [isEditMode, polygonCount]);
+  }, [
+    isEditMode,
+    polygonCount,
+    setAreaHa,
+    setPolygonGeojsons,
+    setPolygonCount,
+    setIsEditMode,
+    setEditingFarmId,
+    setEditingFarmData,
+    setIsFormOpen,
+    setSelectedFarmId,
+  ]);
 
   // ============================================
   // Close Form (دکمه X)
@@ -465,7 +570,13 @@ const MapViewPage = () => {
     setEditingFarmData(null);
     setSelectedFarmId(null);
     setPolygonsSubmitted(false);
-  }, []);
+  }, [
+    setIsFormOpen,
+    setIsEditMode,
+    setEditingFarmId,
+    setEditingFarmData,
+    setSelectedFarmId,
+  ]);
 
   // ============================================
   // Open Create Form
@@ -478,22 +589,40 @@ const MapViewPage = () => {
     setIsFormOpen(true);
     setSelectedFarmId(null);
     isEditTriggeredRef.current = false;
-  }, []);
+  }, [
+    setIsEditMode,
+    setEditingFarmId,
+    setEditingFarmData,
+    setIsFormOpen,
+    setSelectedFarmId,
+  ]);
 
   // ============================================
   // Toggle Snap
   // ============================================
   const handleToggleSnap = useCallback(() => {
     setSnapEnabled((prev) => !prev);
-  }, []);
+  }, [setSnapEnabled]);
 
   // ============================================
-  // ✅ محاسبه تعداد قطعات قابل نمایش در دکمه
+  // تعداد قطعات قابل نمایش در دکمه
   // ============================================
   const displayPolygonCount = useMemo(() => {
     if (polygonsSubmitted) return 0;
     return polygonCount;
   }, [polygonsSubmitted, polygonCount]);
+
+  // ============================================
+  // ✅ گزینه‌های رنگ بارگذاری هندسه
+  // برای ویرایش لایه → نارنجی
+  // برای بازیابی خودکار از sessionStorage → سبز
+  // ============================================
+  const editGeometryOptions = useMemo(() => {
+    if (isGeometryEditMode) {
+      return { color: "#FF9800", fillOpacity: 0.3 };
+    }
+    return { color: "#4CAF50", fillOpacity: 0.25 };
+  }, [isGeometryEditMode]);
 
   // ============================================
   // Render
@@ -507,6 +636,7 @@ const MapViewPage = () => {
           selectedLocation={selectedLocation}
           onPolygonsUpdate={handlePolygonsUpdate}
           savedFarms={farms}
+          colorByCrop={colorByCrop}
           clearTrigger={clearDrawTrigger}
           onFarmClick={handleFarmClick}
           onFarmEdit={handleFarmEdit}
@@ -514,13 +644,14 @@ const MapViewPage = () => {
           selectedFarmId={selectedFarmId}
           editGeometryTrigger={editGeometryTrigger}
           geometriesToEdit={geometriesToEdit}
+          editGeometryOptions={editGeometryOptions}
           snapEnabled={snapEnabled}
           onToggleSnap={handleToggleSnap}
           snapToggleHidden={isGeometryEditMode || isEditMode}
         />
       </MapErrorBoundary>
 
-      {/* ✅ MapCalculator — مستقل، انتخاب محصول داخل خودش */}
+      {/* MapCalculator */}
       <MapCalculator
         polygonCount={polygonsSubmitted ? 0 : polygonCount}
         areaHa={polygonsSubmitted ? 0 : areaHa}
@@ -532,8 +663,7 @@ const MapViewPage = () => {
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1500] bg-orange-500 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-3 font-vazir">
           <Pencil size={16} />
           <span className="text-sm font-medium">
-            حالت ویرایش لایه - مزرعه{' '}
-            {editingGeometryFarm?.farmer_name || ''}
+            حالت ویرایش لایه - مزرعه {editingGeometryFarm?.farmer_name || ""}
           </span>
         </div>
       )}
@@ -556,7 +686,7 @@ const MapViewPage = () => {
           <Plus size={18} />
           {displayPolygonCount > 0
             ? `ثبت ${displayPolygonCount} قطعه`
-            : 'ثبت مزرعه جدید'}
+            : "ثبت مزرعه جدید"}
         </button>
       )}
 

@@ -36,7 +36,8 @@ const extractFarmFromResponse = (response) => {
 // 1. فیلدهای قدیمی farm حفظ می‌شوند
 // 2. اگر savedFarm فیلدی را داشته باشد، جایگزین می‌شود
 // 3. اگر savedFarm فیلدی را نداشته باشد ولی payload داشته باشد، از payload استفاده می‌شود
-// 4. geojson هرگز با undefined جایگزین نمی‌شود (باگ B4)
+// 4. geojson هرگز با undefined جایگزین نمی‌شود
+// 5. crop_id و crop_color هم مدیریت می‌شوند
 // ============================================
 const mergeFarm = (oldFarm, savedFarm, payload) => {
   const merged = { ...(oldFarm || {}) };
@@ -54,6 +55,8 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     'village',
     'land_type',
     'crop',
+    'crop_id',           // ✅ جدید
+    'crop_color',        // ✅ جدید
     'irrigation_type',
     'project_name',
     'coverage_status',
@@ -99,7 +102,6 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
   } else if (oldFarm && oldFarm.geojson !== undefined) {
     merged.geojson = oldFarm.geojson;
   } else {
-    // هیچکدام معتبر نبود — حذف نکن، فقط log کن
     console.warn('mergeFarm: no valid geojson found', {
       savedFarmHasGeo: !!savedFarm?.geojson,
       payloadHasGeo: !!payload?.geojson,
@@ -210,10 +212,12 @@ export const useUpdateFarmMutation = () => {
 // نکات کلیدی:
 // 1. payload فقط شامل geojson و area_ha و polygon_count است.
 // 2. سایر فیلدها از farm فعلی سرور خوانده و ارسال می‌شوند
-//    تا اطلاعات پاک نشوند (رفع باگ B9).
-// 3. پس از موفقیت، دوباره farm را از سرور می‌خوانیم تا
-//    cache با داده canonical پر شود (رفع باگ B5).
-// 4. اگر fetch دوباره شکست خورد، به payload برمی‌گردیم.
+//    تا اطلاعات پاک نشوند.
+// 3. crop_id و crop_color هم از farm فعلی بازگردانده می‌شوند
+//    تا در update_farm سمت سرور درست هم‌خوان شوند.
+// 4. پس از موفقیت، دوباره farm را از سرور می‌خوانیم تا
+//    cache با داده canonical پر شود.
+// 5. اگر fetch دوباره شکست خورد، به payload برمی‌گردیم.
 // ============================================================
 export const useUpdateFarmGeometryMutation = () => {
   const queryClient = useQueryClient();
@@ -244,9 +248,11 @@ export const useUpdateFarmGeometryMutation = () => {
         national_id: currentFarm.national_id,
         phone_number: currentFarm.phone_number,
 
-        // زمین
+        // زمین — ✅ هم crop و هم crop_id حفظ می‌شوند
         land_type: currentFarm.land_type || null,
         crop: currentFarm.crop || null,
+        crop_id: currentFarm.crop_id ?? null,        // ✅
+        crop_color: currentFarm.crop_color ?? null,  // ✅
         irrigation_type: currentFarm.irrigation_type || null,
 
         // ✅ هندسه (فقط این‌ها تغییر می‌کنند)

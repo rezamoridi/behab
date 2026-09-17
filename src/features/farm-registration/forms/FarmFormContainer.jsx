@@ -1,5 +1,5 @@
 // src/features/farm-registration/forms/FarmFormContainer.jsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, CheckCircle2, Droplet, Loader2 } from 'lucide-react';
@@ -18,7 +18,6 @@ import {
   getPolygonArea,
 } from '../utils/geometryUtils';
 
-// ✅ hook جدید
 import { useActiveCrops } from '../../settings/hooks/useActiveCrops';
 
 import { LocationSection } from './sections/LocationSection';
@@ -33,7 +32,6 @@ const SECTION_MAP = {
   water: WaterSection,
 };
 
-// ✅ fallback در صورت نبود نرخ در DB
 const DEFAULT_WATER_REQUIREMENT = 5000;
 
 export const FarmFormContainer = ({
@@ -53,8 +51,12 @@ export const FarmFormContainer = ({
   const { createFarm, updateFarm, isLoading: isMutating } =
     useFarmMutation();
 
-  // ✅ نرخ محصولات از DB
-  const { getRequirement, isLoading: cropsLoading } = useActiveCrops();
+  // ✅ محصولات فعال + نرخ + شناسه (برای پیدا کردن crop_id از نام)
+  const {
+    crops: activeCrops,
+    getRequirement,
+    isLoading: cropsLoading,
+  } = useActiveCrops();
 
   // ============================================
   // Default Values
@@ -133,7 +135,7 @@ export const FarmFormContainer = ({
     return calculateTotalArea(geojson);
   }, [areaHa, geojson]);
 
-  // ✅ محاسبه آب مورد نیاز بر اساس نرخ محصول از DB
+  // ✅ محاسبه آب مورد نیاز
   const waterVolume = useMemo(() => {
     if (computedTotalArea <= 0) return 0;
     return computedTotalArea * activeRequirement;
@@ -157,11 +159,18 @@ export const FarmFormContainer = ({
           return;
         }
 
+        // ✅ پیدا کردن crop_id از روی نام محصول انتخاب‌شده
+        const selectedCropObj = activeCrops.find(
+          (c) => c.name === formData.crop
+        );
+        const cropId = selectedCropObj?.id ?? null;
+
         const payload = formToApi({
           formData,
           areaHa: computedTotalArea,
           polygonCount,
           geometry,
+          cropId,
         });
 
         let result;
@@ -200,6 +209,7 @@ export const FarmFormContainer = ({
       updateFarm,
       createFarm,
       onSuccess,
+      activeCrops,
     ]
   );
 
@@ -215,7 +225,6 @@ export const FarmFormContainer = ({
     geojson,
     locationData,
     getPolygonArea,
-    // ✅ پاس دادن نرخ به WaterSection
     waterRequirement: activeRequirement,
   };
 
@@ -307,9 +316,11 @@ export const FarmFormContainer = ({
               <span
                 className={`
                   text-[10px] px-1.5 py-0.5 rounded
-                  ${hasRealRequirement
-                    ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'}
+                  ${
+                    hasRealRequirement
+                      ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }
                 `}
                 style={{ direction: 'ltr' }}
               >

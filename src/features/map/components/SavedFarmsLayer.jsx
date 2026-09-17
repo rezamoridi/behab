@@ -6,30 +6,63 @@ import { createRoot } from 'react-dom/client';
 import { calculateAreaInHectares } from '../utils/areaCalculations';
 import FarmPopupContent from './FarmPopupContent';
 import { geometryToLeafletPolygons } from '../hooks/useMapDrawing';
+import {
+  DEFAULT_FARM_COLOR,
+  normalizeHex,
+} from '../../settings/constants/cropColors';
 
 // ============================================================
-// استایل‌ها
+// ✅ رنگ هر مزرعه
+// اولویت:
+// 1. farm.crop_color (denormalized — همیشه درست است حتی اگر محصول حذف شود)
+// 2. colorByCrop[farm.crop] (fallback برای مزارع قدیمی بدون crop_color)
+// 3. DEFAULT_FARM_COLOR
 // ============================================================
-const SELECTED_STYLE = {
-  color: '#FF6B35',
-  weight: 4,
-  opacity: 1,
-  fillColor: '#FF6B35',
-  fillOpacity: 0.35,
-  className: 'selected-polygon',
+const getFarmColor = (farm, colorByCrop) => {
+  // 1. مستقیم از خود مزرعه
+  const direct = normalizeHex(farm?.crop_color);
+  if (direct) return direct;
+
+  // 2. از map محصولات
+  const cropName = farm?.crop;
+  if (cropName) {
+    const fromMap = normalizeHex(colorByCrop?.[cropName]);
+    if (fromMap) return fromMap;
+  }
+
+  // 3. پیش‌فرض
+  return DEFAULT_FARM_COLOR;
 };
 
-const NORMAL_STYLE = {
-  color: '#2196F3',
-  weight: 2,
-  opacity: 0.7,
-  fillColor: '#2196F3',
-  fillOpacity: 0.15,
-  className: '',
+// ============================================================
+// ✅ استایل داینامیک برای یک مزرعه
+// ============================================================
+const getFarmStyle = (farm, isSelected, colorByCrop) => {
+  const cropColor = getFarmColor(farm, colorByCrop);
+
+  if (isSelected) {
+    return {
+      color: '#FF6B35',
+      weight: 4,
+      opacity: 1,
+      fillColor: cropColor,
+      fillOpacity: 0.5,
+      className: 'selected-polygon',
+    };
+  }
+
+  return {
+    color: cropColor,
+    weight: 2.5,
+    opacity: 0.95,
+    fillColor: cropColor,
+    fillOpacity: 0.25,
+    className: '',
+  };
 };
 
 // ============================================================
-// getFeatures
+// getFeatures — نرمال‌سازی geojson به آرایه Feature
 // ============================================================
 const getFeatures = (geojson) => {
   if (!geojson) return [];
@@ -55,21 +88,16 @@ const getFeatures = (geojson) => {
 };
 
 // ============================================================
-// ✅ تابع کمکی: unmount کردن ایمن یک root
-//
-// اگر React در حال render باشد، unmount همگام خطا می‌دهد.
-// این تابع unmount را به microtask بعدی موکول می‌کند.
+// safeUnmount — unmount ایمن در microtask بعدی
 // ============================================================
 const safeUnmount = (root) => {
   if (!root) return;
   try {
-    // ✅ queueMicrotask اجرای callback را بعد از render فعلی React
-    // به تأخیر می‌اندازد، بدون استفاده از setTimeout.
     queueMicrotask(() => {
       try {
         root.unmount();
-      } catch (err) {
-        // ممکن است root قبلاً unmount شده باشد — بی‌خطر است
+      } catch {
+        /* ignore */
       }
     });
   } catch {
@@ -82,6 +110,7 @@ const safeUnmount = (root) => {
 // ============================================================
 const SavedFarmsLayer = ({
   farms,
+  colorByCrop = {},
   onFarmClick,
   onFarmEdit,
   onFarmEditGeometry,
@@ -112,7 +141,7 @@ const SavedFarmsLayer = ({
   }, [onFarmClick, onFarmEdit, onFarmEditGeometry]);
 
   // ============================================================
-  // Cleanup همه‌ی لایه‌ها و rootها (با unmount ایمن)
+  // Cleanup همه‌ی لایه‌ها و rootها
   // ============================================================
   const cleanupAll = () => {
     try {
@@ -121,7 +150,6 @@ const SavedFarmsLayer = ({
       /* ignore */
     }
 
-    // ✅ unmount هر root به microtask بعدی موکول می‌شود
     popupRootsRef.current.forEach((root) => {
       safeUnmount(root);
     });
@@ -157,7 +185,7 @@ const SavedFarmsLayer = ({
   };
 
   // ============================================================
-  // ایجاد محتوای popup
+  // ساخت popup
   // ============================================================
   const createPopupContent = (farm) => {
     const container = document.createElement('div');
@@ -208,7 +236,7 @@ const SavedFarmsLayer = ({
   };
 
   // ============================================================
-  // Main Effect
+  // Main Effect — ساخت لایه‌ها با رنگ محصول
   // ============================================================
   useEffect(() => {
     if (!map) return;
@@ -229,7 +257,7 @@ const SavedFarmsLayer = ({
       if (!features || features.length === 0) return;
 
       const isSelected = String(farm.farm_id) === String(selectedFarmId);
-      const styleOptions = isSelected ? SELECTED_STYLE : NORMAL_STYLE;
+      const styleOptions = getFarmStyle(farm, isSelected, colorByCrop);
 
       const farmPolygons = [];
 
@@ -309,15 +337,21 @@ const SavedFarmsLayer = ({
       cleanupAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, farms]);
+  }, [map, farms, colorByCrop]);
 
   // ============================================================
-  // به‌روزرسانی style
+  // به‌روزرسانی style با تغییر انتخاب یا رنگ‌ها
   // ============================================================
   useEffect(() => {
     polygonsByFarmRef.current.forEach((polygons, farmId) => {
+      const farm = farms.find(
+        (f) => String(f.farm_id) === String(farmId)
+      );
+      if (!farm) return;
+
       const isSelected = String(farmId) === String(selectedFarmId);
-      const styleOptions = isSelected ? SELECTED_STYLE : NORMAL_STYLE;
+      const styleOptions = getFarmStyle(farm, isSelected, colorByCrop);
+
       polygons.forEach((polygon) => {
         try {
           polygon.setStyle(styleOptions);
@@ -326,10 +360,10 @@ const SavedFarmsLayer = ({
         }
       });
     });
-  }, [selectedFarmId]);
+  }, [selectedFarmId, farms, colorByCrop]);
 
   // ============================================================
-  // Deselect
+  // Deselect روی کلیک نقشه
   // ============================================================
   useEffect(() => {
     if (!map) return;
@@ -355,7 +389,6 @@ const SavedFarmsLayer = ({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      // در unmount کامل، unmount همگام امن است چون دیگر rendering نخواهد بود
       popupRootsRef.current.forEach((root) => {
         try {
           root.unmount();

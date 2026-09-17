@@ -13,6 +13,7 @@ const MapComponent = ({
   selectedLocation,
   onPolygonsUpdate,
   savedFarms = [],
+  colorByCrop = {},
   clearTrigger = null,
   onFarmClick,
   onFarmEdit,
@@ -20,6 +21,7 @@ const MapComponent = ({
   selectedFarmId = null,
   editGeometryTrigger = null,
   geometriesToEdit = null,
+  editGeometryOptions = null,   // ✅ جدید
   snapEnabled = false,
   onToggleSnap,
   snapToggleHidden = false,
@@ -52,7 +54,6 @@ const MapComponent = ({
 
       <ScaleControl position="bottomleft" imperial={false} metric={true} />
 
-      {/* ✅ دکمه اسنپ به صورت کنترل Leaflet در گوشه بالا-چپ */}
       <SnapToggleControl
         enabled={snapEnabled}
         onToggle={onToggleSnap}
@@ -66,10 +67,12 @@ const MapComponent = ({
         clearTrigger={clearTrigger}
         editGeometryTrigger={editGeometryTrigger}
         geometriesToEdit={geometriesToEdit}
+        editGeometryOptions={editGeometryOptions}
         snapEnabled={snapEnabled}
       />
       <SavedFarmsLayer
         farms={savedFarms}
+        colorByCrop={colorByCrop}
         onFarmClick={onFarmClick}
         onFarmEdit={onFarmEdit}
         onFarmEditGeometry={onFarmEditGeometry}

@@ -151,7 +151,6 @@ export const useMapDrawing = (
 
   // ============================================================
   // ✅ updatePolygons — همیشه از همه‌ی polygonهای drawnItems می‌سازد
-  //    و رئوس لایه‌های در حال رسم رو هم استخراج می‌کند.
   // ============================================================
   const updatePolygons = useCallback(() => {
     if (isProcessingRef.current) return;
@@ -220,7 +219,7 @@ export const useMapDrawing = (
 
   // ============================================
   // handleCreated
-  // ============================================================
+  // ============================================
   const handleCreated = useCallback(
     (event) => {
       const layer = event.layer;
@@ -228,7 +227,6 @@ export const useMapDrawing = (
       if (layer instanceof L.Polygon) {
         if (snapEnabledRef.current) {
           try {
-            // ✅ رئوس لایه‌های موجود در drawnItems
             const existingVertices = [];
             const existingLayers = drawnItems.current.getLayers();
             for (const existingLayer of existingLayers) {
@@ -238,7 +236,6 @@ export const useMapDrawing = (
               }
             }
 
-            // ✅ ترکیب رئوس مزارع ذخیره‌شده + رئوس لایه‌های در حال رسم
             const combinedVertices = [
               ...snapVerticesRef.current,
               ...existingVertices,
@@ -292,9 +289,26 @@ export const useMapDrawing = (
 
   // ============================================================
   // ✅ loadGeometriesForEdit
+  //
+  // پارامترها:
+  //   geojsons: آرایه‌ای از Feature/Geometry
+  //   options: {
+  //     color: string,        // رنگ لبه و fill
+  //     fillOpacity: number,  // شفافیت fill
+  //     weight: number,       // ضخامت لبه
+  //   }
+  //
+  // رنگ پیش‌فرض نارنجی است (برای حالت ویرایش لایه).
+  // برای بازیابی خودکار از sessionStorage، رنگ سبز پاس داده می‌شود.
   // ============================================================
   const loadGeometriesForEdit = useCallback(
-    (geojsons) => {
+    (geojsons, options = {}) => {
+      const {
+        color = '#FF9800',
+        fillOpacity = 0.3,
+        weight = 3,
+      } = options || {};
+
       try {
         drawnItems.current.clearLayers();
         isProcessingRef.current = false;
@@ -315,10 +329,10 @@ export const useMapDrawing = (
           if (!geometry) continue;
 
           const layers = geometryToLeafletPolygons(geometry, {
-            color: '#FF9800',
-            weight: 3,
-            fillColor: '#FF9800',
-            fillOpacity: 0.3,
+            color,
+            weight,
+            fillColor: color,
+            fillOpacity,
           });
 
           for (const layer of layers) {

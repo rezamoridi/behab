@@ -1,6 +1,10 @@
 // src/features/map/components/FarmPopupContent.jsx
 import React from 'react';
 import { Edit2, X, MapPin, Droplet, Wheat, User, Pencil } from 'lucide-react';
+import {
+  DEFAULT_FARM_COLOR,
+  normalizeHex,
+} from '../../settings/constants/cropColors';
 
 const FarmPopupContent = ({
   farm,
@@ -25,6 +29,9 @@ const FarmPopupContent = ({
   const irrigationSystem = farm.irrigation_system || 'نامشخص';
   const village = farm.village || 'نامشخص';
   const dehestan = farm.dehestan || 'نامشخص';
+
+  // ✅ رنگ محصول (denormalized)
+  const cropColor = normalizeHex(farm.crop_color) || DEFAULT_FARM_COLOR;
 
   const handleEditClick = (e) => {
     e.stopPropagation();
@@ -83,7 +90,6 @@ const FarmPopupContent = ({
 
       {/* Details */}
       <div className="flex flex-col gap-1.5">
-
         <InfoRow
           icon={MapPin}
           label="مساحت"
@@ -91,10 +97,19 @@ const FarmPopupContent = ({
           valueClass="text-primary-700"
         />
 
+        {/* ✅ محصول با دایره رنگ */}
         <InfoRow
           icon={Wheat}
           label="محصول"
-          value={crop}
+          value={
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full border border-gray-300"
+                style={{ backgroundColor: cropColor }}
+              />
+              <span>{crop}</span>
+            </span>
+          }
           valueClass="text-gray-900"
         />
 
