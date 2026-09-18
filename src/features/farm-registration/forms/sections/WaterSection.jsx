@@ -1,6 +1,6 @@
 // src/features/farm-registration/forms/sections/WaterSection.jsx
 import { useFormContext } from 'react-hook-form';
-import { MapPinned, Droplet } from 'lucide-react';
+import { MapPinned, Droplet, Layers } from 'lucide-react';
 import {
   getStudyAreas,
   getCoverageStatuses,
@@ -11,7 +11,7 @@ export const WaterSection = ({
   totalArea,
   geojson,
   getPolygonArea,
-  waterRequirement = 5000, // ✅ از والد میاد
+  waterRequirement = 5000,
 }) => {
   const { register, watch } = useFormContext();
 
@@ -24,6 +24,20 @@ export const WaterSection = ({
   // ✅ محاسبه بر اساس نرخ محصول
   const waterVolume = totalArea > 0 ? totalArea * waterRequirement : 0;
   const isDim = irrigationType === 'dim';
+
+  // ✅ محاسبه تعداد قطعات
+  const polygonCount = Array.isArray(geojson)
+    ? geojson.length
+    : geojson
+      ? 1
+      : 0;
+
+  // ✅ ساخت لیست قطعات با مساحت
+  const polygonsList = Array.isArray(geojson)
+    ? geojson
+    : geojson
+      ? [geojson]
+      : [];
 
   return (
     <div className="space-y-4">
@@ -119,47 +133,84 @@ export const WaterSection = ({
         </div>
       )}
 
-      {/* اطلاعات قطعات */}
+      {/* ✅ اطلاعات قطعات — با نمایش تعداد */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-          <MapPinned size={16} className="text-gray-600" />
-          اطلاعات قطعات
-        </label>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <MapPinned size={16} className="text-gray-600" />
+            اطلاعات قطعات
+          </label>
 
-        <div className="space-y-1 max-h-32 overflow-y-auto">
-          {Array.isArray(geojson) && geojson.length > 0 ? (
-            geojson.map((poly, index) => {
+          {/* ✅ Badge تعداد قطعات */}
+          {polygonCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-50 border border-primary-200 text-primary-700 text-xs font-semibold">
+              <Layers size={12} strokeWidth={2.4} />
+              <span>{polygonCount.toLocaleString('fa-IR')}</span>
+              <span className="text-[10px] font-normal text-primary-600">
+                قطعه
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* ─── حالت ۱: قطعه‌ها موجود ─── */}
+        {polygonsList.length > 0 ? (
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {polygonsList.map((poly, index) => {
               const polyArea = getPolygonArea?.(poly) || 0;
               return (
                 <div
                   key={index}
-                  className="flex justify-between text-sm py-1 border-b border-gray-200 last:border-0"
+                  className="flex items-center justify-between text-sm py-2 px-2 rounded-md hover:bg-white transition-colors border-b border-gray-200 last:border-0"
                 >
-                  <span className="text-gray-700">قطعه {index + 1}</span>
-                  <span className="text-primary-700 font-medium">
-                    {polyArea > 0 ? polyArea.toFixed(2) : '۰'} هکتار
+                  <div className="flex items-center gap-2">
+                    {/* شماره قطعه */}
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-[11px] font-semibold text-gray-600">
+                      {index + 1}
+                    </span>
+                    <span className="text-gray-700 text-xs">
+                      قطعه {(index + 1).toLocaleString('fa-IR')}
+                    </span>
+                  </div>
+                  <span className="text-primary-700 font-medium text-sm" dir="ltr">
+                    {polyArea > 0
+                      ? polyArea.toLocaleString('fa-IR', {
+                          maximumFractionDigits: 2,
+                        })
+                      : '۰'}
+                    <span className="text-[10px] text-gray-400 mr-1">
+                      ha
+                    </span>
                   </span>
                 </div>
               );
-            })
-          ) : geojson ? (
-            <div className="flex justify-between text-sm py-1">
-              <span className="text-gray-700">قطعه ۱</span>
-              <span className="text-primary-700 font-medium">
-                {totalArea > 0 ? totalArea.toFixed(2) : '۰'} هکتار
-              </span>
+            })}
+          </div>
+        ) : (
+          /* ─── حالت ۲: هنوز چیزی رسم نشده ─── */
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-300 flex items-center justify-center mb-2">
+              <MapPinned size={16} />
             </div>
-          ) : (
-            <p className="text-sm text-gray-400">
+            <p className="text-xs text-gray-400">
               هیچ قطعه‌ای رسم نشده است
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
-        {totalArea > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between text-sm font-medium text-primary-700">
-            <span>مساحت کل:</span>
-            <span>{totalArea.toFixed(2)} هکتار</span>
+        {/* ─── جمع کل ─── */}
+        {totalArea > 0 && polygonCount > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between text-sm">
+            <span className="font-medium text-gray-700">مساحت کل:</span>
+            <div className="flex items-baseline gap-1" dir="ltr">
+              <span className="font-bold text-primary-700 text-base">
+                {totalArea.toLocaleString('fa-IR', {
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span className="text-[10px] text-gray-400">ha</span>
+            </div>
           </div>
         )}
       </div>

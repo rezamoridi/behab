@@ -1,6 +1,7 @@
 // src/pages/MapViewPage.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Plus, X } from "lucide-react";
 
 import MapErrorBoundary from "../features/map/components/MapErrorBoundary";
 import MapComponent from "../features/map/components/MapComponent";
@@ -22,7 +23,7 @@ const FARM_LIST_QUERY_PARAMS = {
 };
 
 // ============================================================
-// ✅ Helper: استخراج geojson از یک مزرعه با هر ساختاری
+// Helper: استخراج geojson از یک مزرعه با هر ساختاری
 // ============================================================
 const getFarmGeojson = (farm) => {
   if (!farm) return [];
@@ -31,17 +32,14 @@ const getFarmGeojson = (farm) => {
 
   if (!geojson) return [];
 
-  // آرایه‌ای از geometryها
   if (Array.isArray(geojson)) {
     return geojson;
   }
 
-  // FeatureCollection → features
   if (geojson.type === "FeatureCollection") {
     return geojson.features || [];
   }
 
-  // Feature یا Geometry → در آرایه
   if (geojson.type) {
     return [geojson];
   }
@@ -105,24 +103,28 @@ const MapViewPage = () => {
   const [farmWindowOpenState, setFarmWindowOpen] = useState(false);
   const [editingFarmIdState, setEditingFarmIdState] = useState(null);
 
+  // ✅ state مجزا برای «ثبت جدید»
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+
   // ============================================================
-  // ✅ استخراج navigation state در render
+  // استخراج navigation state در render
   // ============================================================
   const navFocusFarmId = location.state?.focusFarmId || null;
   const navEditFarmId = location.state?.editFarmId || null;
 
   // ============================================================
-  // ✅ مقادیر مؤثر
+  // مقادیر مؤثر
   // ============================================================
   const effectiveSelectedFarmId =
     navFocusFarmId || navEditFarmId || selectedFarmIdPersisted;
 
   const effectiveEditingFarmId = navEditFarmId || editingFarmIdState;
 
-  const effectiveFarmWindowOpen = Boolean(navEditFarmId) || farmWindowOpenState;
+  const effectiveFarmWindowOpen =
+    Boolean(navEditFarmId) || farmWindowOpenState || isCreatingNew;
 
   // ============================================================
-  // ✅ Derive editingFarm از savedFarms + effectiveEditingFarmId
+  // Derive editingFarm
   // ============================================================
   const editingFarm = useMemo(() => {
     if (!effectiveEditingFarmId) return null;
@@ -134,10 +136,7 @@ const MapViewPage = () => {
   }, [effectiveEditingFarmId, savedFarms]);
 
   // ============================================================
-  // ✅ geojson نهایی برای DraggableFarmWindow
-  //
-  // - در حالت ویرایش: از مزرعه در حال ویرایش
-  // - در حالت ثبت جدید: از polygonهای رسم‌شده روی نقشه
+  // geojson نهایی برای DraggableFarmWindow
   // ============================================================
   const windowGeojson = useMemo(() => {
     if (editingFarm) {
@@ -148,7 +147,7 @@ const MapViewPage = () => {
   }, [editingFarm, polygonsData.geojsons]);
 
   // ============================================================
-  // ✅ areaHa نهایی برای DraggableFarmWindow
+  // areaHa نهایی برای DraggableFarmWindow
   // ============================================================
   const windowAreaHa = useMemo(() => {
     if (editingFarm) {
@@ -158,7 +157,7 @@ const MapViewPage = () => {
   }, [editingFarm, polygonsData.totalArea]);
 
   // ============================================================
-  // ✅ Sync URL state به state داخلی — فقط یک بار
+  // Sync URL state به state داخلی
   // ============================================================
   useEffect(() => {
     if (!navFocusFarmId && !navEditFarmId) return;
@@ -171,9 +170,9 @@ const MapViewPage = () => {
         setSelectedFarmId(navEditFarmId);
         setEditingFarmIdState(navEditFarmId);
         setFarmWindowOpen(true);
+        setIsCreatingNew(false);
       }
 
-      // پاک‌سازی URL
       navigate(location.pathname, {
         replace: true,
         state: {},
@@ -206,6 +205,7 @@ const MapViewPage = () => {
         if (String(editingFarmIdState) === String(farm.farm_id)) {
           setFarmWindowOpen(false);
           setEditingFarmIdState(null);
+          setIsCreatingNew(false);
         }
       } catch (err) {
         const raw =
@@ -247,6 +247,7 @@ const MapViewPage = () => {
     if (!farm?.farm_id) return;
     setEditingFarmIdState(farm.farm_id);
     setFarmWindowOpen(true);
+    setIsCreatingNew(false);
   }, []);
 
   // ============================================================
@@ -269,11 +270,30 @@ const MapViewPage = () => {
   }, []);
 
   // ============================================================
+  // ✅ Handler: toggle فرم ثبت جدید (باز/بسته)
+  // ============================================================
+  const handleToggleCreate = useCallback(() => {
+    setIsCreatingNew((prev) => {
+      const next = !prev;
+
+      if (next) {
+        // باز کردن: پاک‌سازی حالت ویرایش
+        setEditingFarmIdState(null);
+        setFarmWindowOpen(false);
+        setSelectedFarmId(null);
+      }
+
+      return next;
+    });
+  }, [setSelectedFarmId]);
+
+  // ============================================================
   // Handler: بستن پنجره
   // ============================================================
   const handleWindowClose = useCallback(() => {
     setFarmWindowOpen(false);
     setEditingFarmIdState(null);
+    setIsCreatingNew(false);
   }, []);
 
   // ============================================================
@@ -307,6 +327,41 @@ const MapViewPage = () => {
           areaHa={polygonsData.totalArea || 0}
           showWater={true}
         />
+
+        {/* ============================================================ */}
+        {/* ✅ FAB — دو حالته (باز/بسته) — مخفی در حالت ویرایش */}
+        {/* ============================================================ */}
+        {!editingFarm && (
+          <button
+            type="button"
+            onClick={handleToggleCreate}
+            className={`
+              absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100]
+              flex items-center gap-2 px-5 py-3
+              text-white rounded-full shadow-lg
+              font-vazir font-semibold text-sm
+              transition-colors duration-150
+              ${isCreatingNew
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-primary-600 hover:bg-primary-700"}
+            `}
+            title={isCreatingNew ? "بستن فرم ثبت" : "ثبت زمین جدید"}
+            aria-label={isCreatingNew ? "بستن فرم ثبت" : "ثبت زمین جدید"}
+            aria-expanded={isCreatingNew}
+          >
+            {isCreatingNew ? (
+              <>
+                <X size={18} strokeWidth={2.6} />
+                <span>بستن فرم</span>
+              </>
+            ) : (
+              <>
+                <Plus size={18} strokeWidth={2.6} />
+                <span>ثبت زمین جدید</span>
+              </>
+            )}
+          </button>
+        )}
 
         <DraggableFarmWindow
           isOpen={effectiveFarmWindowOpen}
