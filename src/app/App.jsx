@@ -6,6 +6,8 @@ import ErrorBoundary from '../shared/components/ErrorBoundary/ErrorBoundary';
 import LoadingSpinner from '../shared/components/LoadingSpinner/LoadingSpinner';
 import { AuthProvider } from '../context/AuthContext';
 import { QueryProvider } from '../providers/QueryProvider';
+import { ToastProvider } from '../shared/components/Toast/ToastProvider';
+import { ConfirmDialogProvider } from '../shared/components/ConfirmDialog/ConfirmDialogProvider';
 
 // Lazy loading pages
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
@@ -18,19 +20,25 @@ const App = () => {
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <Suspense fallback={<LoadingSpinner fullScreen />}>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route element={<ProtectedLayout />}>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/map" element={<MapViewPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                </Route>
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
+          {/* ✅ ToastProvider قبل از Confirm (چون Confirm از Button استفاده می‌کنه،
+              ولی خودش مستقل کار می‌کنه) */}
+          <ToastProvider>
+            <ConfirmDialogProvider>
+              <BrowserRouter>
+                <Suspense fallback={<LoadingSpinner fullScreen />}>
+                  <Routes>
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route element={<ProtectedLayout />}>
+                      <Route path="/" element={<DashboardPage />} />
+                      <Route path="/map" element={<MapViewPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                    </Route>
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+            </ConfirmDialogProvider>
+          </ToastProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

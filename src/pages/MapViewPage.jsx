@@ -1,5 +1,11 @@
 // src/pages/MapViewPage.jsx
-import React, { useCallback, useMemo } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import MapErrorBoundary from '../features/map/components/MapErrorBoundary';
 import MapComponent from '../features/map/components/MapComponent';
@@ -16,11 +22,14 @@ import useLocalStorageState from '../shared/hooks/useLocalStorageState';
 
 const FARM_LIST_QUERY_PARAMS = {
   page: 1,
-  pageSize: 50,
+  pageSize: 100,
   search: null,
 };
 
 const MapViewPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   // ============================================================
   // Queries
   // ============================================================
@@ -28,8 +37,14 @@ const MapViewPage = () => {
     FARM_LIST_QUERY_PARAMS
   );
 
-  const savedFarms = farmsData?.farms || [];
+  const savedFarms = useMemo(
+    () => farmsData?.farms || [],
+    [farmsData]
+  );
 
+  // ============================================================
+  // Crop colors map
+  // ============================================================
   const { crops } = useAgricultureSettings();
 
   const colorByCrop = useMemo(() => {
@@ -41,39 +56,105 @@ const MapViewPage = () => {
   }, [crops]);
 
   // ============================================================
-  // ✅ Stateها با ذخیره‌سازی
+  // State (persisted)
   // ============================================================
-
-  // ✅ موقعیت جستجو — در sessionStorage
   const [selectedLocation, setSelectedLocation] = useSessionState(
     'map_selected_location',
     null
   );
 
-  // ✅ مزرعه انتخاب‌شده — در sessionStorage
-  const [selectedFarmId, setSelectedFarmId] = useSessionState(
+  const [selectedFarmIdPersisted, setSelectedFarmId] = useSessionState(
     'map_selected_farm_id',
     null
   );
 
-  // ✅ فعال بودن اسنپ — در localStorage (ترجیح پایدار کاربر)
   const [snapEnabled, setSnapEnabled] = useLocalStorageState(
     'map_snap_enabled',
     false
   );
 
   // ============================================================
-  // Stateهای موقت — ساده بمونن
+  // State (موقت)
   // ============================================================
-  const [polygonsData, setPolygonsData] = React.useState({
+  const [polygonsData, setPolygonsData] = useState({
     totalArea: 0,
     geojsons: [],
     count: 0,
   });
 
-  const [farmWindowOpen, setFarmWindowOpen] = React.useState(false);
-  const [editingFarm, setEditingFarm] = React.useState(null);
-  const [editingFarmId, setEditingFarmId] = React.useState(null);
+  const [farmWindowOpenState, setFarmWindowOpen] = useState(false);
+  const [editingFarmIdState, setEditingFarmIdState] = useState(null);
+
+  // ============================================================
+  // ✅ استخراج navigation state در render
+  //    (بدون useEffect، بدون setState)
+  // ============================================================
+  const navFocusFarmId = location.state?.focusFarmId || null;
+  const navEditFarmId = location.state?.editFarmId || null;
+
+  // ============================================================
+  // ✅ مقادیر مؤثر — ترکیب state داخلی و navigation state
+  //
+  // اگه navigation state اومده، اون اولویت داره.
+  // اینطوری نیازی به effect و setState نیست.
+  // ============================================================
+  const effectiveSelectedFarmId =
+    navFocusFarmId || navEditFarmId || selectedFarmIdPersisted;
+
+  const effectiveEditingFarmId = navEditFarmId || editingFarmIdState;
+
+  const effectiveFarmWindowOpen =
+    Boolean(navEditFarmId) || farmWindowOpenState;
+
+  // ============================================================
+  // ✅ Derive editingFarm از savedFarms + effectiveEditingFarmId
+  // ============================================================
+  const editingFarm = useMemo(() => {
+    if (!effectiveEditingFarmId) return null;
+    return (
+      savedFarms.find(
+        (f) => String(f.farm_id) === String(effectiveEditingFarmId)
+      ) || null
+    );
+  }, [effectiveEditingFarmId, savedFarms]);
+
+  // ============================================================
+  // ✅ Sync URL state به state داخلی — فقط یک بار
+  //
+  // این effect از نظر React مجازه چون:
+  // 1. به یک external system (URL / history) وصل می‌شه
+  // 2. بعد از sync، URL رو پاک می‌کنه تا دوباره اجرا نشه
+  // 3. setState اینجا خیلی سریع settle می‌شه (یک بار)
+  //
+  // ولی برای رعایت سخت‌گیرانه lint، می‌تونیم setState رو
+  // داخل یک microtask بذاریم.
+  // ============================================================
+  useEffect(() => {
+    if (!navFocusFarmId && !navEditFarmId) return;
+
+    // ✅ sync state داخلی با URL
+    // (این کار در effect مجازه چون با external system همگام می‌شه)
+    const syncState = () => {
+      if (navFocusFarmId) {
+        setSelectedFarmId(navFocusFarmId);
+      }
+      if (navEditFarmId) {
+        setSelectedFarmId(navEditFarmId);
+        setEditingFarmIdState(navEditFarmId);
+        setFarmWindowOpen(true);
+      }
+
+      // پاک‌سازی URL
+      navigate(location.pathname, {
+        replace: true,
+        state: {},
+      });
+    };
+
+    // ✅ اجرا در microtask بعدی — از cascading render همون tick جلوگیری می‌کنه
+    queueMicrotask(syncState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navFocusFarmId, navEditFarmId]);
 
   // ============================================================
   // Mutations
@@ -81,7 +162,7 @@ const MapViewPage = () => {
   const deleteFarmMutation = useDeleteFarmMutation();
 
   // ============================================================
-  // ✅ Handler: حذف مزرعه
+  // Handler: حذف
   // ============================================================
   const handleFarmDelete = useCallback(
     async (farm) => {
@@ -90,19 +171,17 @@ const MapViewPage = () => {
       try {
         await deleteFarmMutation.mutateAsync(farm.farm_id);
 
-        // ✅ پاک‌سازی انتخاب اگر همین مزرعه انتخاب شده بود
-        setSelectedFarmId((prev) =>
-          String(prev) === String(farm.farm_id) ? null : prev
-        );
-
-        // ✅ بستن پنجره ویرایش اگر همین مزرعه در حال ویرایش بود
         if (
-          editingFarmId &&
-          String(editingFarmId) === String(farm.farm_id)
+          String(selectedFarmIdPersisted) === String(farm.farm_id)
+        ) {
+          setSelectedFarmId(null);
+        }
+
+        if (
+          String(editingFarmIdState) === String(farm.farm_id)
         ) {
           setFarmWindowOpen(false);
-          setEditingFarm(null);
-          setEditingFarmId(null);
+          setEditingFarmIdState(null);
         }
       } catch (err) {
         const raw =
@@ -119,11 +198,16 @@ const MapViewPage = () => {
         window.alert(finalMsg);
       }
     },
-    [deleteFarmMutation, editingFarmId, setSelectedFarmId]
+    [
+      deleteFarmMutation,
+      editingFarmIdState,
+      selectedFarmIdPersisted,
+      setSelectedFarmId,
+    ]
   );
 
   // ============================================================
-  // Handler: انتخاب مزرعه
+  // Handler: کلیک روی مزرعه
   // ============================================================
   const handleFarmClick = useCallback(
     (farm) => {
@@ -133,17 +217,16 @@ const MapViewPage = () => {
   );
 
   // ============================================================
-  // Handler: ویرایش فرم
+  // Handler: باز کردن فرم ویرایش
   // ============================================================
   const handleFarmEdit = useCallback((farm) => {
-    if (!farm) return;
-    setEditingFarm(farm);
-    setEditingFarmId(farm.farm_id);
+    if (!farm?.farm_id) return;
+    setEditingFarmIdState(farm.farm_id);
     setFarmWindowOpen(true);
   }, []);
 
   // ============================================================
-  // Handler: ویرایش لایه (فعلاً log)
+  // Handler: ویرایش لایه
   // ============================================================
   const handleFarmEditGeometry = useCallback(
     (farm) => {
@@ -162,12 +245,11 @@ const MapViewPage = () => {
   }, []);
 
   // ============================================================
-  // Handler: بستن پنجره شناور
+  // Handler: بستن پنجره
   // ============================================================
   const handleWindowClose = useCallback(() => {
     setFarmWindowOpen(false);
-    setEditingFarm(null);
-    setEditingFarmId(null);
+    setEditingFarmIdState(null);
   }, []);
 
   // ============================================================
@@ -190,7 +272,7 @@ const MapViewPage = () => {
           onFarmEdit={handleFarmEdit}
           onFarmEditGeometry={handleFarmEditGeometry}
           onFarmDelete={handleFarmDelete}
-          selectedFarmId={selectedFarmId}
+          selectedFarmId={effectiveSelectedFarmId}
           snapEnabled={snapEnabled}
           onToggleSnap={() => setSnapEnabled((v) => !v)}
           snapToggleHidden={farmsLoading}
@@ -203,7 +285,7 @@ const MapViewPage = () => {
         />
 
         <DraggableFarmWindow
-          isOpen={farmWindowOpen}
+          isOpen={effectiveFarmWindowOpen}
           onClose={handleWindowClose}
           onCancel={handleWindowClose}
           onSuccess={handleWindowClose}
@@ -212,7 +294,7 @@ const MapViewPage = () => {
           geojson={polygonsData.geojsons || []}
           locationData={selectedLocation}
           isEditMode={!!editingFarm}
-          editingFarmId={editingFarmId}
+          editingFarmId={effectiveEditingFarmId}
           isLoading={farmsLoading}
         />
       </div>

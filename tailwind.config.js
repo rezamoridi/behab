@@ -32,6 +32,32 @@ export default {
         modal: '9999',
         toast: '10000',
       },
+      // ✅ keyframes جدید
+      keyframes: {
+        slideUp: {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
+        slideDown: {
+          from: { transform: 'translateY(-100%)' },
+          to: { transform: 'translateY(0)' },
+        },
+        fadeIn: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        scaleIn: {
+          from: { opacity: '0', transform: 'scale(0.95)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+      },
+      // ✅ animation classes
+      animation: {
+        slideUp: 'slideUp 200ms ease-out',
+        slideDown: 'slideDown 200ms ease-out',
+        fadeIn: 'fadeIn 150ms ease-out',
+        scaleIn: 'scaleIn 150ms ease-out',
+      },
     },
   },
   plugins: [forms, typography],
