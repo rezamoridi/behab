@@ -1,5 +1,5 @@
 // src/features/dashboard/components/AquiferCharts.jsx
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -12,19 +12,24 @@ import {
   Pie,
   Cell,
   Legend,
-} from 'recharts';
-import { BarChart3, PieChart as PieIcon } from 'lucide-react';
+} from "recharts";
+import { BarChart3, PieChart as PieIcon } from "lucide-react";
 import {
   DEFAULT_FARM_COLOR,
   normalizeHex,
-} from '../../settings/constants/cropColors';
+} from "../../settings/constants/cropColors";
+import { useCropsQuery } from "../../settings/hooks/useAgricultureSettings";
+import {
+  buildCropsMap,
+  findCropByName,
+} from "../../../shared/utils/normalizeCropName";
 
 // ============================================================
-// فرمت اعداد فارسی
+// فرمت اعداد
 // ============================================================
 const formatNumber = (value, decimals = 0) => {
   const num = Number(value) || 0;
-  return num.toLocaleString('fa-IR', {
+  return num.toLocaleString("fa-IR", {
     maximumFractionDigits: decimals,
     minimumFractionDigits: 0,
   });
@@ -51,13 +56,11 @@ const ChartCard = ({ icon: Icon, title, subtitle, children }) => (
 );
 
 // ============================================================
-// Tooltip کاستوم — با فرمت فارسی
+// Tooltip
 // ============================================================
-const PersianTooltip = ({ active, payload, label, unit = '' }) => {
+const PersianTooltip = ({ active, payload, label, unit = "" }) => {
   if (!active || !payload || !payload.length) return null;
-
   const value = payload[0].value;
-
   return (
     <div
       className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 font-vazir"
@@ -73,9 +76,7 @@ const PersianTooltip = ({ active, payload, label, unit = '' }) => {
         <span className="font-bold text-primary-700" dir="ltr">
           {formatNumber(value, 2)}
         </span>
-        {unit && (
-          <span className="text-[10px] text-gray-400">{unit}</span>
-        )}
+        {unit && <span className="text-[10px] text-gray-400">{unit}</span>}
       </div>
     </div>
   );
@@ -85,8 +86,14 @@ const PersianTooltip = ({ active, payload, label, unit = '' }) => {
 // AquiferCharts
 // ============================================================
 const AquiferCharts = ({ farms = [], getRequirement }) => {
+  // ✅ همه محصولات از DB (فعال + غیرفعال)
+  const { data: dbCrops = [] } = useCropsQuery({ activeOnly: false });
+
+  // ✅ Map با کلید نرمال‌شده
+  const cropsMap = useMemo(() => buildCropsMap(dbCrops), [dbCrops]);
+
   // ============================================================
-  // داده‌های نمودار — محاسبه از farms
+  // ساخت داده‌های نمودار
   // ============================================================
   const chartData = useMemo(() => {
     if (!farms.length) return { byCrop: [], byVillage: [] };
@@ -96,25 +103,33 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
 
     farms.forEach((farm) => {
       const area = Number(farm.area_ha) || 0;
-      const crop = farm.crop || 'نامشخص';
-      const village = farm.village || 'نامشخص';
+      const crop = farm.crop || "نامشخص";
+      const village = farm.village || "نامشخص";
+
+      const requirement = farm.crop ? getRequirement(farm.crop) : null;
+      const water =
+        requirement !== null && requirement > 0 ? area * requirement : 0;
 
       // ─── محصول ───
-      const requirement = farm.crop
-        ? getRequirement(farm.crop)
-        : null;
-      const water =
-        requirement !== null && requirement > 0
-          ? area * requirement
-          : 0;
-
       if (!cropMap.has(crop)) {
+        // ✅ lookup با نرمال‌سازی
+        const dbCrop = findCropByName(cropsMap, crop);
+
+        // ✅ اولویت رنگ:
+        // 1. DB color (منبع حقیقت)
+        // 2. farm.crop_color (denormalized)
+        // 3. DEFAULT_FARM_COLOR
+        const dbCropColor = normalizeHex(dbCrop?.color);
+        const farmCropColor = normalizeHex(farm.crop_color);
+        const finalColor = dbCropColor || farmCropColor || DEFAULT_FARM_COLOR;
+
         cropMap.set(crop, {
           name: crop,
           area: 0,
           water: 0,
           count: 0,
-          color: normalizeHex(farm.crop_color) || DEFAULT_FARM_COLOR,
+          color: finalColor,
+          isActive: dbCrop?.is_active ?? true,
         });
       }
       const cropEntry = cropMap.get(crop);
@@ -124,30 +139,23 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
 
       // ─── روستا ───
       if (!villageMap.has(village)) {
-        villageMap.set(village, {
-          name: village,
-          area: 0,
-          count: 0,
-        });
+        villageMap.set(village, { name: village, area: 0, count: 0 });
       }
       const villageEntry = villageMap.get(village);
       villageEntry.area += area;
       villageEntry.count += 1;
     });
 
-    const byCrop = Array.from(cropMap.values()).sort(
-      (a, b) => b.area - a.area
-    );
-
+    const byCrop = Array.from(cropMap.values()).sort((a, b) => b.area - a.area);
     const byVillage = Array.from(villageMap.values())
       .sort((a, b) => b.area - a.area)
       .slice(0, 8);
 
     return { byCrop, byVillage };
-  }, [farms, getRequirement]);
+  }, [farms, getRequirement, cropsMap]);
 
   // ============================================================
-  // Empty state
+  // Empty
   // ============================================================
   if (!farms.length || chartData.byCrop.length === 0) {
     return (
@@ -164,7 +172,7 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
   // ============================================================
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* ─── Pie: سهم محصولات از مساحت ─── */}
+      {/* Pie */}
       <ChartCard
         icon={PieIcon}
         title="سهم محصولات از مساحت"
@@ -192,11 +200,7 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
                   />
                 ))}
               </Pie>
-              <Tooltip
-                content={
-                  <PersianTooltip unit="هکتار" />
-                }
-              />
+              <Tooltip content={<PersianTooltip unit="هکتار" />} />
               <Legend
                 verticalAlign="bottom"
                 height={36}
@@ -210,12 +214,8 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
         </div>
       </ChartCard>
 
-      {/* ─── Bar: مساحت هر محصول ─── */}
-      <ChartCard
-        icon={BarChart3}
-        title="مساحت هر محصول"
-        subtitle="هکتار"
-      >
+      {/* Bar: مساحت */}
+      <ChartCard icon={BarChart3} title="مساحت هر محصول" subtitle="هکتار">
         <div className="h-[260px]" dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -225,19 +225,19 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 11, fill: '#6b7280' }}
-                axisLine={{ stroke: '#e5e7eb' }}
+                tick={{ fontSize: 11, fill: "#6b7280" }}
+                axisLine={{ stroke: "#e5e7eb" }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
                 width={40}
               />
               <Tooltip
                 content={<PersianTooltip unit="هکتار" />}
-                cursor={{ fill: '#f9fafb' }}
+                cursor={{ fill: "#f9fafb" }}
               />
               <Bar dataKey="area" radius={[6, 6, 0, 0]}>
                 {chartData.byCrop.map((entry, index) => (
@@ -249,12 +249,8 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
         </div>
       </ChartCard>
 
-      {/* ─── Bar: آب مصرفی هر محصول ─── */}
-      <ChartCard
-        icon={BarChart3}
-        title="آب مصرفی هر محصول"
-        subtitle="متر مکعب"
-      >
+      {/* Bar: آب */}
+      <ChartCard icon={BarChart3} title="آب مصرفی هر محصول" subtitle="متر مکعب">
         <div className="h-[260px]" dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -264,31 +260,31 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 11, fill: '#6b7280' }}
-                axisLine={{ stroke: '#e5e7eb' }}
+                tick={{ fontSize: 11, fill: "#6b7280" }}
+                axisLine={{ stroke: "#e5e7eb" }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
                 width={50}
               />
               <Tooltip
                 content={<PersianTooltip unit="m³" />}
-                cursor={{ fill: '#f9fafb' }}
+                cursor={{ fill: "#f9fafb" }}
               />
-              <Bar
-                dataKey="water"
-                fill="#0ea5e9"
-                radius={[6, 6, 0, 0]}
-              />
+              <Bar dataKey="water" radius={[6, 6, 0, 0]}>
+                {chartData.byCrop.map((entry, index) => (
+                  <Cell key={index} fill={entry.color} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </ChartCard>
 
-      {/* ─── Bar: مساحت هر روستا ─── */}
+      {/* Bar: روستاها */}
       <ChartCard
         icon={BarChart3}
         title="مساحت هر روستا"
@@ -303,8 +299,8 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 10, fill: '#6b7280' }}
-                axisLine={{ stroke: '#e5e7eb' }}
+                tick={{ fontSize: 10, fill: "#6b7280" }}
+                axisLine={{ stroke: "#e5e7eb" }}
                 tickLine={false}
                 interval={0}
                 angle={-25}
@@ -312,20 +308,16 @@ const AquiferCharts = ({ farms = [], getRequirement }) => {
                 height={50}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
                 width={40}
               />
               <Tooltip
                 content={<PersianTooltip unit="هکتار" />}
-                cursor={{ fill: '#f9fafb' }}
+                cursor={{ fill: "#f9fafb" }}
               />
-              <Bar
-                dataKey="area"
-                fill="#8b5cf6"
-                radius={[6, 6, 0, 0]}
-              />
+              <Bar dataKey="area" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

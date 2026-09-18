@@ -1,5 +1,5 @@
 // src/features/dashboard/components/AquiferTab.jsx
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   MapPin,
   Ruler,
@@ -10,9 +10,10 @@ import {
 } from 'lucide-react';
 
 import { useFarmsQuery } from '../../farm-registration/hooks/useFarmsQuery';
-import { useActiveCrops } from '../../settings/hooks/useActiveCrops';
+import { useCropsQuery } from '../../settings/hooks/useAgricultureSettings';
+import { buildCropsMap, findCropByName } from '../../../shared/utils/normalizeCropName';
 import AquiferKpiCard from './AquiferKpiCard';
-import AquiferCharts from './AquiferCharts';   // ✅ جدید
+import AquiferCharts from './AquiferCharts';
 
 const FARM_LIST_QUERY_PARAMS = {
   page: 1,
@@ -29,11 +30,17 @@ const formatNumber = (value, decimals = 0) => {
 };
 
 const AquiferTab = () => {
+  // ============================================================
+  // Queries
+  // ============================================================
   const { data: farmsData, isLoading: farmsLoading } = useFarmsQuery(
     FARM_LIST_QUERY_PARAMS
   );
 
-  const { getRequirement, isLoading: cropsLoading } = useActiveCrops();
+  // ✅ همه محصولات (فعال + غیرفعال)
+  const { data: allCrops = [], isLoading: cropsLoading } = useCropsQuery({
+    activeOnly: false,
+  });
 
   const farms = useMemo(
     () => farmsData?.farms || [],
@@ -41,6 +48,18 @@ const AquiferTab = () => {
   );
 
   const isLoading = farmsLoading || cropsLoading;
+
+  // ============================================================
+  // ✅ Map محصولات + getRequirement با نرمال‌سازی
+  // ============================================================
+  const cropsMap = useMemo(() => buildCropsMap(allCrops), [allCrops]);
+
+  const getRequirement = useMemo(() => {
+    return (cropName) => {
+      const crop = findCropByName(cropsMap, cropName);
+      return crop?.requirement ?? null;
+    };
+  }, [cropsMap]);
 
   // ============================================================
   // KPIها
@@ -70,9 +89,7 @@ const AquiferTab = () => {
 
       if (farm.village) villagesSet.add(farm.village);
 
-      const requirement = farm.crop
-        ? getRequirement(farm.crop)
-        : null;
+      const requirement = farm.crop ? getRequirement(farm.crop) : null;
 
       if (requirement !== null && requirement > 0) {
         totalWater += area * requirement;
@@ -90,8 +107,7 @@ const AquiferTab = () => {
       farmsWithWater,
       farmsMissingRate,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farms]);
+  }, [farms, getRequirement]);
 
   // ============================================================
   // Loading
@@ -258,7 +274,7 @@ const AquiferTab = () => {
         </div>
       </div>
 
-      {/* ✅ نمودارها */}
+      {/* نمودارها */}
       <AquiferCharts farms={farms} getRequirement={getRequirement} />
     </div>
   );
