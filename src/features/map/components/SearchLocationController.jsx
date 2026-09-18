@@ -1,5 +1,5 @@
 // src/features/map/components/SearchLocationController.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useMap, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -14,8 +14,11 @@ L.Icon.Default.mergeOptions({
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
+const VIEWPORT_STORAGE_KEY = 'map_viewport_v1';
+
 const SearchLocationController = ({ selectedLocation }) => {
   const map = useMap();
+  const isFirstRenderRef = useRef(true);
 
   useEffect(() => {
     if (!selectedLocation) return;
@@ -26,6 +29,30 @@ const SearchLocationController = ({ selectedLocation }) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       console.warn('مختصات معتبر نیست:', selectedLocation);
       return;
+    }
+
+    // ✅ در mount اول، اگه viewport ذخیره‌شده وجود داره، اجازه بده
+    // MapComponent اون رو بازیابی کنه و setView نزن.
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+
+      try {
+        const saved = localStorage.getItem(VIEWPORT_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (
+            parsed &&
+            Number.isFinite(parsed.lat) &&
+            Number.isFinite(parsed.lng) &&
+            Number.isFinite(parsed.zoom)
+          ) {
+            // viewport ذخیره‌شده برنده می‌شه — setView نزن
+            return;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
     }
 
     const zoom = Number(selectedLocation.zoom) || 15;

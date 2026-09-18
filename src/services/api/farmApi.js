@@ -148,8 +148,17 @@ export const updateFarm = async (farmId, payload) => {
   };
 };
 
-// DELETE در backend وجود ندارد
+// DELETE /api/v1/farms/delete/{farm_id}
 export const deleteFarm = async (farmId) => {
   if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
-  throw new Error('حذف مزرعه در backend پشتیبانی نمی‌شود');
+
+  try {
+    const response = await apiClient.delete(`/farms/delete/${farmId}`);
+    return response.data ?? { success: true };
+  } catch (error) {
+    if (error.response?.status === 404) {
+      throw new Error('مزرعه یافت نشد یا قبلاً حذف شده است.');
+    }
+    throw error;
+  }
 };

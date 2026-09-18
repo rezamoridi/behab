@@ -19,18 +19,15 @@ import {
 // 3. DEFAULT_FARM_COLOR
 // ============================================================
 const getFarmColor = (farm, colorByCrop) => {
-  // 1. مستقیم از خود مزرعه
   const direct = normalizeHex(farm?.crop_color);
   if (direct) return direct;
 
-  // 2. از map محصولات
   const cropName = farm?.crop;
   if (cropName) {
     const fromMap = normalizeHex(colorByCrop?.[cropName]);
     if (fromMap) return fromMap;
   }
 
-  // 3. پیش‌فرض
   return DEFAULT_FARM_COLOR;
 };
 
@@ -114,6 +111,7 @@ const SavedFarmsLayer = ({
   onFarmClick,
   onFarmEdit,
   onFarmEditGeometry,
+  onFarmDelete,          // ✅ جدید
   selectedFarmId = null,
 }) => {
   const map = useMap();
@@ -125,6 +123,7 @@ const SavedFarmsLayer = ({
     onFarmClick,
     onFarmEdit,
     onFarmEditGeometry,
+    onFarmDelete,        // ✅ جدید
   });
   const boundsFittedRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -137,8 +136,9 @@ const SavedFarmsLayer = ({
       onFarmClick,
       onFarmEdit,
       onFarmEditGeometry,
+      onFarmDelete,      // ✅ جدید
     };
-  }, [onFarmClick, onFarmEdit, onFarmEditGeometry]);
+  }, [onFarmClick, onFarmEdit, onFarmEditGeometry, onFarmDelete]);
 
   // ============================================================
   // Cleanup همه‌ی لایه‌ها و rootها
@@ -213,6 +213,18 @@ const SavedFarmsLayer = ({
       }
     };
 
+    // ✅ جدید — هندلر حذف
+    const handleDelete = async (farmToDelete) => {
+      try {
+        map.closePopup();
+      } catch {
+        /* ignore */
+      }
+      if (typeof handlersRef.current.onFarmDelete === 'function') {
+        await handlersRef.current.onFarmDelete(farmToDelete);
+      }
+    };
+
     const handleClose = () => {
       try {
         map.closePopup();
@@ -227,6 +239,7 @@ const SavedFarmsLayer = ({
         farm={farm}
         onEdit={handleEdit}
         onEditGeometry={handleEditGeometry}
+        onDelete={handleDelete}          // ✅ جدید
         onClose={handleClose}
       />
     );

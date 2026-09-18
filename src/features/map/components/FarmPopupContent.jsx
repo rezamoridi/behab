@@ -1,17 +1,48 @@
 // src/features/map/components/FarmPopupContent.jsx
-import React from 'react';
-import { Edit2, X, MapPin, Droplet, Wheat, User, Pencil } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Edit2,
+  X,
+  MapPin,
+  Droplet,
+  Wheat,
+  User,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import {
   DEFAULT_FARM_COLOR,
   normalizeHex,
 } from '../../settings/constants/cropColors';
 
+// ============================================================
+// ✅ InfoRow — بیرون از کامپوننت اصلی تعریف می‌شود
+// ============================================================
+const InfoRow = ({ icon: Icon, label, value, valueClass = '' }) => (
+  <div className="flex items-center justify-between gap-2 text-xs">
+    <span className="flex items-center gap-1 text-gray-400">
+      <Icon size={11} />
+      {label}:
+    </span>
+    <span className={`font-medium text-gray-800 ${valueClass}`}>
+      {value}
+    </span>
+  </div>
+);
+
+// ============================================================
+// FarmPopupContent
+// ============================================================
 const FarmPopupContent = ({
   farm,
   onEdit,
   onEditGeometry,
   onClose,
+  onDelete,
 }) => {
+  // ✅ state قبل از هر return شرطی
+  const [isDeleting, setIsDeleting] = useState(false);
+
   if (!farm) {
     return (
       <div className="p-3 text-center" dir="rtl">
@@ -22,7 +53,6 @@ const FarmPopupContent = ({
     );
   }
 
-  const farmId = farm.farm_id || '---';
   const area = typeof farm.area_ha === 'number' ? farm.area_ha : 0;
   const farmerName = farm.farmer_name || 'بدون نام';
   const crop = farm.crop || 'نامشخص';
@@ -30,7 +60,6 @@ const FarmPopupContent = ({
   const village = farm.village || 'نامشخص';
   const dehestan = farm.dehestan || 'نامشخص';
 
-  // ✅ رنگ محصول (denormalized)
   const cropColor = normalizeHex(farm.crop_color) || DEFAULT_FARM_COLOR;
 
   const handleEditClick = (e) => {
@@ -51,32 +80,61 @@ const FarmPopupContent = ({
     if (typeof onClose === 'function') onClose();
   };
 
-  const InfoRow = ({ icon: Icon, label, value, valueClass = '' }) => (
-    <div className="flex items-center justify-between gap-2 text-xs">
-      <span className="flex items-center gap-1 text-gray-400">
-        <Icon size={11} />
-        {label}:
-      </span>
-      <span className={`font-medium text-gray-800 ${valueClass}`}>
-        {value}
-      </span>
-    </div>
-  );
+  const handleDeleteClick = async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    if (typeof onDelete !== 'function' || isDeleting) return;
+
+    const confirmed = window.confirm(
+      `آیا از حذف مزرعه «${farmerName}» اطمینان دارید؟\nاین عمل قابل بازگشت نیست.`
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      await onDelete(farm);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div
       className="relative p-3.5 min-w-[220px] max-w-[280px] font-vazir bg-white"
       dir="rtl"
     >
-      {/* Close Button */}
-      <button
-        type="button"
-        onClick={handleCloseClick}
-        className="absolute top-1 left-1 p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-        aria-label="بستن"
-      >
-        <X size={14} />
-      </button>
+      {/* ✅ دکمه‌های گوشه — مینیمال */}
+      <div className="absolute top-1 left-1 flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={handleDeleteClick}
+          disabled={isDeleting}
+          className="
+            p-1 rounded-md text-gray-300
+            hover:bg-red-50 hover:text-red-600
+            transition-colors
+            disabled:opacity-50 disabled:cursor-wait
+          "
+          aria-label="حذف مزرعه"
+          title="حذف مزرعه"
+        >
+          {isDeleting ? (
+            <span className="block w-3.5 h-3.5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+          ) : (
+            <Trash2 size={14} />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCloseClick}
+          className="p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          aria-label="بستن"
+        >
+          <X size={14} />
+        </button>
+      </div>
 
       {/* Farmer Name */}
       <div className="flex items-center gap-2 mb-2.5">
@@ -97,7 +155,6 @@ const FarmPopupContent = ({
           valueClass="text-primary-700"
         />
 
-        {/* ✅ محصول با دایره رنگ */}
         <InfoRow
           icon={Wheat}
           label="محصول"
