@@ -7,6 +7,7 @@ import ProfileSettings from '../features/settings/components/ProfileSettings';
 import AgricultureSettings from '../features/settings/components/AgricultureSettings';
 import CropSettingsManager from '../features/settings/components/CropSettingsManager';
 import UsersManagement from '../features/settings/components/UsersManagement';
+import LayerStyleSettings from '../features/settings/components/LayerStyleSettings';
 
 import { useProfileSettings } from '../features/settings/hooks/useProfileSettings';
 import { useAgricultureSettings } from '../features/settings/hooks/useAgricultureSettings';
@@ -17,6 +18,7 @@ const SettingsPage = ({ onNavigateHome }) => {
   const tabs = [
     { id: 'profile', label: 'پروفایل کاربری' },
     { id: 'agriculture', label: 'تنظیمات کشاورزی' },
+    { id: 'layer-style', label: 'ظاهر لایه‌ها' },
     { id: 'crops', label: 'تنظیمات محصولات' },
     { id: 'users', label: 'مدیریت کاربران' },
   ];
@@ -33,9 +35,6 @@ const SettingsPage = ({ onNavigateHome }) => {
 
   // ============================================
   // Agriculture Settings
-  //
-  // ✅ فقط settings و updateSettings لازمه — تعرفه‌های منطقه‌ای حذف شد
-  // (مدیریت نرخ محصولات در تب «تنظیمات محصولات» انجام می‌شه)
   // ============================================
   const {
     settings,
@@ -92,6 +91,8 @@ const SettingsPage = ({ onNavigateHome }) => {
               isLoading={agricultureLoading}
             />
           )}
+
+          {activeTab === 'layer-style' && <LayerStyleSettings />}
 
           {activeTab === 'crops' && <CropSettingsManager />}
 

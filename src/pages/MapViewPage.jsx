@@ -1,5 +1,5 @@
 // src/pages/MapViewPage.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, X } from "lucide-react";
 
