@@ -8,24 +8,23 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
 
   build: {
     target: 'esnext',
-    sourcemap: false,               // کاهش اندازه dist
-    // ✅ minify حذف شد — Vite 8 از 'oxc' به‌طور پیش‌فرض استفاده می‌کند
-    cssCodeSplit: true,             // CSS per-chunk
+    sourcemap: false,
+    minify: 'oxc',
+    cssCodeSplit: true,
     chunkSizeWarningLimit: 800,
-    reportCompressedSize: false,    // سریع‌تر
+    reportCompressedSize: false,
 
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
 
-          // ─── Leaflet stack ───
           if (
             id.includes('leaflet') ||
             id.includes('react-leaflet')
@@ -33,7 +32,6 @@ export default defineConfig({
             return 'map';
           }
 
-          // ─── Charts (Recharts + d3) ───
           if (
             id.includes('recharts') ||
             id.includes('d3-') ||
@@ -42,20 +40,10 @@ export default defineConfig({
             return 'charts';
           }
 
-          // ─── ApexCharts (اگر migrate نشده باشد) ───
-          if (
-            id.includes('apexcharts') ||
-            id.includes('react-apexcharts')
-          ) {
-            return 'charts-apex';
-          }
-
-          // ─── Turf ───
           if (id.includes('@turf')) {
             return 'turf';
           }
 
-          // ─── Core vendor ───
           if (
             id.includes('react-dom') ||
             id.includes('react-router') ||
@@ -66,7 +54,6 @@ export default defineConfig({
             return 'vendor';
           }
 
-          // ─── Misc vendor ───
           return 'vendor-misc';
         },
       },
