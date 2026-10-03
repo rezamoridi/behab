@@ -1,7 +1,6 @@
 // src/features/farm-registration/constants/farmOptions.js
 import {
   getLandTypes,
-  getCrops,
   getWaterSources,
   getIrrigationSystems,
   getIrrigationTypes,
@@ -12,7 +11,6 @@ import {
 
 export {
   getLandTypes,
-  getCrops,
   getWaterSources,
   getIrrigationSystems,
   getIrrigationTypes,
@@ -20,6 +18,7 @@ export {
   getStudyAreas,
   getWaterRequirementPerHa,
 };
+
 
 // ============================================
 // Tab Configuration

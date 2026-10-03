@@ -56,10 +56,10 @@ export const getVillages = (provinceName, countyName, bakhshName, dehestanName) 
 // ============================================
 
 export const getLandTypes = () => farmOptions.landTypes;
-export const getCrops = () => farmOptions.crops;
 export const getWaterSources = () => farmOptions.waterSources;
 export const getIrrigationSystems = () => farmOptions.irrigationSystems;
 export const getIrrigationTypes = () => farmOptions.irrigationTypes;
 export const getCoverageStatuses = () => farmOptions.coverageStatuses;
 export const getStudyAreas = () => farmOptions.studyAreas;
 export const getWaterRequirementPerHa = () => farmOptions.waterRequirementPerHa;
+
