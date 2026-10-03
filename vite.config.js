@@ -1,46 +1,84 @@
 // vite.config.js
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export default defineConfig({
+  plugins: [react()],
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  const isDevelopment = mode === 'development';
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
 
-  // آدرس backend — در dev از env، در prod از دامنه نسبی
-  const backendTarget = env.VITE_BACKEND_URL || 'http://localhost:8000';
+  build: {
+    target: 'esnext',
+    sourcemap: false,               // کاهش اندازه dist
+    // ✅ minify حذف شد — Vite 8 از 'oxc' به‌طور پیش‌فرض استفاده می‌کند
+    cssCodeSplit: true,             // CSS per-chunk
+    chunkSizeWarningLimit: 800,
+    reportCompressedSize: false,    // سریع‌تر
 
-  return {
-    plugins: [react()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          // ─── Leaflet stack ───
+          if (
+            id.includes('leaflet') ||
+            id.includes('react-leaflet')
+          ) {
+            return 'map';
+          }
+
+          // ─── Charts (Recharts + d3) ───
+          if (
+            id.includes('recharts') ||
+            id.includes('d3-') ||
+            id.includes('victory-vendor')
+          ) {
+            return 'charts';
+          }
+
+          // ─── ApexCharts (اگر migrate نشده باشد) ───
+          if (
+            id.includes('apexcharts') ||
+            id.includes('react-apexcharts')
+          ) {
+            return 'charts-apex';
+          }
+
+          // ─── Turf ───
+          if (id.includes('@turf')) {
+            return 'turf';
+          }
+
+          // ─── Core vendor ───
+          if (
+            id.includes('react-dom') ||
+            id.includes('react-router') ||
+            id.includes('@tanstack/react-query') ||
+            id.includes('scheduler') ||
+            /[\\/]node_modules[\\/]react[\\/]/.test(id)
+          ) {
+            return 'vendor';
+          }
+
+          // ─── Misc vendor ───
+          return 'vendor-misc';
+        },
       },
     },
-    server: {
-      port: 3001,
-      host: true,
-      proxy: isDevelopment
-        ? {
-            // ✅ فقط در development فعال است
-            // درخواست‌های /api/* را به backend محلی فوروارد می‌کند
-            '/api': {
-              target: backendTarget,
-              changeOrigin: true,
-              secure: false,
-              // اگر backend با prefix خاصی سرو می‌شود، این را فعال کنید:
-              // rewrite: (path) => path.replace(/^\/api/, '/api/v1'),
-            },
-          }
-        : undefined,
+  },
+
+  server: {
+    proxy: {
+      '/api/v1': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
-    build: {
-      outDir: 'dist',
-      sourcemap: true,
-    },
-  };
+  },
 });
