@@ -1,15 +1,18 @@
 // src/features/map/components/SavedFarmsLayer.jsx
-import { useCallback, useEffect, useRef } from 'react';
-import { useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { createRoot } from 'react-dom/client';
-import FarmPopupContent from './FarmPopupContent';
-import { geometryToLeafletPolygons } from '../hooks/useMapDrawing';
+import { useCallback, useEffect, useRef } from "react";
+import { useMap } from "react-leaflet";
+import L from "leaflet";
+import { createRoot } from "react-dom/client";
+import FarmPopupContent from "./FarmPopupContent";
+import { geometryToLeafletPolygons } from "../hooks/useMapDrawing";
 import {
   DEFAULT_FARM_COLOR,
   normalizeHex,
-} from '../../settings/constants/cropColors';
-import { useLayerStyle, getDashArray } from '../../settings/hooks/useLayerStyle';
+} from "../../settings/constants/cropColors";
+import {
+  useLayerStyle,
+  getDashArray,
+} from "../../settings/hooks/useLayerStyle";
 
 // ============================================================
 // رنگ محصول
@@ -28,13 +31,12 @@ const getFarmColor = (farm, colorByCrop) => {
 };
 
 // ============================================================
-// ✅ استایل — Fill همیشه از محصول، Stroke از تنظیمات
+// استایل
 // ============================================================
 const getFarmStyle = (farm, isSelected, colorByCrop, layerStyle) => {
   const cropColor = getFarmColor(farm, colorByCrop);
   const s = layerStyle;
 
-  // ─── حالت انتخاب‌شده ───
   if (isSelected) {
     return {
       color: s.selectedStrokeColor,
@@ -43,23 +45,20 @@ const getFarmStyle = (farm, isSelected, colorByCrop, layerStyle) => {
       fillColor: cropColor,
       fillOpacity: s.selectedFillOpacity,
       dashArray: getDashArray(s.selectedStrokeStyle),
-      className: 'selected-polygon',
+      className: "selected-polygon",
     };
   }
 
-  // ─── حالت عادی ───
-  // ✅ Stroke: اگه customStrokeColor فعال باشه، از رنگ دلخواه
-  //           وگرنه از رنگ محصول
   const strokeColor = s.customStrokeColor ? s.strokeColor : cropColor;
 
   return {
     color: strokeColor,
     weight: s.strokeWeight,
     opacity: s.strokeOpacity,
-    fillColor: cropColor,            // ← همیشه رنگ محصول
+    fillColor: cropColor,
     fillOpacity: s.fillOpacity,
     dashArray: getDashArray(s.strokeStyle),
-    className: '',
+    className: "",
   };
 };
 
@@ -70,21 +69,21 @@ const getFeatures = (geojson) => {
   if (!geojson) return [];
 
   try {
-    if (geojson.type === 'FeatureCollection') {
+    if (geojson.type === "FeatureCollection") {
       return geojson.features || [];
     }
-    if (geojson.type === 'Feature') {
+    if (geojson.type === "Feature") {
       return [geojson];
     }
-    if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
-      return [{ type: 'Feature', properties: {}, geometry: geojson }];
+    if (geojson.type === "Polygon" || geojson.type === "MultiPolygon") {
+      return [{ type: "Feature", properties: {}, geometry: geojson }];
     }
     if (Array.isArray(geojson)) {
       return geojson;
     }
     return [];
   } catch (error) {
-    console.error('Error getting features:', error);
+    console.error("Error getting features:", error);
     return [];
   }
 };
@@ -112,6 +111,7 @@ const safeUnmount = (root) => {
 // ============================================================
 const SavedFarmsLayer = ({
   farms,
+  farmersById = {},
   colorByCrop = {},
   onFarmClick,
   onFarmEdit,
@@ -132,6 +132,7 @@ const SavedFarmsLayer = ({
     onFarmDelete,
   });
   const layerStyleRef = useRef(layerStyle);
+  const farmersByIdRef = useRef(farmersById);
   const boundsFittedRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -148,11 +149,18 @@ const SavedFarmsLayer = ({
   }, [onFarmClick, onFarmEdit, onFarmEditGeometry, onFarmDelete]);
 
   // ============================================================
-  // همگام‌سازی layerStyle با ref
+  // همگام‌سازی layerStyle
   // ============================================================
   useEffect(() => {
     layerStyleRef.current = layerStyle;
   }, [layerStyle]);
+
+  // ============================================================
+  // همگام‌سازی farmersById
+  // ============================================================
+  useEffect(() => {
+    farmersByIdRef.current = farmersById;
+  }, [farmersById]);
 
   // ============================================================
   // cleanupAll
@@ -203,8 +211,13 @@ const SavedFarmsLayer = ({
   // ============================================================
   const createPopupContent = useCallback(
     (farm) => {
-      const container = document.createElement('div');
-      container.className = 'farm-popup-container';
+      const container = document.createElement("div");
+      container.className = "farm-popup-container";
+
+      // ✅ پیدا کردن کشاورز از Map
+      const farmer = farm?.farmer_id
+        ? farmersByIdRef.current[String(farm.farmer_id)] || null
+        : null;
 
       const handleEdit = () => {
         try {
@@ -212,7 +225,7 @@ const SavedFarmsLayer = ({
         } catch {
           /* ignore */
         }
-        if (typeof handlersRef.current.onFarmEdit === 'function') {
+        if (typeof handlersRef.current.onFarmEdit === "function") {
           handlersRef.current.onFarmEdit(farm);
         }
       };
@@ -223,7 +236,7 @@ const SavedFarmsLayer = ({
         } catch {
           /* ignore */
         }
-        if (typeof handlersRef.current.onFarmEditGeometry === 'function') {
+        if (typeof handlersRef.current.onFarmEditGeometry === "function") {
           handlersRef.current.onFarmEditGeometry(farm);
         }
       };
@@ -234,7 +247,7 @@ const SavedFarmsLayer = ({
         } catch {
           /* ignore */
         }
-        if (typeof handlersRef.current.onFarmDelete === 'function') {
+        if (typeof handlersRef.current.onFarmDelete === "function") {
           await handlersRef.current.onFarmDelete(farmToDelete);
         }
       };
@@ -251,17 +264,18 @@ const SavedFarmsLayer = ({
       root.render(
         <FarmPopupContent
           farm={farm}
+          farmer={farmer}
           onEdit={handleEdit}
           onEditGeometry={handleEditGeometry}
           onDelete={handleDelete}
           onClose={handleClose}
-        />
+        />,
       );
 
       popupRootsRef.current.push(root);
       return container;
     },
-    [map]
+    [map],
   );
 
   // ============================================================
@@ -285,12 +299,11 @@ const SavedFarmsLayer = ({
       const features = getFeatures(farm.geojson);
       if (!features || features.length === 0) return;
 
-      // در ساخت اولیه همیشه غیرانتخاب
       const styleOptions = getFarmStyle(
         farm,
         false,
         colorByCrop,
-        layerStyleRef.current
+        layerStyleRef.current,
       );
 
       const farmPolygons = [];
@@ -302,17 +315,17 @@ const SavedFarmsLayer = ({
         const polys = geometryToLeafletPolygons(geometry, styleOptions);
 
         for (const polygon of polys) {
-          polygon.on('click', (e) => {
+          polygon.on("click", (e) => {
             L.DomEvent.stopPropagation(e);
             const { onFarmClick: cb } = handlersRef.current;
-            if (typeof cb === 'function') {
+            if (typeof cb === "function") {
               cb(farm, e);
             }
           });
 
           const popupContent = createPopupContent(farm);
           polygon.bindPopup(popupContent, {
-            className: 'farm-popup',
+            className: "farm-popup",
             offset: L.point(0, -10),
             closeButton: false,
             minWidth: 260,
@@ -345,8 +358,8 @@ const SavedFarmsLayer = ({
               if (Array.isArray(coords)) {
                 if (
                   coords.length === 2 &&
-                  typeof coords[0] === 'number' &&
-                  typeof coords[1] === 'number'
+                  typeof coords[0] === "number" &&
+                  typeof coords[1] === "number"
                 ) {
                   bounds.extend(coords);
                 } else {
@@ -363,7 +376,7 @@ const SavedFarmsLayer = ({
           boundsFittedRef.current = true;
         }
       } catch (error) {
-        console.error('Error fitting bounds:', error);
+        console.error("Error fitting bounds:", error);
       }
     }
 
@@ -373,13 +386,11 @@ const SavedFarmsLayer = ({
   }, [map, farms, colorByCrop, cleanupAll, createPopupContent]);
 
   // ============================================================
-  // Style Effect — واکنش به تغییر تنظیمات و انتخاب
+  // Style Effect
   // ============================================================
   useEffect(() => {
     polygonsByFarmRef.current.forEach((polygons, farmId) => {
-      const farm = farms.find(
-        (f) => String(f.farm_id) === String(farmId)
-      );
+      const farm = farms.find((f) => String(f.farm_id) === String(farmId));
       if (!farm) return;
 
       const isSelected = String(farmId) === String(selectedFarmId);
@@ -387,7 +398,7 @@ const SavedFarmsLayer = ({
         farm,
         isSelected,
         colorByCrop,
-        layerStyle
+        layerStyle,
       );
 
       polygons.forEach((polygon) => {
@@ -408,15 +419,15 @@ const SavedFarmsLayer = ({
 
     const handleMapClick = () => {
       const { onFarmClick: cb } = handlersRef.current;
-      if (typeof cb === 'function') {
+      if (typeof cb === "function") {
         cb(null);
       }
     };
 
-    map.on('click', handleMapClick);
+    map.on("click", handleMapClick);
 
     return () => {
-      map.off('click', handleMapClick);
+      map.off("click", handleMapClick);
     };
   }, [map]);
 

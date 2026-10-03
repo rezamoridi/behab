@@ -1,5 +1,6 @@
 // src/pages/SettingsPage.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Settings, X } from 'lucide-react';
 
 import SettingsTabs from '../features/settings/components/SettingsTabs';
@@ -12,8 +13,29 @@ import LayerStyleSettings from '../features/settings/components/LayerStyleSettin
 import { useProfileSettings } from '../features/settings/hooks/useProfileSettings';
 import { useAgricultureSettings } from '../features/settings/hooks/useAgricultureSettings';
 
+const VALID_TABS = ['profile', 'agriculture', 'layer-style', 'crops', 'users'];
+
 const SettingsPage = ({ onNavigateHome }) => {
-  const [activeTab, setActiveTab] = useState('profile');
+  const location = useLocation();
+
+  const initialTab = VALID_TABS.includes(location.state?.activeTab)
+    ? location.state.activeTab
+    : 'profile';
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // اگر از داشبورد با tab جدید آمد، با setTimeout به‌روز کن
+  // (تا از cascading render در body effect جلوگیری شود)
+  useEffect(() => {
+    const nextTab = location.state?.activeTab;
+    if (!nextTab || !VALID_TABS.includes(nextTab)) return;
+
+    const timer = setTimeout(() => {
+      setActiveTab(nextTab);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [location.state?.activeTab]);
 
   const tabs = [
     { id: 'profile', label: 'پروفایل کاربری' },
@@ -23,9 +45,7 @@ const SettingsPage = ({ onNavigateHome }) => {
     { id: 'users', label: 'مدیریت کاربران' },
   ];
 
-  // ============================================
   // Profile
-  // ============================================
   const {
     profile,
     isLoading: profileLoading,
@@ -33,9 +53,7 @@ const SettingsPage = ({ onNavigateHome }) => {
     changePassword,
   } = useProfileSettings();
 
-  // ============================================
   // Agriculture Settings
-  // ============================================
   const {
     settings,
     isLoading: agricultureLoading,

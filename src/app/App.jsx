@@ -13,6 +13,7 @@ import { ConfirmDialogProvider } from '../shared/components/ConfirmDialog/Confir
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const MapViewPage = lazy(() => import('../pages/MapViewPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
+const FarmersPage = lazy(() => import('../pages/FarmersPage')); // ✅ جدید
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 
 const App = () => {
@@ -20,8 +21,6 @@ const App = () => {
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
-          {/* ✅ ToastProvider قبل از Confirm (چون Confirm از Button استفاده می‌کنه،
-              ولی خودش مستقل کار می‌کنه) */}
           <ToastProvider>
             <ConfirmDialogProvider>
               <BrowserRouter>
@@ -31,6 +30,7 @@ const App = () => {
                     <Route element={<ProtectedLayout />}>
                       <Route path="/" element={<DashboardPage />} />
                       <Route path="/map" element={<MapViewPage />} />
+                      <Route path="/farmers" element={<FarmersPage />} /> {/* ✅ جدید */}
                       <Route path="/settings" element={<SettingsPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" replace />} />

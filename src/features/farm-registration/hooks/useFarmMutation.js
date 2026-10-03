@@ -6,6 +6,7 @@ import {
   deleteFarm,
   fetchFarmById,
 } from "../../../services/api/farmApi";
+import { farmerApi } from "../../../services/api/farmerApi";
 import { farmKeys } from "./useFarmsQuery";
 
 // ============================================
@@ -31,13 +32,6 @@ const extractFarmFromResponse = (response) => {
 
 // ============================================
 // ✅ mergeFarm: ادغام ایمن farm قدیمی + پاسخ سرور + payload
-//
-// قواعد:
-// 1. فیلدهای قدیمی farm حفظ می‌شوند
-// 2. اگر savedFarm فیلدی را داشته باشد، جایگزین می‌شود
-// 3. اگر savedFarm فیلدی را نداشته باشد ولی payload داشته باشد، از payload استفاده می‌شود
-// 4. geojson هرگز با undefined جایگزین نمی‌شود
-// 5. crop_id و crop_color هم مدیریت می‌شوند
 // ============================================
 const mergeFarm = (oldFarm, savedFarm, payload) => {
   const merged = { ...(oldFarm || {}) };
@@ -45,9 +39,7 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
   const FARM_FIELDS = [
     "farm_id",
     "id",
-    "farmer_name",
-    "national_id",
-    "phone_number",
+    "farmer_id", // ✅ جدید
     "province",
     "county",
     "bakhsh",
@@ -55,8 +47,8 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     "village",
     "land_type",
     "crop",
-    "crop_id", // ✅ جدید
-    "crop_color", // ✅ جدید
+    "crop_id",
+    "crop_color",
     "irrigation_type",
     "project_name",
     "coverage_status",
@@ -66,7 +58,7 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     "polygon_count",
   ];
 
-  // مرحله 1: اعمال فیلدهای savedFarm (اگر مقدار معتبری دارند)
+  // مرحله 1: اعمال فیلدهای savedFarm
   if (savedFarm) {
     for (const field of FARM_FIELDS) {
       const value = savedFarm[field];
@@ -76,7 +68,7 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     }
   }
 
-  // مرحله 2: اعمال فیلدهای payload برای فیلدهایی که هنوز خالی‌اند
+  // مرحله 2: اعمال payload برای فیلدهای خالی
   if (payload) {
     for (const field of FARM_FIELDS) {
       if (merged[field] === undefined || merged[field] === null) {
@@ -88,9 +80,7 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     }
   }
 
-  // مرحله 3: ✅ geojson — منطق ویژه
-  // اولویت: savedFarm.geojson → payload.geojson → oldFarm.geojson
-  // هرگز با undefined جایگزین نمی‌شود.
+  // مرحله 3: geojson — منطق ویژه
   if (
     savedFarm &&
     savedFarm.geojson !== undefined &&
@@ -117,7 +107,7 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
 };
 
 // ============================================
-// ایجاد مزرعه
+// ایجاد مزرعه (مستقل — با farmer_id اختیاری)
 // ============================================
 export const useCreateFarmMutation = () => {
   const queryClient = useQueryClient();
@@ -128,15 +118,13 @@ export const useCreateFarmMutation = () => {
       const savedFarm = extractFarmFromResponse(response);
       const farmForList = mergeFarm(null, savedFarm, payload);
 
-      // ✅ درج در cache لیست
+      // درج در cache لیست
       queryClient.setQueryData(
         farmKeys.list(FARM_LIST_QUERY_PARAMS),
         (oldData) => {
           if (!oldData) return oldData;
 
           const existingFarms = oldData.farms || [];
-
-          // بررسی تکراری بودن
           const exists = existingFarms.some(
             (f) => String(f.farm_id) === String(farmForList.farm_id),
           );
@@ -150,7 +138,6 @@ export const useCreateFarmMutation = () => {
         },
       );
 
-      // ✅ ذخیره detail
       if (farmForList.farm_id) {
         queryClient.setQueryData(
           farmKeys.detail(farmForList.farm_id),
@@ -158,8 +145,63 @@ export const useCreateFarmMutation = () => {
         );
       }
 
-      // ✅ invalidate برای همگام‌سازی نهایی با سرور
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
+    },
+  });
+};
+
+// ============================================
+// ✅ ثبت کشاورز + مزرعه (اتمیک)
+//
+//   POST /farmers/register-with-farms
+//
+// پاسخ: { action: "created" | "updated", message, farmer, farms, sms_sent }
+// ============================================
+export const useRegisterWithFarmsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ farmer, farms }) =>
+      farmerApi.registerWithFarms({ farmer, farms }),
+
+    onSuccess: (response) => {
+      const createdFarm = response?.farms?.[0];
+
+      if (createdFarm) {
+        // درج در cache لیست
+        queryClient.setQueryData(
+          farmKeys.list(FARM_LIST_QUERY_PARAMS),
+          (oldData) => {
+            if (!oldData) return oldData;
+
+            const existingFarms = oldData.farms || [];
+            const exists = existingFarms.some(
+              (f) => String(f.farm_id) === String(createdFarm.farm_id),
+            );
+            if (exists) return oldData;
+
+            return {
+              ...oldData,
+              farms: [createdFarm, ...existingFarms],
+              total: (oldData.total || 0) + 1,
+            };
+          },
+        );
+
+        if (createdFarm.farm_id) {
+          queryClient.setQueryData(
+            farmKeys.detail(createdFarm.farm_id),
+            createdFarm,
+          );
+        }
+      }
+
+      // invalidate برای همگام‌سازی نهایی
+      queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
+    },
+
+    onError: (error) => {
+      console.error("خطا در ثبت کشاورز + مزرعه:", error);
     },
   });
 };
@@ -175,7 +217,6 @@ export const useUpdateFarmMutation = () => {
     onSuccess: (response, variables) => {
       const savedFarm = extractFarmFromResponse(response);
 
-      // ✅ بروزرسانی cache لیست
       queryClient.setQueryData(
         farmKeys.list(FARM_LIST_QUERY_PARAMS),
         (oldData) => {
@@ -195,12 +236,10 @@ export const useUpdateFarmMutation = () => {
         },
       );
 
-      // ✅ بروزرسانی cache detail
       queryClient.setQueryData(farmKeys.detail(variables.farmId), (oldData) =>
         mergeFarm(oldData, savedFarm, variables.payload),
       );
 
-      // ✅ invalidate برای همگام‌سازی نهایی
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: farmKeys.detail(variables.farmId),
@@ -211,16 +250,6 @@ export const useUpdateFarmMutation = () => {
 
 // ============================================================
 // ✅ ویرایش فقط هندسه مزرعه (لایه)
-//
-// نکات کلیدی:
-// 1. payload فقط شامل geojson و area_ha و polygon_count است.
-// 2. سایر فیلدها از farm فعلی سرور خوانده و ارسال می‌شوند
-//    تا اطلاعات پاک نشوند.
-// 3. crop_id و crop_color هم از farm فعلی بازگردانده می‌شوند
-//    تا در update_farm سمت سرور درست هم‌خوان شوند.
-// 4. پس از موفقیت، دوباره farm را از سرور می‌خوانیم تا
-//    cache با داده canonical پر شود.
-// 5. اگر fetch دوباره شکست خورد، به payload برمی‌گردیم.
 // ============================================================
 export const useUpdateFarmGeometryMutation = () => {
   const queryClient = useQueryClient();
@@ -231,65 +260,51 @@ export const useUpdateFarmGeometryMutation = () => {
         throw new Error("شناسه مزرعه معتبر نیست");
       }
 
-      // 1. خواندن داده‌های کامل فعلی مزرعه
+      // 1. خواندن داده‌های کامل فعلی
       const currentFarm = await fetchFarmById(farmId);
       if (!currentFarm) {
         throw new Error("اطلاعات مزرعه یافت نشد");
       }
 
-      // 2. ادغام: همه‌ی فیلدهای موجود + هندسه‌ی جدید
+      // 2. ادغام: همه فیلدهای موجود + هندسه جدید
       const mergedPayload = {
-        // موقعیت
         province: currentFarm.province || null,
         county: currentFarm.county || null,
         bakhsh: currentFarm.bakhsh || null,
         dehestan: currentFarm.dehestan || null,
         village: currentFarm.village || null,
 
-        // کشاورز
-        farmer_name: currentFarm.farmer_name,
-        national_id: currentFarm.national_id,
-        phone_number: currentFarm.phone_number,
-
-        // زمین — ✅ هم crop و هم crop_id حفظ می‌شوند
         land_type: currentFarm.land_type || null,
         crop: currentFarm.crop || null,
-        crop_id: currentFarm.crop_id ?? null, // ✅
-        crop_color: currentFarm.crop_color ?? null, // ✅
+        crop_id: currentFarm.crop_id ?? null,
+        crop_color: currentFarm.crop_color ?? null,
         irrigation_type: currentFarm.irrigation_type || null,
 
-        // ✅ هندسه (فقط این‌ها تغییر می‌کنند)
         geojson: payload.geojson,
         area_ha: Number(payload.area_ha) || 0,
         polygon_count: Number(payload.polygon_count) || 1,
 
-        // شبکه
         project_name: currentFarm.project_name || null,
         coverage_status: currentFarm.coverage_status || null,
 
-        // منابع آب
         water_source: currentFarm.water_source || null,
         irrigation_system: currentFarm.irrigation_system || null,
       };
 
-      // 3. ارسال PUT
       const result = await updateFarm(farmId, mergedPayload);
       return result;
     },
 
     onSuccess: async (response, variables) => {
-      // ✅ مرحله کلیدی: fetch دوباره از سرور برای گرفتن canonical
       try {
         const canonical = await fetchFarmById(variables.farmId);
 
         if (canonical) {
-          // بروزرسانی cache detail با داده canonical سرور
           queryClient.setQueryData(
             farmKeys.detail(variables.farmId),
             canonical,
           );
 
-          // بروزرسانی cache لیست
           queryClient.setQueryData(
             farmKeys.list(FARM_LIST_QUERY_PARAMS),
             (oldData) => {
@@ -309,11 +324,14 @@ export const useUpdateFarmGeometryMutation = () => {
           );
         }
       } catch (err) {
-        // Fallback: اگر fetch canonical شکست خورد، payload را اعمال کن
-        console.warn("canonical refetch failed, falling back to payload:", err);
+        console.warn(
+          "canonical refetch failed, falling back to payload:",
+          err,
+        );
 
-        queryClient.setQueryData(farmKeys.detail(variables.farmId), (oldData) =>
-          mergeFarm(oldData, null, variables.payload),
+        queryClient.setQueryData(
+          farmKeys.detail(variables.farmId),
+          (oldData) => mergeFarm(oldData, null, variables.payload),
         );
 
         queryClient.setQueryData(
@@ -330,7 +348,6 @@ export const useUpdateFarmGeometryMutation = () => {
         );
       }
 
-      // invalidate برای همگام‌سازی نهایی
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: farmKeys.detail(variables.farmId),
@@ -352,7 +369,6 @@ export const useDeleteFarmMutation = () => {
   return useMutation({
     mutationFn: (farmId) => deleteFarm(farmId),
     onSuccess: (_, farmId) => {
-      // ✅ حذف از cache لیست
       queryClient.setQueryData(
         farmKeys.list(FARM_LIST_QUERY_PARAMS),
         (oldData) => {
@@ -367,12 +383,10 @@ export const useDeleteFarmMutation = () => {
         },
       );
 
-      // ✅ حذف از cache detail
       queryClient.removeQueries({
         queryKey: farmKeys.detail(farmId),
       });
 
-      // ✅ invalidate
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
     },
     onError: (error) => {

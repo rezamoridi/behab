@@ -63,14 +63,38 @@ const normalizeResult = (item) => {
 
 // ============================================
 // Component
+//
+// prop `embedded`:
+//   اگر true باشد → به صورت inline داخل TopBar نمایش داده می‌شود
+//                    (بدون absolute، بدون top/left)
 // ============================================
-const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
+const LocationPicker = ({
+  onLocationSelect,
+  onSearchChange,
+  embedded = false,
+  selectedLocation = null,
+}) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const abortControllerRef = useRef(null);
   const skipNextSearchRef = useRef(false);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // اگر selectedLocation عوض شد، query را همگام کن
+  useEffect(() => {
+    if (selectedLocation?.name) {
+      // با setTimeout تا خارج از body effect باشد
+      const t = setTimeout(() => {
+        setQuery(selectedLocation.name);
+      }, 0);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [selectedLocation]);
 
   const searchLocations = async (searchText) => {
     const cleanQuery = searchText.trim();
@@ -129,8 +153,12 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
     }
   };
 
+  // ============================================================
+  // Debounced search
+  // ============================================================
   useEffect(() => {
     const cleanQuery = query.trim();
+
     if (onSearchChange) onSearchChange(false);
 
     if (skipNextSearchRef.current) {
@@ -139,17 +167,43 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
     }
 
     if (cleanQuery.length < 2) {
-      setSuggestions([]);
-      return undefined;
+      const clearTimer = setTimeout(() => {
+        setSuggestions([]);
+      }, 0);
+      return () => clearTimeout(clearTimer);
     }
 
-    const timer = setTimeout(() => {
+    const searchTimer = setTimeout(() => {
       searchLocations(cleanQuery);
     }, 700);
 
-    return () => clearTimeout(timer);
+    return () => clearTimeout(searchTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  // بستن suggestions با کلیک بیرون
+  useEffect(() => {
+    if (suggestions.length === 0) return;
+
+    const handleClickOutside = (e) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target)
+      ) {
+        setSuggestions([]);
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setSuggestions([]);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [suggestions.length]);
 
   useEffect(() => {
     return () => {
@@ -158,12 +212,13 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
   }, []);
 
   const handleSelect = (location) => {
-    const selectedLocation = { ...location, zoom: getSmartZoom(location) };
+    const finalLocation = { ...location, zoom: getSmartZoom(location) };
     skipNextSearchRef.current = true;
     setQuery(location.persianName || location.name);
     setSuggestions([]);
-    onLocationSelect?.(selectedLocation);
+    onLocationSelect?.(finalLocation);
     if (onSearchChange) onSearchChange(false);
+    inputRef.current?.blur();
   };
 
   const handleSubmit = async (event) => {
@@ -182,38 +237,72 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
   const handleClear = () => {
     setQuery('');
     setSuggestions([]);
+    inputRef.current?.focus();
   };
 
+  const showSuggestions = suggestions.length > 0;
+
+  // ============================================================
+  // Wrapper classes
+  // ============================================================
+  const wrapperClass = embedded
+    ? 'relative w-full font-vazir'
+    : 'absolute top-4 left-1/2 -translate-x-1/2 z-[1200] w-[min(520px,calc(100%-24px))] font-vazir';
+
   return (
-    <section
-      className="absolute top-4 left-1/2 -translate-x-1/2 z-[1200] w-[min(460px,calc(100%-32px))] font-vazir"
-      dir="rtl"
-    >
+    <div ref={containerRef} className={wrapperClass} dir="rtl">
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-1.5 p-1.5 bg-white border border-gray-200 rounded-xl shadow-lg"
+        className={`
+          flex items-center gap-1.5 p-1.5
+          rounded-2xl
+          bg-white/75 backdrop-blur-xl
+          border border-white/70
+          transition-shadow duration-200
+          ${
+            focused
+              ? 'shadow-[0_8px_32px_rgba(31,38,135,0.18),inset_0_1px_0_rgba(255,255,255,0.95)]'
+              : 'shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.9)]'
+          }
+        `}
       >
         <div className="relative flex-1">
           <input
+            ref={inputRef}
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 200)}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') setSuggestions([]);
+              if (e.key === 'Escape') {
+                setSuggestions([]);
+                inputRef.current?.blur();
+              }
             }}
             placeholder="جستجوی شهر، روستا یا منطقه..."
             aria-label="جستجوی مکان"
-            className="w-full pr-9 pl-9 py-2.5 bg-transparent border-none outline-none text-sm text-gray-800 placeholder:text-gray-400"
+            className="
+              w-full pr-9 pl-9 py-2
+              bg-transparent border-none outline-none
+              text-sm text-slate-800 placeholder:text-slate-400
+              font-vazir
+            "
           />
           <Search
             size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           {query && (
             <button
               type="button"
               onClick={handleClear}
-              className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              className="
+                absolute left-2 top-1/2 -translate-y-1/2
+                p-1 rounded-md
+                text-slate-400 hover:bg-white/70 hover:text-slate-700
+                transition-colors cursor-pointer
+              "
               aria-label="پاک کردن"
             >
               <X size={14} />
@@ -226,22 +315,35 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
           disabled={isSearching}
           aria-label="جستجو"
           className="
-            w-10 h-10 flex items-center justify-center
-            bg-primary-600 text-white rounded-lg
+            w-9 h-9 flex items-center justify-center
+            bg-primary-600 text-white rounded-xl
+            shadow-[0_2px_8px_rgba(46,125,50,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]
             hover:bg-primary-700 transition-colors
             disabled:opacity-60 disabled:cursor-wait
+            cursor-pointer shrink-0
           "
         >
           {isSearching ? (
-            <Loader2 size={18} className="animate-spin" />
+            <Loader2 size={16} className="animate-spin" />
           ) : (
-            <Search size={18} />
+            <Search size={16} />
           )}
         </button>
       </form>
 
-      {suggestions.length > 0 && (
-        <div className="mt-2 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+      {showSuggestions && (
+        <div
+          className="
+            absolute top-full left-0 right-0 mt-2 z-[1200]
+            max-h-72 overflow-y-auto
+            rounded-2xl
+            bg-white/95 backdrop-blur-xl
+            border border-white/70
+            shadow-[0_8px_32px_rgba(31,38,135,0.18),inset_0_1px_0_rgba(255,255,255,0.95)]
+            overflow-hidden
+            animate-panel-fade-in
+          "
+        >
           {suggestions.map((item, index) => {
             const displayName = item.persianName || item.name;
             const [title, ...rest] = displayName.split(',');
@@ -253,19 +355,22 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
                 className="
                   w-full flex flex-col items-start gap-1
                   px-4 py-3 text-right
-                  bg-white border-b border-gray-100 last:border-0
-                  hover:bg-primary-50 transition-colors
+                  border-b border-slate-200/50 last:border-0
+                  hover:bg-primary-50/70 transition-colors
                   cursor-pointer
                 "
               >
                 <div className="flex items-center gap-2 w-full">
-                  <MapPin size={14} className="text-primary-600 flex-shrink-0" />
-                  <strong className="text-sm font-bold text-gray-800 truncate">
+                  <MapPin
+                    size={14}
+                    className="text-primary-600 flex-shrink-0"
+                  />
+                  <strong className="text-sm font-bold text-slate-800 truncate">
                     {title.trim()}
                   </strong>
                 </div>
                 {rest.length > 0 && (
-                  <span className="text-xs text-gray-500 truncate w-full pr-6">
+                  <span className="text-xs text-slate-500 truncate w-full pr-6">
                     {rest.slice(0, 3).join('، ').trim()}
                   </span>
                 )}
@@ -274,7 +379,7 @@ const LocationPicker = ({ onLocationSelect, onSearchChange }) => {
           })}
         </div>
       )}
-    </section>
+    </div>
   );
 };
 

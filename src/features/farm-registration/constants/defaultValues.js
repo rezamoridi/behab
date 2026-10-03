@@ -9,12 +9,13 @@ export const DEFAULT_FARM_FORM_VALUES = {
   bakhsh: '',
   dehestan: '',
   village: '',
-  farmerName: '',
+  firstName: '',
+  lastName: '',
   nationalId: '',
   phone: '',
   landType: '',
   crop: '',
-  cropId: null,              // ✅
+  cropId: null,
   irrigationType: '',
   waterSources: [],
   irrigationSystems: [],
@@ -24,6 +25,10 @@ export const DEFAULT_FARM_FORM_VALUES = {
 
 // ============================================
 // تبدیل داده API به فرم
+//
+// ⚠️ نکته: API فیلدهای کشاورز را در Farm برنمی‌گرداند.
+// در حالت ویرایش، این فیلدها خالی می‌مانند و مهم نیستند
+// (چون endpoint ویرایش مزرعه، فیلدهای کشاورز را نادیده می‌گیرد).
 // ============================================
 export const apiToForm = (apiData) => {
   if (!apiData) return { ...DEFAULT_FARM_FORM_VALUES };
@@ -48,12 +53,14 @@ export const apiToForm = (apiData) => {
     bakhsh: apiData.bakhsh || '',
     dehestan: apiData.dehestan || '',
     village: apiData.village || '',
-    farmerName: apiData.farmer_name || '',
+    // ↓ این‌ها در ویرایش خالی می‌مانند
+    firstName: apiData.fname || '',
+    lastName: apiData.lname || '',
     nationalId: apiData.national_id || '',
     phone: apiData.phone_number || '',
     landType: apiData.land_type || '',
     crop: apiData.crop || '',
-    cropId: apiData.crop_id ?? null,           // ✅
+    cropId: apiData.crop_id ?? null,
     irrigationType: apiData.irrigation_type || '',
     waterSources,
     irrigationSystems,
@@ -63,15 +70,28 @@ export const apiToForm = (apiData) => {
   };
 };
 
-// ============================================
-// تبدیل فرم به Payload API
-// ============================================
-export const formToApi = ({
+// ============================================================
+// تبدیل فرم به payload کشاورز (برای register-with-farms)
+// ============================================================
+export const formToFarmerPayload = (formData) => {
+  return {
+    national_id: String(formData.nationalId || '').trim(),
+    phone_number: String(formData.phone || '').trim(),
+    fname: formData.firstName ? String(formData.firstName).trim() : null,
+    lname: formData.lastName ? String(formData.lastName).trim() : null,
+  };
+};
+
+// ============================================================
+// تبدیل فرم به payload مزرعه (برای farms/create)
+// ============================================================
+export const formToFarmPayload = ({
   formData,
   areaHa,
   polygonCount,
   geometry,
-  cropId = null,                             // ✅
+  cropId = null,
+  farmerId = null,
 }) => {
   return {
     // موقعیت
@@ -81,15 +101,13 @@ export const formToApi = ({
     dehestan: formData.dehestan || null,
     village: formData.village || null,
 
-    // کشاورز
-    farmer_name: formData.farmerName,
-    national_id: formData.nationalId,
-    phone_number: formData.phone,
+    // کشاورز (اختیاری — فقط برای farms/create)
+    farmer_id: farmerId ?? null,
 
     // زمین
     land_type: formData.landType || null,
     crop: formData.crop || null,
-    crop_id: cropId ?? null,                 // ✅
+    crop_id: cropId ?? null,
     irrigation_type: formData.irrigationType || null,
 
     // هندسه
@@ -110,3 +128,40 @@ export const formToApi = ({
       : null,
   };
 };
+
+// ============================================================
+// payload کامل برای register-with-farms
+// ============================================================
+export const formToRegisterPayload = ({
+  formData,
+  areaHa,
+  polygonCount,
+  geometry,
+  cropId = null,
+}) => {
+  const farmer = formToFarmerPayload(formData);
+
+  const farm = formToFarmPayload({
+    formData,
+    areaHa,
+    polygonCount,
+    geometry,
+    cropId,
+    farmerId: null, // ← بک‌اند خودش پر می‌کند
+  });
+
+  // حذف farmer_id از farm (چون بک‌اند override می‌کند)
+  delete farm.farmer_id;
+
+  return {
+    farmer,
+    farms: [farm],
+  };
+};
+
+// ============================================================
+// Backward compatibility
+// ============================================================
+export const formToApi = formToFarmPayload;
+
+export default DEFAULT_FARM_FORM_VALUES;

@@ -8,10 +8,14 @@ import { farmSchema, farmUpdateSchema } from '../schemas/farmSchema';
 import {
   DEFAULT_FARM_FORM_VALUES,
   apiToForm,
-  formToApi,
+  formToFarmPayload,
+  formToRegisterPayload,
 } from '../constants/defaultValues';
 import { FARM_FORM_TABS } from '../constants/farmOptions';
-import { useFarmMutation } from '../hooks/useFarmMutation';
+import {
+  useFarmMutation,
+  useRegisterWithFarmsMutation,
+} from '../hooks/useFarmMutation';
 import {
   extractGeometry,
   calculateTotalArea,
@@ -19,6 +23,7 @@ import {
 } from '../utils/geometryUtils';
 
 import { useActiveCrops } from '../../settings/hooks/useActiveCrops';
+import { useToast } from '../../../shared/components/Toast/ToastProvider';
 
 import { LocationSection } from './sections/LocationSection';
 import { FarmerSection } from './sections/FarmerSection';
@@ -48,10 +53,16 @@ export const FarmFormContainer = ({
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
 
-  const { createFarm, updateFarm, isLoading: isMutating } =
-    useFarmMutation();
+  // ── Toast ──
+  const toast = useToast();
 
-  // ✅ محصولات فعال + نرخ + شناسه (برای پیدا کردن crop_id از نام)
+  // ── Mutations ──
+  const { updateFarm, isLoading: isUpdatingFarm } = useFarmMutation();
+  const registerMutation = useRegisterWithFarmsMutation();
+
+  const isMutating = isUpdatingFarm || registerMutation.isPending;
+
+  // ── محصولات فعال ──
   const {
     crops: activeCrops,
     getRequirement,
@@ -73,7 +84,7 @@ export const FarmFormContainer = ({
   // ============================================
   const schema = useMemo(
     () => (isEditing ? farmUpdateSchema : farmSchema),
-    [isEditing]
+    [isEditing],
   );
 
   // ============================================
@@ -92,26 +103,25 @@ export const FarmFormContainer = ({
     formState: { isValid },
   } = methods;
 
-  // ✅ تماشای محصول انتخاب‌شده
+  // ── تماشای محصول انتخاب‌شده ──
   const selectedCrop = useWatch({
     control,
     name: 'crop',
   });
 
-  // ✅ requirement بر اساس محصول از DB
+  // ── requirement ──
   const activeRequirement = useMemo(() => {
     if (!selectedCrop) return DEFAULT_WATER_REQUIREMENT;
     const req = getRequirement(selectedCrop);
     return req ?? DEFAULT_WATER_REQUIREMENT;
   }, [selectedCrop, getRequirement]);
 
-  // ✅ آیا نرخ واقعی از DB داریم؟
   const hasRealRequirement = useMemo(() => {
     if (!selectedCrop) return false;
     return getRequirement(selectedCrop) !== null;
   }, [selectedCrop, getRequirement]);
 
-  // ✅ فقط وقتی isEditing یا initialData عوض می‌شود فرم را ریست کن
+  // ── reset در تغییر initialData ──
   useEffect(() => {
     if (isEditing && initialData) {
       reset(apiToForm(initialData));
@@ -135,7 +145,6 @@ export const FarmFormContainer = ({
     return calculateTotalArea(geojson);
   }, [areaHa, geojson]);
 
-  // ✅ محاسبه آب مورد نیاز
   const waterVolume = useMemo(() => {
     if (computedTotalArea <= 0) return 0;
     return computedTotalArea * activeRequirement;
@@ -154,18 +163,49 @@ export const FarmFormContainer = ({
 
         if (!geometry) {
           setSubmitError(
-            'هندسه زمین معتبر نیست. لطفاً محدوده را روی نقشه رسم کنید.'
+            'هندسه زمین معتبر نیست. لطفاً محدوده را روی نقشه رسم کنید.',
           );
           return;
         }
 
-        // ✅ پیدا کردن crop_id از روی نام محصول انتخاب‌شده
+        // ── پیدا کردن crop_id ──
         const selectedCropObj = activeCrops.find(
-          (c) => c.name === formData.crop
+          (c) => c.name === formData.crop,
         );
         const cropId = selectedCropObj?.id ?? null;
 
-        const payload = formToApi({
+        // ============================================
+        // حالت ۱: ویرایش → فقط مزرعه آپدیت شود
+        // ============================================
+        if (isEditing && editingFarmId) {
+          const payload = formToFarmPayload({
+            formData,
+            areaHa: computedTotalArea,
+            polygonCount,
+            geometry,
+            cropId,
+            farmerId: initialData?.farmer_id ?? null,
+          });
+
+          // حذف فیلدهای کشاورز (نباید در update تغییر کنند)
+          delete payload.farmer_id;
+
+          const result = await updateFarm({
+            farmId: editingFarmId,
+            payload,
+          });
+
+          setSubmitSuccess('تغییرات با موفقیت ذخیره شد.');
+          toast.success('تغییرات ذخیره شد.', 'مزرعه به‌روزرسانی شد');
+          onSuccess?.(result);
+          setTimeout(() => setSubmitSuccess(null), 4000);
+          return;
+        }
+
+        // ============================================
+        // حالت ۲: ثبت جدید → register-with-farms
+        // ============================================
+        const payload = formToRegisterPayload({
           formData,
           areaHa: computedTotalArea,
           polygonCount,
@@ -173,31 +213,51 @@ export const FarmFormContainer = ({
           cropId,
         });
 
-        let result;
-        if (isEditing && editingFarmId) {
-          result = await updateFarm({
-            farmId: editingFarmId,
-            payload,
-          });
+        const result = await registerMutation.mutateAsync(payload);
+        const { action, message } = result;
+
+        // ── Toast بر اساس action ──
+        if (action === 'created') {
+          toast.success(
+            'کشاورز جدید ثبت شد و پیامک دعوت ارسال گردید.',
+            'ثبت موفق',
+          );
+          setSubmitSuccess(
+            'کشاورز جدید ثبت شد. پیامک دعوت برایش ارسال می‌شود.',
+          );
+        } else if (action === 'updated') {
+          toast.info(
+            'زمین جدید به پرونده کشاورز موجود اضافه شد.',
+            'زمین اضافه شد',
+          );
+          setSubmitSuccess(
+            'زمین جدید به پرونده کشاورز موجود اضافه شد.',
+          );
         } else {
-          result = await createFarm(payload);
+          setSubmitSuccess(message || 'ثبت با موفقیت انجام شد.');
         }
 
-        setSubmitSuccess(
-          isEditing
-            ? 'تغییرات با موفقیت ذخیره شد.'
-            : 'مزرعه با موفقیت ثبت شد. می‌توانید مزرعه بعدی را ثبت کنید.'
-        );
-
         onSuccess?.(result);
-        setTimeout(() => setSubmitSuccess(null), 4000);
+        setTimeout(() => setSubmitSuccess(null), 5000);
       } catch (err) {
         console.error('Form submission error:', err);
-        const errorMessage =
+
+        const rawDetail =
           err?.response?.data?.detail ||
-          err?.message ||
-          'خطا در ذخیره اطلاعات مزرعه';
-        setSubmitError(errorMessage);
+          err?.response?.data?.message ||
+          err?.message;
+
+        let finalMessage = 'خطا در ذخیره اطلاعات مزرعه';
+
+        if (typeof rawDetail === 'string') {
+          finalMessage = rawDetail;
+        } else if (rawDetail && typeof rawDetail === 'object') {
+          finalMessage =
+            rawDetail.message || rawDetail.detail || finalMessage;
+        }
+
+        setSubmitError(finalMessage);
+        toast.error(finalMessage, 'خطا در ثبت');
       }
     },
     [
@@ -207,10 +267,12 @@ export const FarmFormContainer = ({
       isEditing,
       editingFarmId,
       updateFarm,
-      createFarm,
+      registerMutation,
       onSuccess,
       activeCrops,
-    ]
+      initialData,
+      toast,
+    ],
   );
 
   // ============================================

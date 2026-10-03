@@ -2,10 +2,10 @@
 import { z } from 'zod';
 
 // ============================================
-// Regex ها
+// Regex ها (export برای استفاده در FarmerSection)
 // ============================================
-const NATIONAL_ID_REGEX = /^\d{10}$/;
-const PHONE_REGEX = /^09\d{9}$/;
+export const NATIONAL_ID_REGEX = /^\d{10}$/;
+export const PHONE_REGEX = /^09\d{9}$/;
 
 // ============================================
 // Schema اصلی فرم مزرعه
@@ -20,16 +20,23 @@ export const farmSchema = z
     village: z.string().optional().default(''),
 
     // ---------- اطلاعات کشاورز ----------
-    farmerName: z
+    firstName: z
       .string()
-      .min(2, 'نام کشاورز باید حداقل ۲ حرف باشد')
-      .max(100, 'نام کشاورز حداکثر ۱۰۰ حرف باشد'),
+      .min(2, 'نام باید حداقل ۲ حرف باشد')
+      .max(50, 'نام حداکثر ۵۰ حرف باشد'),
+    lastName: z
+      .string()
+      .min(2, 'نام خانوادگی باید حداقل ۲ حرف باشد')
+      .max(50, 'نام خانوادگی حداکثر ۵۰ حرف باشد'),
     nationalId: z
       .string()
       .regex(NATIONAL_ID_REGEX, 'کد ملی باید ۱۰ رقم باشد'),
     phone: z
       .string()
-      .regex(PHONE_REGEX, 'شماره تماس باید با ۰۹ شروع شده و ۱۱ رقم باشد'),
+      .regex(
+        PHONE_REGEX,
+        'شماره تماس باید با ۰۹ شروع شده و ۱۱ رقم باشد',
+      ),
 
     // ---------- مشخصات زمین ----------
     landType: z.string().optional().default(''),
@@ -71,7 +78,12 @@ export const locationSchema = z.object({
 });
 
 export const farmerSchema = z.object({
-  farmerName: z.string().min(2, 'نام کشاورز باید حداقل ۲ حرف باشد'),
-  nationalId: z.string().regex(NATIONAL_ID_REGEX, 'کد ملی باید ۱۰ رقم باشد'),
-  phone: z.string().regex(PHONE_REGEX, 'شماره تماس نامعتبر است'),
+  firstName: z.string().min(2, 'نام باید حداقل ۲ حرف باشد'),
+  lastName: z.string().min(2, 'نام خانوادگی باید حداقل ۲ حرف باشد'),
+  nationalId: z
+    .string()
+    .regex(NATIONAL_ID_REGEX, 'کد ملی باید ۱۰ رقم باشد'),
+  phone: z
+    .string()
+    .regex(PHONE_REGEX, 'شماره تماس باید با ۰۹ شروع شده و ۱۱ رقم باشد'),
 });

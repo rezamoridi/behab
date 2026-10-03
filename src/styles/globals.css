@@ -3,12 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
-
 /* ============================================ */
-/* CSS Variables */
+/* CSS Variables                                */
 /* ============================================ */
 :root {
-  /* رنگ‌های اصلی */
   --color-primary: #2e7d32;
   --color-primary-light: #4caf50;
   --color-primary-dark: #1b5e20;
@@ -18,7 +16,6 @@
   --color-danger: #d32f2f;
   --color-info: #0288d1;
 
-  /* رنگ‌های خنثی */
   --color-gray-50: #fafafa;
   --color-gray-100: #f5f5f5;
   --color-gray-200: #eeeeee;
@@ -30,7 +27,6 @@
   --color-gray-800: #424242;
   --color-gray-900: #212121;
 
-  /* تم روشن */
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
   --bg-tertiary: #f1f5f9;
@@ -42,7 +38,7 @@
 }
 
 /* ============================================ */
-/* Reset */
+/* Reset                                        */
 /* ============================================ */
 *,
 *::before,
@@ -60,8 +56,15 @@ body,
 }
 
 body {
-  font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Oxygen, Ubuntu, sans-serif;
+  font-family:
+    "Vazirmatn",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-secondary);
@@ -70,29 +73,35 @@ body {
 }
 
 /* ============================================ */
-/* Layout */
+/* New Layout (بدون ساید بار)                   */
 /* ============================================ */
-.app-layout {
+.app-layout-new {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  direction: rtl;
+  position: relative;
+  background-color: var(--bg-secondary);
 }
 
-.app-content {
+.app-main {
   flex: 1;
+  width: 100%;
   height: 100%;
   overflow: hidden;
   position: relative;
+  padding-top: 0;
+  padding-bottom: 96px;
 }
 
-.app-content.full-width {
-  width: 100%;
+.app-main.map-mode {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* ============================================ */
-/* Scrollbar */
+/* Scrollbar                                    */
 /* ============================================ */
 ::-webkit-scrollbar {
   width: 6px;
@@ -113,17 +122,17 @@ body {
 }
 
 /* ============================================ */
-/* RTL Support */
+/* RTL Support                                  */
 /* ============================================ */
 [dir="rtl"] {
   text-align: right;
 }
 
 /* ============================================ */
-/* Leaflet Overrides */
+/* Leaflet Overrides                            */
 /* ============================================ */
 .leaflet-popup-content-wrapper {
-  font-family: 'Vazirmatn', sans-serif !important;
+  font-family: "Vazirmatn", sans-serif !important;
   border-radius: 12px !important;
 }
 
@@ -132,7 +141,7 @@ body {
 }
 
 .leaflet-container {
-  font-family: 'Vazirmatn', sans-serif;
+  font-family: "Vazirmatn", sans-serif;
 }
 
 /* حذف tooltip های Leaflet Draw */
@@ -150,17 +159,301 @@ body {
 }
 
 /* ============================================ */
-/* Utility Classes */
+/* Leaflet Controls Position                    */
+/*                                              */
+/* برای جلوگیری از تداخل با TopBar شناور        */
 /* ============================================ */
-.text-center { text-align: center; }
-.text-left { text-align: left; }
-.text-right { text-align: right; }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-center { justify-content: center; }
-.justify-between { justify-content: space-between; }
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-.relative { position: relative; }
-.absolute { position: absolute; }
+.leaflet-top {
+  top: 80px !important;
+}
+
+@media (max-width: 768px) {
+  .leaflet-top {
+    top: 100px !important;
+  }
+}
+
+.leaflet-left {
+  left: 10px !important;
+}
+
+.leaflet-right {
+  right: 10px !important;
+}
+
+/* ============================================ */
+/* Liquid Glass Popup                           */
+/* ============================================ */
+.leaflet-popup.farm-popup .leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 16px !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.leaflet-popup.farm-popup .leaflet-popup-content {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: auto !important;
+  line-height: normal !important;
+}
+
+.leaflet-popup.farm-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(31, 38, 135, 0.1) !important;
+  border: none !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.leaflet-popup.farm-popup .leaflet-popup-close-button {
+  display: none !important;
+}
+
+/* ============================================ */
+/* Animations                                   */
+/* ============================================ */
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tooltip-in {
+  animation: tooltip-in 0.15s ease-out;
+}
+
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-panel-fade-in {
+  animation: panel-fade-in 0.2s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.18s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.22s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.18s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.18s ease-out;
+}
+
+/* ============================================ */
+/* Performance Optimizations                    */
+/* ============================================ */
+
+/* 
+ * پنل مزرعه: transform-based transition با GPU acceleration
+ *
+ * نکته مهم:
+ * - will-change: transform → GPU acceleration
+ * - backface-visibility: hidden → جلوگیری از flicker
+ * - contain حذف شد چون باعث تکه‌تکه شدن انیمیشن می‌شد
+ */
+.farm-panel-aside {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.farm-panel-aside[aria-hidden="true"] {
+  will-change: auto;
+}
+
+/* حذف tap highlight در موبایل */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================ */
+/* Responsive                                   */
+/* ============================================ */
+
+@media (min-width: 1920px) {
+  .app-main {
+    padding-bottom: 104px;
+  }
+}
+
+@media (max-width: 1366px) {
+  .app-main {
+    padding-bottom: 88px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-main {
+    padding-bottom: 84px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    padding-bottom: 80px;
+  }
+}
+
+/* ============================================ */
+/* Utility Classes                              */
+/* ============================================ */
+.text-center {
+  text-align: center;
+}
+.text-left {
+  text-align: left;
+}
+.text-right {
+  text-align: right;
+}
+.flex {
+  display: flex;
+}
+.flex-col {
+  flex-direction: column;
+}
+.items-center {
+  align-items: center;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.w-full {
+  width: 100%;
+}
+.h-full {
+  height: 100%;
+}
+.relative {
+  position: relative;
+}
+.absolute {
+  position: absolute;
+}
+
+/* ============================================ */
+/* Dashboard Entry Animations                   */
+/* ============================================ */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+/* با تأخیرهای متفاوت برای stagger */
+.animate-delay-1 {
+  animation-delay: 0.05s;
+}
+.animate-delay-2 {
+  animation-delay: 0.1s;
+}
+.animate-delay-3 {
+  animation-delay: 0.15s;
+}
+.animate-delay-4 {
+  animation-delay: 0.2s;
+}
+.animate-delay-5 {
+  animation-delay: 0.25s;
+}
+.animate-delay-6 {
+  animation-delay: 0.3s;
+}
+.animate-delay-7 {
+  animation-delay: 0.35s;
+}
+
+/* Card hover lift */
+.card-hover-lift {
+  transition:
+    transform 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-3px);
+}
+
+/* حالت احترام به prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeInUp,
+  .animate-tooltip-in,
+  .animate-panel-fade-in,
+  .animate-scaleIn,
+  .animate-slideUp,
+  .animate-slideDown {
+    animation: none !important;
+  }
+}

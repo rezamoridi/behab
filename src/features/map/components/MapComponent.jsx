@@ -23,7 +23,7 @@ const DEFAULT_CENTER = [35.6892, 51.389];
 const DEFAULT_ZOOM = 13;
 
 // ============================================================
-// ✅ ViewportSaver — کامپوننت کوچک درون همین فایل
+// ViewportSaver
 // ============================================================
 const ViewportSaver = () => {
   const map = useMap();
@@ -66,6 +66,7 @@ const MapComponent = ({
   selectedLocation,
   onPolygonsUpdate,
   savedFarms = [],
+  farmersById = {},
   colorByCrop = {},
   clearTrigger = null,
   onFarmClick,
@@ -80,13 +81,11 @@ const MapComponent = ({
   onToggleSnap,
   snapToggleHidden = false,
 }) => {
-  // ✅ خواندن viewport ذخیره‌شده از localStorage (فقط یک بار در mount)
   const [savedViewport] = useLocalStorageState(
     VIEWPORT_STORAGE_KEY,
     null
   );
 
-  // ✅ center و zoom اولیه — از storage یا پیش‌فرض
   const initialCenter = useMemo(() => {
     if (
       savedViewport &&
@@ -97,7 +96,7 @@ const MapComponent = ({
     }
     return DEFAULT_CENTER;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ← فقط یک بار در mount
+  }, []);
 
   const initialZoom = useMemo(() => {
     if (savedViewport && Number.isFinite(savedViewport.zoom)) {
@@ -105,7 +104,7 @@ const MapComponent = ({
     }
     return DEFAULT_ZOOM;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ← فقط یک بار در mount
+  }, []);
 
   const mapStyle = useMemo(() => ({ height: '100%', width: '100%' }), []);
 
@@ -142,7 +141,6 @@ const MapComponent = ({
 
       <SearchLocationController selectedLocation={selectedLocation} />
 
-      {/* ✅ ذخیره‌سازی viewport */}
       <ViewportSaver />
 
       <MapController
@@ -157,6 +155,7 @@ const MapComponent = ({
 
       <SavedFarmsLayer
         farms={savedFarms}
+        farmersById={farmersById}
         colorByCrop={colorByCrop}
         onFarmClick={onFarmClick}
         onFarmEdit={onFarmEdit}

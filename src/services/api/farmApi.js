@@ -2,7 +2,7 @@
 import apiClient from './apiClient';
 
 // ============================================================
-// نرمال‌سازی پاسخ‌های API — مطابق با farms.py واقعی
+// نرمال‌سازی پاسخ‌های API
 // ============================================================
 
 const normalizeListResponse = (response) => {
@@ -12,7 +12,6 @@ const normalizeListResponse = (response) => {
     return { farms: [], total: 0, totalPages: 1, raw: null };
   }
 
-  // ساختار واقعی: { items, total, page, page_size, total_pages }
   const farms = Array.isArray(body.items)
     ? body.items
     : Array.isArray(body.farms)
@@ -50,16 +49,19 @@ const normalizeFarmResponse = (response) => {
 };
 
 // ============================================================
-// Endpoints — مطابق با farms.py
+// Endpoints — farms.py
 //
-// router = APIRouter(prefix="/farms")
 //   POST   /farms/create
 //   GET    /farms/read/{farm_id}
 //   GET    /farms/list
 //   PUT    /farms/update/{farm_id}
+//   DELETE /farms/delete/{farm_id}
 // ============================================================
 
 // POST /api/v1/farms/create
+//
+// ⚠️ نکته: فیلدهای farmer_name / national_id / phone_number حذف شده‌اند.
+// به جای آن‌ها farmer_id (اختیاری) پاس می‌شود.
 export const createFarm = async (payload) => {
   try {
     const response = await apiClient.post('/farms/create', payload);
@@ -74,9 +76,7 @@ export const createFarm = async (payload) => {
         payload.polygon_count ||
         1,
       farm_id: farm?.farm_id || payload.farm_id,
-      farmer_name: farm?.farmer_name ?? payload.farmer_name,
-      national_id: farm?.national_id ?? payload.national_id,
-      phone_number: farm?.phone_number ?? payload.phone_number,
+      farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
       province: farm?.province ?? payload.province,
       county: farm?.county ?? payload.county,
       bakhsh: farm?.bakhsh ?? payload.bakhsh,
@@ -84,6 +84,8 @@ export const createFarm = async (payload) => {
       village: farm?.village ?? payload.village,
       land_type: farm?.land_type ?? payload.land_type,
       crop: farm?.crop ?? payload.crop,
+      crop_id: farm?.crop_id ?? payload.crop_id ?? null,
+      crop_color: farm?.crop_color ?? payload.crop_color ?? null,
       irrigation_type: farm?.irrigation_type ?? payload.irrigation_type,
       project_name: farm?.project_name ?? payload.project_name,
       coverage_status: farm?.coverage_status ?? payload.coverage_status,
@@ -145,6 +147,9 @@ export const updateFarm = async (farmId, payload) => {
     geojson: farm?.geojson ?? payload.geojson,
     area_ha: Number(farm?.area_ha ?? payload.area_ha) || 0,
     polygon_count: Number(farm?.polygon_count ?? payload.polygon_count) || 1,
+    farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
+    crop_id: farm?.crop_id ?? payload.crop_id ?? null,
+    crop_color: farm?.crop_color ?? payload.crop_color ?? null,
   };
 };
 
