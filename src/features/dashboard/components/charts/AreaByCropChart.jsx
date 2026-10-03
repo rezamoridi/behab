@@ -1,9 +1,24 @@
 // src/features/dashboard/components/charts/AreaByCropChart.jsx
-import { useMemo } from 'react';
-import ReactApexChart from 'react-apexcharts';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts';
 import { Ruler } from 'lucide-react';
 import ChartCard from './ChartCard';
-import { baseChartOptions, CHART_COLORS, formatFaNumber } from './chartDefaults';
+import { CHART_COLORS, formatFaNumber } from './chartDefaults';
+import {
+  commonTooltipProps,
+  commonXAxisProps,
+  commonYAxisProps,
+  commonGridProps,
+} from './chartDefaults.recharts';
 
 /**
  * AreaByCropChart — مساحت به تفکیک محصول
@@ -12,100 +27,20 @@ import { baseChartOptions, CHART_COLORS, formatFaNumber } from './chartDefaults'
  *   data: { "گندم": 25.4, "جو": 12.1, ... }  (هکتار)
  */
 const AreaByCropChart = ({ data = {} }) => {
-  // مرتب‌سازی نزولی
-  const sorted = useMemo(() => {
-    return Object.entries(data).sort((a, b) => b[1] - a[1]);
-  }, [data]);
+  // مرتب‌سازی نزولی — React Compiler خودش memoize می‌کند
+  const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
 
-  const categories = useMemo(() => sorted.map(([name]) => name), [sorted]);
-  const series = useMemo(
-    () => [
-      {
-        name: 'مساحت',
-        data: sorted.map(([, area]) => Number(area.toFixed(2))),
-      },
-    ],
-    [sorted],
-  );
+  const totalArea = sorted.reduce((sum, [, area]) => sum + area, 0);
 
-  const totalArea = useMemo(
-    () => sorted.reduce((sum, [, area]) => sum + area, 0),
-    [sorted],
-  );
-
-  const options = useMemo(
-    () => ({
-      ...baseChartOptions,
-      chart: {
-        ...baseChartOptions.chart,
-        type: 'bar',
-        height: 320,
-      },
-      colors: [CHART_COLORS[0]], // سبز
-      plotOptions: {
-        bar: {
-          horizontal: true,
-          borderRadius: 6,
-          borderRadiusApplication: 'end',
-          barHeight: '65%',
-          distributed: true,
-        },
-      },
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shade: 'light',
-          type: 'horizontal',
-          shadeIntensity: 0.3,
-          gradientToColors: CHART_COLORS.slice(0, categories.length),
-          inverseColors: false,
-          opacityFrom: 1,
-          opacityTo: 0.85,
-          stops: [0, 100],
-        },
-      },
-      dataLabels: {
-        enabled: true,
-        formatter: (val) => formatFaNumber(val, 1) + ' ha',
-        style: {
-          fontFamily: 'Vazirmatn, sans-serif',
-          fontSize: '11px',
-          fontWeight: 600,
-          colors: ['#ffffff'],
-        },
-        offsetX: -6,
-      },
-      xaxis: {
-        ...baseChartOptions.xaxis,
-        categories,
-        labels: {
-          ...baseChartOptions.xaxis.labels,
-          formatter: (val) => formatFaNumber(val, 1),
-        },
-      },
-      yaxis: {
-        labels: {
-          style: {
-            fontFamily: 'Vazirmatn, sans-serif',
-            fontSize: '12px',
-            fontWeight: 600,
-            colors: '#334155',
-          },
-        },
-      },
-      legend: { show: false },
-      tooltip: {
-        ...baseChartOptions.tooltip,
-        y: {
-          formatter: (val) => `${formatFaNumber(val, 2)} هکتار`,
-        },
-      },
-    }),
-    [categories, series, totalArea],
-  );
+  // ✅ Recharts data: [{ name, value, color }]
+  const chartData = sorted.map(([name, area], i) => ({
+    name,
+    value: Number(Number(area).toFixed(2)),
+    color: CHART_COLORS[i % CHART_COLORS.length],
+  }));
 
   // ── حالت خالی ──
-  if (categories.length === 0) {
+  if (chartData.length === 0) {
     return (
       <ChartCard
         title="مساحت به تفکیک محصول"
@@ -125,6 +60,10 @@ const AreaByCropChart = ({ data = {} }) => {
     );
   }
 
+  // ✅ محاسبه ارتفاع بر اساس تعداد آیتم‌ها
+  // (تا barها در هم فشرده نشوند)
+  const chartHeight = Math.max(320, chartData.length * 40 + 60);
+
   return (
     <ChartCard
       title="مساحت به تفکیک محصول"
@@ -141,12 +80,85 @@ const AreaByCropChart = ({ data = {} }) => {
         </div>
       }
     >
-      <ReactApexChart
-        options={options}
-        series={series}
-        type="bar"
-        height={320}
-      />
+      <div style={{ width: '100%', height: chartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 4, right: 60, left: 4, bottom: 4 }}
+          >
+            {/* گرادیانت مشترک برای همه barها */}
+            <defs>
+              {chartData.map((entry, i) => (
+                <linearGradient
+                  key={`gradient-${i}`}
+                  id={`barGradient-${i}`}
+                  x1="1"
+                  y1="0"
+                  x2="0"
+                  y2="0"
+                >
+                  <stop offset="0%" stopColor={entry.color} stopOpacity={1} />
+                  <stop offset="100%" stopColor={entry.color} stopOpacity={0.85} />
+                </linearGradient>
+              ))}
+            </defs>
+
+            <CartesianGrid
+              {...commonGridProps}
+              horizontal={false}
+              vertical={true}
+            />
+
+            <XAxis
+              type="number"
+              {...commonXAxisProps}
+              tickFormatter={(val) => formatFaNumber(val, 0)}
+            />
+
+            <YAxis
+              type="category"
+              dataKey="name"
+              {...commonYAxisProps}
+              width={70}
+              tick={{
+                ...commonYAxisProps.tick,
+                fontWeight: 600,
+                fontSize: 12,
+              }}
+            />
+
+            <Tooltip
+              {...commonTooltipProps}
+              formatter={(value) => [`${formatFaNumber(value, 2)} هکتار`, 'مساحت']}
+            />
+
+            <Bar
+              dataKey="value"
+              radius={[0, 6, 6, 0]}
+              barSize={24}
+            >
+              {chartData.map((entry, i) => (
+                <Cell key={`cell-${i}`} fill={`url(#barGradient-${i})`} />
+              ))}
+
+              <LabelList
+                dataKey="value"
+                position="right"
+                formatter={(val) => `${formatFaNumber(val, 1)} ha`}
+                style={{
+                  fontFamily: 'Vazirmatn, sans-serif',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  fill: '#334155',
+                  direction: 'ltr',
+                }}
+                offset={6}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </ChartCard>
   );
 };

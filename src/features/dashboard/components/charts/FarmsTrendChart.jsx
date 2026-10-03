@@ -1,9 +1,22 @@
 // src/features/dashboard/components/charts/FarmsTrendChart.jsx
-import { useMemo } from 'react';
-import ReactApexChart from 'react-apexcharts';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts';
 import { TrendingUp } from 'lucide-react';
 import ChartCard from './ChartCard';
-import { baseChartOptions } from './chartDefaults';
+import { formatFaNumber } from './chartDefaults';
+import {
+  commonTooltipProps,
+  commonXAxisProps,
+  commonYAxisProps,
+  commonGridProps,
+} from './chartDefaults.recharts';
 
 /**
  * FarmsTrendChart — روند ثبت مزارع در ۶ ماه اخیر
@@ -12,100 +25,24 @@ import { baseChartOptions } from './chartDefaults';
  *   data: [{ date: Date, count: number }, ...]
  */
 const FarmsTrendChart = ({ data = [] }) => {
-  // ── برچسب ماه‌ها به فارسی ──
-  const categories = useMemo(
-    () =>
-      data.map((d) => {
-        try {
-          return d.date.toLocaleDateString('fa-IR', {
-            month: 'long',
-          });
-        } catch {
-          return '';
-        }
-      }),
-    [data],
-  );
+  // ✅ Recharts data: [{ name, value }]
+  // React Compiler خودش memoize می‌کند
+  const chartData = data.map((d) => {
+    let monthLabel = '';
+    try {
+      monthLabel = d.date.toLocaleDateString('fa-IR', {
+        month: 'long',
+      });
+    } catch {
+      monthLabel = '';
+    }
+    return {
+      name: monthLabel,
+      value: d.count,
+    };
+  });
 
-  const series = useMemo(
-    () => [
-      {
-        name: 'مزارع ثبت‌شده',
-        data: data.map((d) => d.count),
-      },
-    ],
-    [data],
-  );
-
-  const total = useMemo(
-    () => data.reduce((sum, d) => sum + d.count, 0),
-    [data],
-  );
-
-  const options = useMemo(
-    () => ({
-      ...baseChartOptions,
-      chart: {
-        ...baseChartOptions.chart,
-        type: 'area',
-        height: 280,
-        sparkline: { enabled: false },
-      },
-      colors: ['#2e7d32'],
-      stroke: {
-        curve: 'smooth',
-        width: 3,
-        colors: ['#2e7d32'],
-      },
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shadeIntensity: 1,
-          opacityFrom: 0.4,
-          opacityTo: 0.05,
-          stops: [0, 100],
-        },
-      },
-      markers: {
-        size: 5,
-        colors: ['#ffffff'],
-        strokeColors: '#2e7d32',
-        strokeWidth: 2,
-        hover: {
-          size: 7,
-        },
-      },
-      xaxis: {
-        ...baseChartOptions.xaxis,
-        categories,
-      },
-      yaxis: {
-        ...baseChartOptions.yaxis,
-        labels: {
-          ...baseChartOptions.yaxis.labels,
-          formatter: (val) => Number(val).toLocaleString('fa-IR'),
-        },
-      },
-      dataLabels: {
-        enabled: false,
-      },
-      grid: {
-        ...baseChartOptions.grid,
-        padding: {
-          left: 8,
-          right: 8,
-        },
-      },
-      tooltip: {
-        ...baseChartOptions.tooltip,
-        y: {
-          formatter: (val) =>
-            `${Number(val).toLocaleString('fa-IR')} مزرعه`,
-        },
-      },
-    }),
-    [categories, series],
-  );
+  const total = data.reduce((sum, d) => sum + d.count, 0);
 
   return (
     <ChartCard
@@ -118,18 +55,76 @@ const FarmsTrendChart = ({ data = [] }) => {
           <div className="text-left">
             <div className="text-[10px] text-slate-500">مجموع</div>
             <div className="text-sm font-bold text-emerald-600 tabular-nums">
-              {Number(total).toLocaleString('fa-IR')}
+              {formatFaNumber(total)}
             </div>
           </div>
         )
       }
     >
-      <ReactApexChart
-        options={options}
-        series={series}
-        type="area"
-        height={280}
-      />
+      <div style={{ width: '100%', height: 280 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={chartData}
+            margin={{ top: 12, right: 8, left: 8, bottom: 4 }}
+          >
+            {/* ✅ گرادیانت عمودی (سبز → شفاف) */}
+            <defs>
+              <linearGradient id="farmsTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2e7d32" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="#2e7d32" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid
+              {...commonGridProps}
+              horizontal={true}
+              vertical={false}
+            />
+
+            {/* ✅ محور X — برچسب ماه‌های فارسی */}
+            <XAxis
+              dataKey="name"
+              {...commonXAxisProps}
+              interval={0}
+              tickMargin={8}
+            />
+
+            {/* ✅ محور Y — اعداد فارسی */}
+            <YAxis
+              {...commonYAxisProps}
+              tickFormatter={(val) => formatFaNumber(val)}
+              allowDecimals={false}
+            />
+
+            {/* ✅ Tooltip با «مزرعه» فارسی */}
+            <Tooltip
+              {...commonTooltipProps}
+              formatter={(value) => [`${formatFaNumber(value)} مزرعه`, 'ثبت‌شده']}
+            />
+
+            {/* ✅ Area با curve نرم + gradient + marker */}
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#2e7d32"
+              strokeWidth={3}
+              fill="url(#farmsTrendGradient)"
+              dot={{
+                r: 4,
+                fill: '#ffffff',
+                stroke: '#2e7d32',
+                strokeWidth: 2,
+              }}
+              activeDot={{
+                r: 6,
+                fill: '#2e7d32',
+                stroke: '#ffffff',
+                strokeWidth: 2,
+              }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </ChartCard>
   );
 };

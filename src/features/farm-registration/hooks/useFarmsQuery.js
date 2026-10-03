@@ -3,27 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchFarms, fetchFarmById } from '../../../services/api/farmApi';
 import { farmerApi } from '../../../services/api/farmerApi';
 
-// ============================================================
-// Farm Keys
-// ============================================================
-export const farmKeys = {
-  all: ['farms'],
-  lists: () => [...farmKeys.all, 'list'],
-  list: (filters) => [...farmKeys.lists(), filters],
-  details: () => [...farmKeys.all, 'detail'],
-  detail: (id) => [...farmKeys.details(), id],
-};
-
-// ============================================================
-// Farmer Keys
-// ============================================================
-export const farmerKeys = {
-  all: ['farmers'],
-  lists: () => [...farmerKeys.all, 'list'],
-  list: (filters) => [...farmerKeys.lists(), filters],
-  details: () => [...farmerKeys.all, 'detail'],
-  detail: (id) => [...farmerKeys.details(), id],
-};
+// ✅ Re-export from canonical location
+export { farmKeys, farmerKeys } from './farmQueryKeys';
+import { farmKeys, farmerKeys } from './farmQueryKeys';
 
 // ============================================================
 // Farms Query

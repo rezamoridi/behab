@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, X, Eye } from 'lucide-react';
 
 import { useFarmsQuery } from '../../farm-registration/hooks/useFarmsQuery';
+import { FARM_LIST_QUERY_PARAMS } from '../../farm-registration/hooks/farmQueryKeys';
 import { useDeleteFarmMutation } from '../../farm-registration/hooks/useFarmMutation';
 import FarmsTable from './FarmsTable';
 import FarmsTableSkeleton from './FarmsTableSkeleton';
@@ -12,12 +13,6 @@ import FarmsStatsBar from './FarmsStatsBar';
 import Drawer from '../../../shared/components/Drawer/Drawer';
 import { useToast } from '../../../shared/components/Toast/ToastProvider';
 import { useConfirm } from '../../../shared/components/ConfirmDialog/ConfirmDialogProvider';
-
-const FARM_LIST_QUERY_PARAMS = {
-  page: 1,
-  pageSize: 100,
-  search: null,
-};
 
 const FarmsTab = () => {
   const navigate = useNavigate();

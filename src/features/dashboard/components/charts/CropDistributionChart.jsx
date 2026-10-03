@@ -1,9 +1,20 @@
 // src/features/dashboard/components/charts/CropDistributionChart.jsx
-import { useMemo } from 'react';
-import ReactApexChart from 'react-apexcharts';
+import {
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import { PieChart } from 'lucide-react';
 import ChartCard from './ChartCard';
-import { CHART_COLORS, baseChartOptions } from './chartDefaults';
+import { CHART_COLORS } from './chartDefaults';
+import {
+  commonTooltipProps,
+  commonLegendProps,
+  formatFaNumber,
+} from './chartDefaults.recharts';
 
 /**
  * CropDistributionChart — توزیع محصولات در مزارع
@@ -16,84 +27,12 @@ const CropDistributionChart = ({ data = {} }) => {
   const series = Object.values(data);
   const total = series.reduce((a, b) => a + b, 0);
 
-  const options = useMemo(
-    () => ({
-      ...baseChartOptions,
-      chart: {
-        ...baseChartOptions.chart,
-        type: 'donut',
-        height: 280,
-      },
-      labels,
-      colors: CHART_COLORS,
-      stroke: {
-        width: 2,
-        colors: ['#ffffff'],
-      },
-      plotOptions: {
-        pie: {
-          donut: {
-            size: '68%',
-            labels: {
-              show: true,
-              name: {
-                fontFamily: 'Vazirmatn, sans-serif',
-                fontSize: '12px',
-                color: '#64748b',
-              },
-              value: {
-                fontFamily: 'Vazirmatn, sans-serif',
-                fontSize: '20px',
-                fontWeight: 700,
-                color: '#0f172a',
-                formatter: (val) => {
-                  return Number(val).toLocaleString('fa-IR');
-                },
-              },
-              total: {
-                show: true,
-                showAlways: true,
-                label: 'کل مزارع',
-                fontFamily: 'Vazirmatn, sans-serif',
-                fontSize: '12px',
-                color: '#64748b',
-                formatter: () => {
-                  return Number(total).toLocaleString('fa-IR');
-                },
-              },
-            },
-          },
-        },
-      },
-      legend: {
-        ...baseChartOptions.legend,
-        position: 'bottom',
-        horizontalAlign: 'center',
-        markers: {
-          width: 8,
-          height: 8,
-          radius: 4,
-        },
-        itemMargin: {
-          horizontal: 8,
-          vertical: 4,
-        },
-      },
-      dataLabels: {
-        enabled: false,
-      },
-      tooltip: {
-        ...baseChartOptions.tooltip,
-        y: {
-          formatter: (val) => {
-            const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-            return `${Number(val).toLocaleString('fa-IR')} مزرعه (${pct}٪)`;
-          },
-        },
-      },
-    }),
-    [labels, series, total],
-  );
+  // ✅ React Compiler خودش این را memoize می‌کند
+  const chartData = labels.map((label, i) => ({
+    name: label,
+    value: series[i],
+    color: CHART_COLORS[i % CHART_COLORS.length],
+  }));
 
   // ── حالت خالی ──
   if (labels.length === 0) {
@@ -123,12 +62,68 @@ const CropDistributionChart = ({ data = {} }) => {
       icon={PieChart}
       color="primary"
     >
-      <ReactApexChart
-        options={options}
-        series={series}
-        type="donut"
-        height={280}
-      />
+      <div className="relative" style={{ height: 280 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RechartsPieChart>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius="45%"
+              outerRadius="68%"
+              paddingAngle={2}
+              stroke="#ffffff"
+              strokeWidth={2}
+            >
+              {chartData.map((entry, i) => (
+                <Cell key={`cell-${i}`} fill={entry.color} />
+              ))}
+            </Pie>
+
+            <Tooltip
+              {...commonTooltipProps}
+              formatter={(value, name) => {
+                const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                return [
+                  `${formatFaNumber(value)} مزرعه (${pct}٪)`,
+                  name,
+                ];
+              }}
+            />
+
+            <Legend {...commonLegendProps} verticalAlign="bottom" align="center" />
+          </RechartsPieChart>
+        </ResponsiveContainer>
+
+        {/* ✅ Center label (Recharts این را ندارد) */}
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+          style={{ paddingBottom: 60 }}
+        >
+          <span
+            style={{
+              fontFamily: 'Vazirmatn, sans-serif',
+              fontSize: 12,
+              color: '#64748b',
+            }}
+          >
+            کل مزارع
+          </span>
+          <span
+            style={{
+              fontFamily: 'Vazirmatn, sans-serif',
+              fontSize: 20,
+              fontWeight: 700,
+              color: '#0f172a',
+              direction: 'rtl',
+            }}
+          >
+            {formatFaNumber(total)}
+          </span>
+        </div>
+      </div>
     </ChartCard>
   );
 };

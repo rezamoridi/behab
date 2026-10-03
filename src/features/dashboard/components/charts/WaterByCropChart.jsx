@@ -1,9 +1,36 @@
 // src/features/dashboard/components/charts/WaterByCropChart.jsx
-import { useMemo } from 'react';
-import ReactApexChart from 'react-apexcharts';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts';
 import { Droplets } from 'lucide-react';
 import ChartCard from './ChartCard';
-import { baseChartOptions, formatFaNumber } from './chartDefaults';
+import { formatFaNumber } from './chartDefaults';
+import {
+  commonTooltipProps,
+  commonXAxisProps,
+  commonYAxisProps,
+  commonGridProps,
+  formatCompactFaNumber,
+} from './chartDefaults.recharts';
+
+// ✅ پالت مخصوص آبی (معادل ApexCharts)
+const WATER_COLORS = [
+  '#0288d1',
+  '#039be5',
+  '#29b6f6',
+  '#4fc3f7',
+  '#81d4fa',
+  '#b3e5fc',
+  '#e1f5fe',
+];
 
 /**
  * WaterByCropChart — آب مصرفی به تفکیک محصول
@@ -12,131 +39,22 @@ import { baseChartOptions, formatFaNumber } from './chartDefaults';
  *   data: { "گندم": 125000, "جو": 45000, ... }  (m³)
  */
 const WaterByCropChart = ({ data = {} }) => {
-  const sorted = useMemo(() => {
-    return Object.entries(data)
-      .filter(([, v]) => v > 0)
-      .sort((a, b) => b[1] - a[1]);
-  }, [data]);
+  // مرتب‌سازی نزولی + فیلتر صفر — React Compiler memoize می‌کند
+  const sorted = Object.entries(data)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
 
-  const categories = useMemo(() => sorted.map(([name]) => name), [sorted]);
-  const series = useMemo(
-    () => [
-      {
-        name: 'آب مصرفی',
-        data: sorted.map(([, water]) => Math.round(water)),
-      },
-    ],
-    [sorted],
-  );
+  const totalWater = sorted.reduce((sum, [, water]) => sum + water, 0);
 
-  const totalWater = useMemo(
-    () => sorted.reduce((sum, [, water]) => sum + water, 0),
-    [sorted],
-  );
-
-  const options = useMemo(
-    () => ({
-      ...baseChartOptions,
-      chart: {
-        ...baseChartOptions.chart,
-        type: 'bar',
-        height: 320,
-      },
-      plotOptions: {
-        bar: {
-          horizontal: true,
-          borderRadius: 6,
-          borderRadiusApplication: 'end',
-          barHeight: '65%',
-          distributed: true,
-        },
-      },
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shade: 'light',
-          type: 'horizontal',
-          shadeIntensity: 0.3,
-          gradientToColors: [
-            '#0288d1',
-            '#039be5',
-            '#29b6f6',
-            '#4fc3f7',
-            '#81d4fa',
-            '#b3e5fc',
-            '#e1f5fe',
-          ],
-          inverseColors: false,
-          opacityFrom: 1,
-          opacityTo: 0.9,
-          stops: [0, 100],
-        },
-      },
-      colors: [
-        '#0288d1',
-        '#039be5',
-        '#29b6f6',
-        '#4fc3f7',
-        '#81d4fa',
-        '#b3e5fc',
-        '#e1f5fe',
-      ],
-      dataLabels: {
-        enabled: true,
-        formatter: (val) => {
-          // فرمت فشرده برای اعداد بزرگ
-          if (val >= 1000000) {
-            return formatFaNumber(val / 1000000, 1) + 'M';
-          }
-          if (val >= 1000) {
-            return formatFaNumber(val / 1000, 1) + 'K';
-          }
-          return formatFaNumber(val);
-        },
-        style: {
-          fontFamily: 'Vazirmatn, sans-serif',
-          fontSize: '11px',
-          fontWeight: 600,
-          colors: ['#ffffff'],
-        },
-        offsetX: -6,
-      },
-      xaxis: {
-        ...baseChartOptions.xaxis,
-        categories,
-        labels: {
-          ...baseChartOptions.xaxis.labels,
-          formatter: (val) => {
-            if (val >= 1000000) return formatFaNumber(val / 1000000, 1) + 'M';
-            if (val >= 1000) return formatFaNumber(val / 1000) + 'K';
-            return formatFaNumber(val);
-          },
-        },
-      },
-      yaxis: {
-        labels: {
-          style: {
-            fontFamily: 'Vazirmatn, sans-serif',
-            fontSize: '12px',
-            fontWeight: 600,
-            colors: '#334155',
-          },
-        },
-      },
-      legend: { show: false },
-      tooltip: {
-        ...baseChartOptions.tooltip,
-        y: {
-          formatter: (val) =>
-            `${formatFaNumber(val)} m³`,
-        },
-      },
-    }),
-    [categories, series, totalWater],
-  );
+  // ✅ Recharts data
+  const chartData = sorted.map(([name, water], i) => ({
+    name,
+    value: Math.round(water),
+    color: WATER_COLORS[i % WATER_COLORS.length],
+  }));
 
   // ── حالت خالی ──
-  if (categories.length === 0) {
+  if (chartData.length === 0) {
     return (
       <ChartCard
         title="آب مصرفی به تفکیک محصول"
@@ -156,6 +74,9 @@ const WaterByCropChart = ({ data = {} }) => {
     );
   }
 
+  // ✅ ارتفاع داینامیک
+  const chartHeight = Math.max(320, chartData.length * 40 + 60);
+
   return (
     <ChartCard
       title="آب مصرفی به تفکیک محصول"
@@ -165,23 +86,109 @@ const WaterByCropChart = ({ data = {} }) => {
       action={
         <div className="text-left">
           <div className="text-[10px] text-slate-500">کل</div>
-          <div className="text-sm font-bold text-blue-600 tabular-nums" dir="ltr">
-            {totalWater >= 1000000
-              ? formatFaNumber(totalWater / 1000000, 1) + 'M'
-              : totalWater >= 1000
-                ? formatFaNumber(totalWater / 1000, 1) + 'K'
-                : formatFaNumber(totalWater)}
+          <div
+            className="text-sm font-bold text-blue-600 tabular-nums"
+            dir="ltr"
+          >
+            {formatCompactFaNumber(totalWater)}
             <span className="text-[10px] mr-1 text-blue-500">m³</span>
           </div>
         </div>
       }
     >
-      <ReactApexChart
-        options={options}
-        series={series}
-        type="bar"
-        height={320}
-      />
+      <div style={{ width: '100%', height: chartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 4, right: 60, left: 4, bottom: 4 }}
+          >
+            {/* گرادیانت per-bar — شبیه ApexCharts */}
+            <defs>
+              {chartData.map((entry, i) => (
+                <linearGradient
+                  key={`waterGradient-${i}`}
+                  id={`waterGradient-${i}`}
+                  x1="1"
+                  y1="0"
+                  x2="0"
+                  y2="0"
+                >
+                  <stop offset="0%" stopColor={entry.color} stopOpacity={1} />
+                  <stop
+                    offset="100%"
+                    stopColor={entry.color}
+                    stopOpacity={0.9}
+                  />
+                </linearGradient>
+              ))}
+            </defs>
+
+            <CartesianGrid
+              {...commonGridProps}
+              horizontal={false}
+              vertical={true}
+            />
+
+            {/* ✅ محور X با فرمت compact */}
+            <XAxis
+              type="number"
+              {...commonXAxisProps}
+              tickFormatter={(val) => formatCompactFaNumber(val)}
+            />
+
+            {/* ✅ محور Y با نام محصول */}
+            <YAxis
+              type="category"
+              dataKey="name"
+              {...commonYAxisProps}
+              width={70}
+              tick={{
+                ...commonYAxisProps.tick,
+                fontWeight: 600,
+                fontSize: 12,
+              }}
+            />
+
+            {/* ✅ Tooltip با فرمت کامل + m³ */}
+            <Tooltip
+              {...commonTooltipProps}
+              formatter={(value) => [
+                `${formatFaNumber(value)} m³`,
+                'آب مصرفی',
+              ]}
+            />
+
+            <Bar
+              dataKey="value"
+              radius={[0, 6, 6, 0]}
+              barSize={24}
+            >
+              {chartData.map((entry, i) => (
+                <Cell
+                  key={`cell-${i}`}
+                  fill={`url(#waterGradient-${i})`}
+                />
+              ))}
+
+              {/* ✅ LabelList با فرمت compact */}
+              <LabelList
+                dataKey="value"
+                position="right"
+                formatter={(val) => formatCompactFaNumber(val)}
+                style={{
+                  fontFamily: 'Vazirmatn, sans-serif',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  fill: '#334155',
+                  direction: 'ltr',
+                }}
+                offset={6}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </ChartCard>
   );
 };

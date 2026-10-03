@@ -7,16 +7,7 @@ import {
   fetchFarmById,
 } from "../../../services/api/farmApi";
 import { farmerApi } from "../../../services/api/farmerApi";
-import { farmKeys } from "./useFarmsQuery";
-
-// ============================================
-// پارامترهای لیست پیش‌فرض (باید با MapViewPage یکسان باشد)
-// ============================================
-const FARM_LIST_QUERY_PARAMS = {
-  page: 1,
-  pageSize: 50,
-  search: null,
-};
+import { farmKeys, FARM_LIST_QUERY_PARAMS } from "./farmQueryKeys";
 
 // ============================================
 // استخراج farm از پاسخ سرور
@@ -39,7 +30,7 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
   const FARM_FIELDS = [
     "farm_id",
     "id",
-    "farmer_id", // ✅ جدید
+    "farmer_id",
     "province",
     "county",
     "bakhsh",
@@ -324,14 +315,10 @@ export const useUpdateFarmGeometryMutation = () => {
           );
         }
       } catch (err) {
-        console.warn(
-          "canonical refetch failed, falling back to payload:",
-          err,
-        );
+        console.warn("canonical refetch failed, falling back to payload:", err);
 
-        queryClient.setQueryData(
-          farmKeys.detail(variables.farmId),
-          (oldData) => mergeFarm(oldData, null, variables.payload),
+        queryClient.setQueryData(farmKeys.detail(variables.farmId), (oldData) =>
+          mergeFarm(oldData, null, variables.payload),
         );
 
         queryClient.setQueryData(

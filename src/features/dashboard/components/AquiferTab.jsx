@@ -10,16 +10,11 @@ import {
 } from 'lucide-react';
 
 import { useFarmsQuery } from '../../farm-registration/hooks/useFarmsQuery';
+import { FARM_LIST_QUERY_PARAMS } from '../../farm-registration/hooks/farmQueryKeys';
 import { useCropsQuery } from '../../settings/hooks/useAgricultureSettings';
 import { buildCropsMap, findCropByName } from '../../../shared/utils/normalizeCropName';
 import AquiferKpiCard from './AquiferKpiCard';
 import AquiferCharts from './AquiferCharts';
-
-const FARM_LIST_QUERY_PARAMS = {
-  page: 1,
-  pageSize: 100,
-  search: null,
-};
 
 const formatNumber = (value, decimals = 0) => {
   const num = Number(value) || 0;

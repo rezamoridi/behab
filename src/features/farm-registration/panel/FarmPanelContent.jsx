@@ -4,14 +4,9 @@ import { useLocation } from 'react-router-dom';
 
 import { FarmFormContainer } from '../forms/FarmFormContainer';
 import { useFarmsQuery } from '../hooks/useFarmsQuery';
+import { FARM_LIST_QUERY_PARAMS } from '../hooks/farmQueryKeys';
 import { useFarmPanel } from './FarmPanelContext';
 import useSessionState from '../../../shared/hooks/useSessionState';
-
-const FARM_LIST_QUERY_PARAMS = {
-  page: 1,
-  pageSize: 100,
-  search: null,
-};
 
 /**
  * FarmPanelContent
@@ -80,14 +75,8 @@ const FarmPanelContent = () => {
     );
   }, [editingFarmId, savedFarms]);
 
-  // ── محاسبه polygon count ──
-  const polygonCount = useMemo(() => {
-    if (!pendingGeojson) return 0;
-    if (Array.isArray(pendingGeojson)) return pendingGeojson.length;
-    return 1;
-  }, [pendingGeojson]);
-
   // ── geojson و areaHa نهایی ──
+  // (polygonCount در FarmFormContainer محاسبه می‌شود)
   const finalGeojson = editingFarm?.geojson || pendingGeojson || null;
   const finalAreaHa = editingFarm?.area_ha || pendingArea || 0;
 

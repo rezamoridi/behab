@@ -10,24 +10,16 @@ import {
   useFarmsQuery,
   useFarmersQuery,
 } from "../features/farm-registration/hooks/useFarmsQuery";
+import {
+  FARM_LIST_QUERY_PARAMS,
+  FARMER_LIST_QUERY_PARAMS,
+} from "../features/farm-registration/hooks/farmQueryKeys";
 import { useDeleteFarmMutation } from "../features/farm-registration/hooks/useFarmMutation";
 import { useAgricultureSettings } from "../features/settings/hooks/useAgricultureSettings";
 import { useFarmPanel } from "../features/farm-registration/panel/FarmPanelContext";
 
 import useSessionState from "../shared/hooks/useSessionState";
 import useLocalStorageState from "../shared/hooks/useLocalStorageState";
-
-const FARM_LIST_QUERY_PARAMS = {
-  page: 1,
-  pageSize: 100,
-  search: null,
-};
-
-const FARMER_LIST_QUERY_PARAMS = {
-  page: 1,
-  pageSize: 100,
-  search: null,
-};
 
 const MapViewPage = () => {
   const location = useLocation();
@@ -71,9 +63,6 @@ const MapViewPage = () => {
 
   // ============================================================
   // State (persisted)
-  //
-  // selectedLocation حالا در Layout مدیریت می‌شود.
-  // ولی همچنان از sessionStorage می‌خوانیم برای MapComponent.
   // ============================================================
   const [selectedLocation] = useSessionState(
     "map_selected_location",

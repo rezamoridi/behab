@@ -4,6 +4,10 @@ import {
   useFarmsQuery,
   useFarmersQuery,
 } from '../../farm-registration/hooks/useFarmsQuery';
+import {
+  FARM_ANALYTICS_QUERY_PARAMS,
+  FARMER_ANALYTICS_QUERY_PARAMS,
+} from '../../farm-registration/hooks/farmQueryKeys';
 import { useCropsQuery } from '../../settings/hooks/useAgricultureSettings';
 
 import {
@@ -24,12 +28,9 @@ import {
   getRecentFarmers,
 } from '../utils/analytics';
 
-const FARM_PARAMS = { page: 1, pageSize: 500, search: null };
-const FARMER_PARAMS = { page: 1, pageSize: 500, search: null };
-
 export const useDashboardData = () => {
-  const farmsQuery = useFarmsQuery(FARM_PARAMS);
-  const farmersQuery = useFarmersQuery(FARMER_PARAMS);
+  const farmsQuery = useFarmsQuery(FARM_ANALYTICS_QUERY_PARAMS);
+  const farmersQuery = useFarmersQuery(FARMER_ANALYTICS_QUERY_PARAMS);
   const cropsQuery = useCropsQuery({ activeOnly: false });
 
   const farms = useMemo(
