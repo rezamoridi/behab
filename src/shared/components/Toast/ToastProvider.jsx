@@ -30,28 +30,36 @@ export const useToast = () => {
 };
 
 // ============================================================
-// Config آیکون و رنگ
+// Config آیکون و رنگ + ARIA
 // ============================================================
 const VARIANT_CONFIG = {
   success: {
     icon: CheckCircle2,
     classes: 'bg-emerald-50 border-emerald-200 text-emerald-800',
     iconColor: 'text-emerald-600',
+    role: 'status',
+    ariaLive: 'polite',
   },
   error: {
     icon: AlertCircle,
     classes: 'bg-red-50 border-red-200 text-red-800',
     iconColor: 'text-red-600',
+    role: 'alert',
+    ariaLive: 'assertive',
   },
   warning: {
     icon: AlertTriangle,
     classes: 'bg-amber-50 border-amber-200 text-amber-800',
     iconColor: 'text-amber-600',
+    role: 'status',
+    ariaLive: 'polite',
   },
   info: {
     icon: Info,
     classes: 'bg-blue-50 border-blue-200 text-blue-800',
     iconColor: 'text-blue-600',
+    role: 'status',
+    ariaLive: 'polite',
   },
 };
 
@@ -79,12 +87,15 @@ const ToastItem = ({ toast, onDismiss }) => {
         ${config.classes}
       `}
       dir="rtl"
-      role="alert"
+      role={config.role}
+      aria-live={config.ariaLive}
+      aria-atomic="true"
     >
       <Icon
         size={18}
         className={`flex-shrink-0 mt-0.5 ${config.iconColor}`}
         strokeWidth={2.4}
+        aria-hidden="true"
       />
 
       <div className="flex-1 min-w-0">
@@ -104,9 +115,9 @@ const ToastItem = ({ toast, onDismiss }) => {
         type="button"
         onClick={() => onDismiss(toast.id)}
         className="p-0.5 rounded-md opacity-60 hover:opacity-100 transition-opacity flex-shrink-0"
-        aria-label="بستن"
+        aria-label="بستن اعلان"
       >
-        <X size={14} />
+        <X size={14} aria-hidden="true" />
       </button>
     </div>
   );
@@ -157,6 +168,7 @@ export const ToastProvider = ({ children }) => {
           <div
             className="fixed top-4 left-1/2 -translate-x-1/2 z-[1200] flex flex-col gap-2 items-center pointer-events-none"
             dir="rtl"
+            aria-label="اعلان‌ها"
           >
             {toasts.map((toast) => (
               <div key={toast.id} className="pointer-events-auto">

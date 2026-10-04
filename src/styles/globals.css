@@ -457,3 +457,28 @@ body {
     animation: none !important;
   }
 }
+
+
+/* ============================================ */
+/* POI Markers                                  */
+/* ============================================ */
+.poi-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.poi-marker > div {
+  transition: transform 0.15s ease-out;
+}
+
+.poi-marker:hover > div {
+  transform: scale(1.15);
+}
+
+/* پنل تنظیمات نقشه — فضای کافی در موبایل */
+@media (max-width: 640px) {
+  .leaflet-control {
+    /* جلوگیری از خروج پنل از viewport */
+    max-width: calc(100vw - 20px);
+  }
+}

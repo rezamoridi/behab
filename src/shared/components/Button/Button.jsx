@@ -1,5 +1,5 @@
 // src/shared/components/Button/Button.jsx
-import React from 'react';
+import React, { forwardRef } from 'react';
 
 const variantClasses = {
   primary: 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm',
@@ -15,45 +15,56 @@ const sizeClasses = {
   large: 'px-7 py-3.5 text-base rounded-xl',
 };
 
-const Button = ({
-  children,
-  variant = 'primary',
-  size = 'medium',
-  onClick,
-  disabled,
-  loading,
-  className = '',
-  type = 'button',
-  ...props
-}) => {
-  const isDisabled = disabled || loading;
+const Button = forwardRef(
+  (
+    {
+      children,
+      variant = 'primary',
+      size = 'medium',
+      onClick,
+      disabled,
+      loading,
+      className = '',
+      type = 'button',
+      ...props
+    },
+    ref
+  ) => {
+    const isDisabled = disabled || loading;
 
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={isDisabled}
-      className={`
-        inline-flex items-center justify-center gap-2
-        font-semibold font-vazir
-        transition-all duration-200
-        ${variantClasses[variant] || variantClasses.primary}
-        ${sizeClasses[size] || sizeClasses.medium}
-        ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-        ${className}
-      `}
-      {...props}
-    >
-      {loading ? (
-        <span className="inline-flex items-center gap-2">
-          <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          <span>در حال بارگذاری...</span>
-        </span>
-      ) : (
-        children
-      )}
-    </button>
-  );
-};
+    return (
+      <button
+        ref={ref}
+        type={type}
+        onClick={onClick}
+        disabled={isDisabled}
+        className={`
+          inline-flex items-center justify-center gap-2
+          font-semibold font-vazir
+          transition-all duration-200
+          ${variantClasses[variant] || variantClasses.primary}
+          ${sizeClasses[size] || sizeClasses.medium}
+          ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+          ${className}
+        `}
+        {...props}
+      >
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <span
+              className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+              aria-hidden="true"
+            />
+            <span>در حال بارگذاری...</span>
+          </span>
+        ) : (
+          children
+        )}
+      </button>
+    );
+  }
+);
+
+Button.displayName = 'Button';
 
 export default React.memo(Button);

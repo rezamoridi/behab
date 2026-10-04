@@ -1,19 +1,16 @@
 // src/shared/hooks/useSessionState.js
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * useSessionState
  *
  * مثل useState ولی مقدار را در sessionStorage نگه می‌دارد.
- * - بعد از refresh یا back/forward مرورگر، مقدار برمی‌گردد.
- * - با بستن تب، پاک می‌شود.
- * - بین تب‌های مختلف مشترک نیست.
- *
- * @param {string} key - کلید ذخیره‌سازی
- * @param {*} initialValue - مقدار اولیه
+ * + همگام‌سازی بین کامپوننت‌ها در همان tab (با custom event)
  */
+const SYNC_EVENT_PREFIX = 'session-state-sync:';
+
 export const useSessionState = (key, initialValue) => {
-  const [value, setValue] = useState(() => {
+  const [value, setValueInternal] = useState(() => {
     if (typeof window === 'undefined') return initialValue;
     try {
       const raw = sessionStorage.getItem(key);
@@ -23,22 +20,46 @@ export const useSessionState = (key, initialValue) => {
     }
   });
 
-  // sync به sessionStorage
+  // ✅ برای تشخیص مقدار قبلی در listener
+  const valueRef = useRef(value);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      if (value === undefined) {
-        sessionStorage.removeItem(key);
-      } else {
-        sessionStorage.setItem(key, JSON.stringify(value));
-      }
-    } catch {
-      /* quota یا حالت خصوصی */
-    }
-  }, [key, value]);
+    valueRef.current = value;
+  }, [value]);
 
-  // sync از sessionStorage اگر تب دیگری نوشت (معمولاً اتفاق نمی‌افتد چون sessionStorage مشترک نیست،
-  // ولی اگر کسی مستقیم setItem کند، این کمک می‌کند)
+  // ✅ wrapper که sessionStorage + custom event را با هم به‌روز می‌کند
+  const setValue = useCallback(
+    (updater) => {
+      setValueInternal((prev) => {
+        const next =
+          typeof updater === 'function' ? updater(prev) : updater;
+
+        // ✅ نوشتن در sessionStorage
+        try {
+          if (typeof window !== 'undefined') {
+            if (next === undefined) {
+              sessionStorage.removeItem(key);
+            } else {
+              sessionStorage.setItem(key, JSON.stringify(next));
+            }
+
+            // ✅ broadcast در همان tab
+            window.dispatchEvent(
+              new CustomEvent(`${SYNC_EVENT_PREFIX}${key}`, {
+                detail: { value: next },
+              })
+            );
+          }
+        } catch {
+          /* quota یا حالت خصوصی */
+        }
+
+        return next;
+      });
+    },
+    [key]
+  );
+
+  // ✅ sync از sessionStorage (بین tabs — storage event)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -46,7 +67,9 @@ export const useSessionState = (key, initialValue) => {
       if (e.storageArea !== sessionStorage) return;
       if (e.key !== key) return;
       try {
-        setValue(e.newValue !== null ? JSON.parse(e.newValue) : initialValue);
+        setValueInternal(
+          e.newValue !== null ? JSON.parse(e.newValue) : initialValue
+        );
       } catch {
         /* ignore */
       }
@@ -57,13 +80,35 @@ export const useSessionState = (key, initialValue) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  // ✅ sync در همان tab — custom event
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleSync = (e) => {
+      const nextValue = e.detail?.value;
+      // ✅ فقط اگر مقدار جدید متفاوت است set کن
+      if (JSON.stringify(nextValue) !== JSON.stringify(valueRef.current)) {
+        setValueInternal(nextValue);
+      }
+    };
+
+    window.addEventListener(`${SYNC_EVENT_PREFIX}${key}`, handleSync);
+    return () =>
+      window.removeEventListener(`${SYNC_EVENT_PREFIX}${key}`, handleSync);
+  }, [key]);
+
   const clear = useCallback(() => {
     try {
       sessionStorage.removeItem(key);
+      window.dispatchEvent(
+        new CustomEvent(`${SYNC_EVENT_PREFIX}${key}`, {
+          detail: { value: initialValue },
+        })
+      );
     } catch {
       /* ignore */
     }
-    setValue(initialValue);
+    setValueInternal(initialValue);
   }, [key, initialValue]);
 
   return [value, setValue, clear];

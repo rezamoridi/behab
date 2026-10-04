@@ -22,6 +22,9 @@ export const useConfirm = () => {
   return ctx;
 };
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export const ConfirmDialogProvider = ({ children }) => {
   const [state, setState] = useState({
     isOpen: false,
@@ -33,6 +36,8 @@ export const ConfirmDialogProvider = ({ children }) => {
   });
 
   const resolveRef = useRef(null);
+  const dialogRef = useRef(null);
+  const cancelButtonRef = useRef(null);
 
   const confirm = useCallback((options) => {
     return new Promise((resolve) => {
@@ -54,15 +59,45 @@ export const ConfirmDialogProvider = ({ children }) => {
     resolveRef.current = null;
   }, []);
 
-  // بستن با Escape
+  // Focus trap + Escape + Enter
   useEffect(() => {
     if (!state.isOpen) return;
-    const handler = (e) => {
-      if (e.key === 'Escape') handleClose(false);
-      if (e.key === 'Enter') handleClose(true);
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    // ✅ focus روی Cancel (safe default)
+    setTimeout(() => cancelButtonRef.current?.focus(), 50);
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleClose(false);
+        return;
+      }
+      if (e.key === 'Enter' && e.target === dialog) {
+        handleClose(true);
+        return;
+      }
+
+      if (e.key !== 'Tab') return;
+
+      const focusables = dialog.querySelectorAll(FOCUSABLE_SELECTOR);
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    return () => dialog.removeEventListener('keydown', handleKeyDown);
   }, [state.isOpen, handleClose]);
 
   const value = useMemo(() => ({ confirm }), [confirm]);
@@ -76,25 +111,39 @@ export const ConfirmDialogProvider = ({ children }) => {
           <div
             className="fixed inset-0 z-[1300] flex items-center justify-center p-4"
             dir="rtl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
+            aria-describedby="confirm-message"
           >
             <div
               className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn"
               onClick={() => handleClose(false)}
+              aria-hidden="true"
             />
             <div
+              ref={dialogRef}
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn"
-              role="dialog"
-              aria-modal="true"
+              tabIndex={-1}
             >
               <div className="p-5 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
+                <div
+                  className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <AlertTriangle size={18} strokeWidth={2.4} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-gray-900 mb-1">
+                  <h3
+                    id="confirm-title"
+                    className="text-sm font-bold text-gray-900 mb-1"
+                  >
                     {state.title}
                   </h3>
-                  <p className="text-xs text-gray-600 leading-relaxed">
+                  <p
+                    id="confirm-message"
+                    className="text-xs text-gray-600 leading-relaxed"
+                  >
                     {state.message}
                   </p>
                 </div>
@@ -102,6 +151,7 @@ export const ConfirmDialogProvider = ({ children }) => {
 
               <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
                 <Button
+                  ref={cancelButtonRef}
                   variant="ghost"
                   size="small"
                   onClick={() => handleClose(false)}

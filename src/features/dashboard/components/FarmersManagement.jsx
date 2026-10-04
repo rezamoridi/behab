@@ -15,10 +15,15 @@ import {
   UserPlus,
   Send,
   AlertCircle,
+  CheckSquare,
+  Square,
+  SendHorizontal,
+  FileDown,
 } from 'lucide-react';
 import { farmerApi } from '../../../services/api/farmerApi';
 import { useToast } from '../../../shared/components/Toast/ToastProvider';
 import { useConfirm } from '../../../shared/components/ConfirmDialog/ConfirmDialogProvider';
+import useSessionState from '../../../shared/hooks/useSessionState';
 
 // ============================================================
 // Query Keys
@@ -58,6 +63,178 @@ const StatusBadge = ({ farmer }) => {
 };
 
 // ============================================================
+// Bulk Actions Bar
+// ============================================================
+const BulkActionsBar = ({
+  selectedCount,
+  onClear,
+  onResend,
+  onDelete,
+  onExport,
+  isResending,
+  isDeleting,
+}) => {
+  if (selectedCount === 0) return null;
+
+  return (
+    <div
+      className="
+        flex items-center justify-between gap-3
+        px-4 py-2.5 mb-3
+        bg-gradient-to-l from-primary-500/15 via-white/70 to-blue-500/10
+        backdrop-blur-xl
+        border border-primary-300/50
+        rounded-xl
+        shadow-[0_4px_16px_rgba(46,125,50,0.12)]
+        animate-fadeInUp
+      "
+      dir="rtl"
+    >
+      {/* تعداد انتخاب شده */}
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-lg bg-primary-500/20 border border-primary-300/50 flex items-center justify-center">
+          <CheckSquare size={13} className="text-primary-700" strokeWidth={2.4} />
+        </div>
+        <div className="flex flex-col leading-tight">
+          <span className="text-[10px] text-slate-500 font-medium">
+            انتخاب شده
+          </span>
+          <span className="text-xs font-bold text-slate-900">
+            {selectedCount.toLocaleString('fa-IR')} نفر
+          </span>
+        </div>
+      </div>
+
+      {/* دکمه‌های عملیات */}
+      <div className="flex items-center gap-1.5">
+        {/* ارسال دعوت مجدد */}
+        <button
+          type="button"
+          onClick={onResend}
+          disabled={isResending || isDeleting}
+          className="
+            flex items-center gap-1.5
+            px-3 py-1.5 rounded-lg
+            bg-amber-500/15 hover:bg-amber-500/25
+            text-amber-800 text-[11px] font-bold
+            border border-amber-400/40
+            transition-colors cursor-pointer
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+          title="ارسال دعوت مجدد به انتخاب‌شده‌ها"
+        >
+          {isResending ? (
+            <span className="w-3 h-3 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
+          ) : (
+            <SendHorizontal size={12} strokeWidth={2.4} />
+          )}
+          <span>ارسال دعوت</span>
+        </button>
+
+        {/* خروجی Excel */}
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={isResending || isDeleting}
+          className="
+            flex items-center gap-1.5
+            px-3 py-1.5 rounded-lg
+            bg-sky-500/15 hover:bg-sky-500/25
+            text-sky-800 text-[11px] font-bold
+            border border-sky-400/40
+            transition-colors cursor-pointer
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+          title="خروجی Excel"
+        >
+          <FileDown size={12} strokeWidth={2.4} />
+          <span>خروجی</span>
+        </button>
+
+        {/* حذف */}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isDeleting || isResending}
+          className="
+            flex items-center gap-1.5
+            px-3 py-1.5 rounded-lg
+            bg-red-500/15 hover:bg-red-500/25
+            text-red-800 text-[11px] font-bold
+            border border-red-400/40
+            transition-colors cursor-pointer
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+          title="حذف انتخاب‌شده‌ها"
+        >
+          {isDeleting ? (
+            <span className="w-3 h-3 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+          ) : (
+            <Trash2 size={12} strokeWidth={2.4} />
+          )}
+          <span>حذف</span>
+        </button>
+
+        {/* پاک کردن انتخاب */}
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={isResending || isDeleting}
+          className="
+            flex items-center gap-1
+            px-2.5 py-1.5 rounded-lg
+            text-slate-600 hover:text-slate-800 hover:bg-white/60
+            text-[11px] font-medium
+            transition-colors cursor-pointer
+            disabled:opacity-50
+          "
+          title="پاک کردن انتخاب"
+        >
+          <X size={12} strokeWidth={2.4} />
+          <span>لغو</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// Checkbox
+// ============================================================
+const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      onChange(!checked);
+    }}
+    className="
+      w-5 h-5 rounded flex items-center justify-center flex-shrink-0
+      border-2 transition-colors
+      cursor-pointer
+      focus:outline-none focus:ring-2 focus:ring-primary-500/30
+    "
+    style={{
+      backgroundColor: checked || indeterminate ? '#2e7d32' : '#ffffff',
+      borderColor: checked || indeterminate ? '#2e7d32' : '#cbd5e1',
+    }}
+    role="checkbox"
+    aria-checked={checked}
+  >
+    {checked && (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    )}
+    {indeterminate && !checked && (
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+        <rect x="4" y="10" width="16" height="4" />
+      </svg>
+    )}
+  </button>
+);
+
+// ============================================================
 // Main Component
 // ============================================================
 const FarmersManagement = () => {
@@ -75,7 +252,12 @@ const FarmersManagement = () => {
   });
   const [formErrors, setFormErrors] = useState({});
 
-  // ── Query: لیست کشاورزان ──
+  // ✅ Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isBulkResending, setIsBulkResending] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // ── Query ──
   const { data, isLoading } = useQuery({
     queryKey: farmerKeys.list({ page: 1, pageSize: 200, search: null }),
     queryFn: () => farmerApi.list({ page: 1, pageSize: 200 }),
@@ -98,7 +280,30 @@ const FarmersManagement = () => {
     });
   }, [farmers, searchTerm]);
 
-  // ── Mutation: ویرایش ──
+  // ── Select/Deselect all ──
+  const allSelected =
+    filteredFarmers.length > 0 &&
+    filteredFarmers.every((f) => selectedIds.has(f.id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const handleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredFarmers.map((f) => f.id)));
+    }
+  }, [allSelected, filteredFarmers]);
+
+  const handleToggleRow = useCallback((farmerId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(farmerId)) next.delete(farmerId);
+      else next.add(farmerId);
+      return next;
+    });
+  }, []);
+
+  // ── Mutations ──
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => farmerApi.update(id, data),
     onSuccess: () => {
@@ -106,7 +311,6 @@ const FarmersManagement = () => {
     },
   });
 
-  // ── Mutation: حذف ──
   const deleteMutation = useMutation({
     mutationFn: (id) => farmerApi.delete(id),
     onSuccess: () => {
@@ -114,7 +318,6 @@ const FarmersManagement = () => {
     },
   });
 
-  // ── Mutation: ارسال مجدد دعوت ──
   const resendMutation = useMutation({
     mutationFn: (id) => farmerApi.resendInvitation(id),
     onSuccess: (result) => {
@@ -209,6 +412,11 @@ const FarmersManagement = () => {
 
       try {
         await deleteMutation.mutateAsync(farmer.id);
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(farmer.id);
+          return next;
+        });
         toast.success('کشاورز حذف شد', 'حذف شد');
       } catch (err) {
         const msg =
@@ -232,6 +440,161 @@ const FarmersManagement = () => {
     [resendMutation],
   );
 
+  // ══════════════════════════════════════════════════════════
+  // ✅ Bulk actions handlers
+  // ══════════════════════════════════════════════════════════
+
+  // ── Bulk Resend ──
+  const handleBulkResend = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+
+    // فیلتر: فقط کشاورزانی که pending هستند
+    const pendingFarmers = farmers.filter(
+      (f) => selectedIds.has(f.id) && !f.password_changed_at,
+    );
+
+    if (pendingFarmers.length === 0) {
+      toast.warning(
+        'هیچ کشاورز در انتظار دعوتی در انتخاب شما نیست',
+        'توجه',
+      );
+      return;
+    }
+
+    const ok = await confirm({
+      title: 'ارسال دعوت مجدد',
+      message: `آیا می‌خواهید برای ${pendingFarmers.length.toLocaleString('fa-IR')} کشاورز انتخاب‌شده پیامک دعوت ارسال کنید؟\n(فقط کشاورزان در انتظار دعوت)`,
+      confirmText: 'ارسال کن',
+      cancelText: 'انصراف',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    setIsBulkResending(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const farmer of pendingFarmers) {
+      try {
+        await farmerApi.resendInvitation(farmer.id);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkResending(false);
+    queryClient.invalidateQueries({ queryKey: farmerKeys.all });
+
+    if (successCount > 0) {
+      toast.success(
+        `${successCount.toLocaleString('fa-IR')} دعوت ارسال شد${failCount > 0 ? ` (${failCount.toLocaleString('fa-IR')} ناموفق)` : ''}`,
+        'ارسال گروهی',
+      );
+    } else {
+      toast.error('هیچ دعوتی ارسال نشد', 'خطا');
+    }
+
+    setSelectedIds(new Set());
+  }, [selectedIds, farmers, confirm, queryClient, toast]);
+
+  // ── Bulk Delete ──
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+
+    const ok = await confirm({
+      title: 'حذف گروهی',
+      message: `آیا از حذف ${selectedIds.size.toLocaleString('fa-IR')} کشاورز انتخاب‌شده اطمینان دارید؟\nمزارع مرتبط حفظ می‌شوند ولی farmer_id آن‌ها NULL می‌شود.`,
+      confirmText: 'حذف کن',
+      cancelText: 'انصراف',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    setIsBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedIds) {
+      try {
+        await farmerApi.delete(id);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkDeleting(false);
+    queryClient.invalidateQueries({ queryKey: farmerKeys.all });
+
+    if (successCount > 0) {
+      toast.success(
+        `${successCount.toLocaleString('fa-IR')} کشاورز حذف شد${failCount > 0 ? ` (${failCount.toLocaleString('fa-IR')} ناموفق)` : ''}`,
+        'حذف گروهی',
+      );
+    } else {
+      toast.error('هیچ کشاورزی حذف نشد', 'خطا');
+    }
+
+    setSelectedIds(new Set());
+  }, [selectedIds, confirm, queryClient, toast]);
+
+  // ── Bulk Export (CSV) ──
+  const handleBulkExport = useCallback(() => {
+    if (selectedIds.size === 0) return;
+
+    const selected = farmers.filter((f) => selectedIds.has(f.id));
+
+    // BOM برای Excel فارسی
+    const BOM = '\uFEFF';
+    const headers = ['نام', 'نام خانوادگی', 'کد ملی', 'تلفن', 'وضعیت', 'تاریخ ثبت'];
+    const rows = selected.map((f) => {
+      const status = f.password_changed_at
+        ? 'فعال'
+        : f.first_login_at
+          ? 'لاگین کرده'
+          : 'دعوت‌شده';
+      const createdAt = f.created_at
+        ? new Date(f.created_at).toLocaleDateString('fa-IR')
+        : '—';
+      return [
+        f.fname || '',
+        f.lname || '',
+        f.national_id || '',
+        f.phone_number || '',
+        status,
+        createdAt,
+      ];
+    });
+
+    const csv = BOM + [
+      headers.join(','),
+      ...rows.map((r) =>
+        r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','),
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `farmers-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(
+      `${selected.length.toLocaleString('fa-IR')} کشاورز در فایل CSV ذخیره شد`,
+      'خروجی موفق',
+    );
+  }, [selectedIds, farmers, toast]);
+
+  // ── Clear selection ──
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
   // ── Loading ──
   if (isLoading) {
     return (
@@ -242,8 +605,8 @@ const FarmersManagement = () => {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4" dir="rtl">
-      {/* Header */}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-3" dir="rtl">
+      {/* ─── Header ─── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <Users size={18} className="text-primary-600" />
@@ -251,7 +614,8 @@ const FarmersManagement = () => {
             لیست کشاورزان
           </h3>
           <span className="text-xs text-gray-400">
-            ({filteredFarmers.length} از {farmers.length})
+            ({filteredFarmers.length.toLocaleString('fa-IR')} از{' '}
+            {farmers.length.toLocaleString('fa-IR')})
           </span>
         </div>
 
@@ -262,7 +626,7 @@ const FarmersManagement = () => {
           />
           <input
             type="text"
-            placeholder="جستجوی کشاورز (نام، کد ملی، تلفن)..."
+            placeholder="جستجوی کشاورز..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full md:w-72 pr-9 pl-3 py-2 rounded-lg border border-gray-300 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
@@ -270,17 +634,48 @@ const FarmersManagement = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* ─── Bulk Actions Bar ─── */}
+      <BulkActionsBar
+        selectedCount={selectedIds.size}
+        onClear={handleClearSelection}
+        onResend={handleBulkResend}
+        onDelete={handleBulkDelete}
+        onExport={handleBulkExport}
+        isResending={isBulkResending}
+        isDeleting={isBulkDeleting}
+      />
+
+      {/* ─── Table ─── */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50">
-              <th className="text-right px-4 py-3 font-semibold text-gray-600 rounded-r-lg">#</th>
-              <th className="text-right px-4 py-3 font-semibold text-gray-600">نام و نام خانوادگی</th>
-              <th className="text-right px-4 py-3 font-semibold text-gray-600">کد ملی</th>
-              <th className="text-right px-4 py-3 font-semibold text-gray-600">تلفن همراه</th>
-              <th className="text-right px-4 py-3 font-semibold text-gray-600">وضعیت</th>
-              <th className="text-center px-4 py-3 font-semibold text-gray-600 rounded-l-lg">عملیات</th>
+              {/* ✅ Select-all checkbox */}
+              <th className="w-10 px-3 py-3">
+                <RowCheckbox
+                  checked={allSelected}
+                  indeterminate={someSelected}
+                  onChange={handleSelectAll}
+                />
+              </th>
+              <th className="text-right px-3 py-3 font-semibold text-gray-600">
+                #
+              </th>
+              <th className="text-right px-4 py-3 font-semibold text-gray-600">
+                نام و نام خانوادگی
+              </th>
+              <th className="text-right px-4 py-3 font-semibold text-gray-600">
+                کد ملی
+              </th>
+              <th className="text-right px-4 py-3 font-semibold text-gray-600">
+                تلفن همراه
+              </th>
+              <th className="text-right px-4 py-3 font-semibold text-gray-600">
+                وضعیت
+              </th>
+              <th className="text-center px-4 py-3 font-semibold text-gray-600 rounded-l-lg">
+                عملیات
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -288,13 +683,28 @@ const FarmersManagement = () => {
               filteredFarmers.map((farmer, index) => {
                 const fullName = `${farmer.fname || ''} ${farmer.lname || ''}`.trim();
                 const isPending = !farmer.password_changed_at;
+                const isSelected = selectedIds.has(farmer.id);
 
                 return (
                   <tr
                     key={farmer.id}
-                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
+                    className={`
+                      border-b border-gray-100 last:border-0
+                      transition-colors
+                      ${isSelected ? 'bg-primary-50/40' : 'hover:bg-gray-50'}
+                    `}
                   >
-                    <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                    {/* Checkbox */}
+                    <td className="w-10 px-3 py-3">
+                      <RowCheckbox
+                        checked={isSelected}
+                        onChange={() => handleToggleRow(farmer.id)}
+                      />
+                    </td>
+
+                    <td className="px-3 py-3 text-gray-500">
+                      {index + 1}
+                    </td>
                     <td className="px-4 py-3 font-medium text-gray-800">
                       {fullName || '—'}
                     </td>
@@ -343,7 +753,7 @@ const FarmersManagement = () => {
               })
             ) : (
               <tr>
-                <td colSpan="6" className="text-center py-8 text-gray-400 text-sm">
+                <td colSpan="7" className="text-center py-8 text-gray-400 text-sm">
                   {searchTerm
                     ? 'کشاورزی با این مشخصات یافت نشد'
                     : 'هیچ کشاورزی ثبت نشده است'}
@@ -354,19 +764,21 @@ const FarmersManagement = () => {
         </table>
       </div>
 
-      {/* Stats */}
+      {/* ─── Stats ─── */}
       <div className="pt-3 border-t border-gray-100 text-xs text-gray-600 flex flex-wrap gap-4">
-        <span>تعداد کل: {farmers.length}</span>
-        {searchTerm && <span>| نتایج: {filteredFarmers.length}</span>}
+        <span>تعداد کل: {farmers.length.toLocaleString('fa-IR')}</span>
+        {searchTerm && (
+          <span>| نتایج: {filteredFarmers.length.toLocaleString('fa-IR')}</span>
+        )}
         <span className="text-emerald-600">
-          | فعال: {farmers.filter((f) => f.password_changed_at).length}
+          | فعال: {farmers.filter((f) => f.password_changed_at).length.toLocaleString('fa-IR')}
         </span>
         <span className="text-amber-600">
-          | در انتظار: {farmers.filter((f) => !f.password_changed_at).length}
+          | در انتظار: {farmers.filter((f) => !f.password_changed_at).length.toLocaleString('fa-IR')}
         </span>
       </div>
 
-      {/* Edit Modal */}
+      {/* ─── Edit Modal ─── */}
       {editingFarmer && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
@@ -385,7 +797,6 @@ const FarmersManagement = () => {
 
             <form onSubmit={handleSubmit}>
               <div className="p-5 space-y-4">
-                {/* کد ملی */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                     <CreditCard size={14} className="text-gray-400" />
@@ -412,7 +823,6 @@ const FarmersManagement = () => {
                   )}
                 </div>
 
-                {/* تلفن (غیرقابل ویرایش) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                     <Phone size={14} className="text-gray-400" />
@@ -430,7 +840,6 @@ const FarmersManagement = () => {
                   />
                 </div>
 
-                {/* نام و نام خانوادگی */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">

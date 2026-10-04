@@ -18,7 +18,7 @@ const VIEWPORT_STORAGE_KEY = 'map_viewport_v1';
 
 const SearchLocationController = ({ selectedLocation }) => {
   const map = useMap();
-  const isFirstRenderRef = useRef(true);
+  const isFirstMountRef = useRef(true);
 
   useEffect(() => {
     if (!selectedLocation) return;
@@ -31,10 +31,10 @@ const SearchLocationController = ({ selectedLocation }) => {
       return;
     }
 
-    // ✅ در mount اول، اگه viewport ذخیره‌شده وجود داره، اجازه بده
-    // MapComponent اون رو بازیابی کنه و setView نزن.
-    if (isFirstRenderRef.current) {
-      isFirstRenderRef.current = false;
+    // ✅ چک: اگر این mount اول است و viewport ذخیره‌شده داریم،
+    // اجازه بده MapComponent از viewport استفاده کند.
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
 
       try {
         const saved = localStorage.getItem(VIEWPORT_STORAGE_KEY);
@@ -44,9 +44,11 @@ const SearchLocationController = ({ selectedLocation }) => {
             parsed &&
             Number.isFinite(parsed.lat) &&
             Number.isFinite(parsed.lng) &&
-            Number.isFinite(parsed.zoom)
+            Number.isFinite(parsed.zoom) &&
+            parsed.lat !== 0 &&
+            parsed.lng !== 0
           ) {
-            // viewport ذخیره‌شده برنده می‌شه — setView نزن
+            // ✅ viewport ذخیره‌شده برنده می‌شود — ولی **فقط در mount اول**
             return;
           }
         }
@@ -55,8 +57,31 @@ const SearchLocationController = ({ selectedLocation }) => {
       }
     }
 
+    // ✅ همیشه برای هر selectedLocation جدید → setView
     const zoom = Number(selectedLocation.zoom) || 15;
-    map.setView([lat, lon], zoom, { animate: true });
+
+    // ✅ با requestAnimationFrame تا مطمئن شویم map آماده است
+    const rafId = requestAnimationFrame(() => {
+      try {
+        map.setView([lat, lon], zoom, {
+          animate: true,
+          duration: 0.5, // ✅ انیمیشن سریع ولی محسوس
+        });
+
+        // ✅ force redraw برای اطمینان
+        setTimeout(() => {
+          try {
+            map.invalidateSize();
+          } catch {
+            /* ignore */
+          }
+        }, 100);
+      } catch (err) {
+        console.warn('setView failed:', err);
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
   }, [map, selectedLocation]);
 
   if (!selectedLocation) return null;

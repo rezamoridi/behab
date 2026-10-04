@@ -2,9 +2,6 @@
 
 /**
  * Chart Constants and Helpers
- *
- * ⚠️ Note: baseChartOptions (ApexCharts config) was removed in Sprint C
- * after migrating to Recharts. Only colors + helpers remain.
  */
 
 // ============================================
@@ -20,6 +17,36 @@ export const CHART_COLORS = [
   '#ff9800',
   '#795548',
 ];
+
+// ============================================
+// ✅ رنگ‌های Special — برای مقادیر خاص
+// ============================================
+export const SPECIAL_COLORS = {
+  unknown: '#9e9e9e',       // توسی روشن — «نامشخص»
+  others: '#94a3b8',        // slate-400 — «سایر»
+  noCrop: '#a1a1aa',        // zinc-400 — «بدون محصول»
+};
+
+/**
+ * دریافت رنگ برای یک محصول
+ * با درنظر گرفتن نام‌های خاص
+ */
+export const getCropColor = (cropName, colorByCrop, fallbackIndex = 0) => {
+  // ✅ نام‌های خاص → رنگ توسی
+  if (!cropName || cropName === 'نامشخص' || cropName === 'بدون محصول') {
+    return SPECIAL_COLORS.unknown;
+  }
+
+  if (cropName === 'سایر' || cropName.startsWith('سایر')) {
+    return SPECIAL_COLORS.others;
+  }
+
+  // رنگ از DB یا fallback palette
+  return (
+    colorByCrop?.[cropName] ||
+    CHART_COLORS[fallbackIndex % CHART_COLORS.length]
+  );
+};
 
 // ============================================
 // ✅ فرمت اعداد فارسی

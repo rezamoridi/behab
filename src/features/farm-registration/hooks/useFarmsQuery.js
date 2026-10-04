@@ -1,14 +1,22 @@
 // src/features/farm-registration/hooks/useFarmsQuery.js
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchFarms, fetchFarmById } from '../../../services/api/farmApi';
+import {
+  fetchFarms,
+  fetchAllFarms,
+  fetchFarmById,
+} from '../../../services/api/farmApi';
 import { farmerApi } from '../../../services/api/farmerApi';
+import {
+  farmKeys,
+  farmerKeys,
+  QUERY_STALE_TIME,
+  QUERY_GC_TIME,
+} from './farmQueryKeys';
 
-// ✅ Re-export from canonical location
 export { farmKeys, farmerKeys } from './farmQueryKeys';
-import { farmKeys, farmerKeys } from './farmQueryKeys';
 
 // ============================================================
-// Farms Query
+// Farms — list (paginated)
 // ============================================================
 export const useFarmsQuery = ({
   page = 1,
@@ -20,7 +28,22 @@ export const useFarmsQuery = ({
     queryKey: farmKeys.list({ page, pageSize, search }),
     queryFn: () => fetchFarms({ page, pageSize, search }),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: QUERY_STALE_TIME.analytics,
+    gcTime: QUERY_GC_TIME.default,
+    placeholderData: (prev) => prev,
+  });
+};
+
+// ============================================================
+// ✅ Farms — ALL (auto-paginated برای analytics)
+// ============================================================
+export const useAllFarmsQuery = ({ enabled = true } = {}) => {
+  return useQuery({
+    queryKey: farmKeys.allFarms(),
+    queryFn: () => fetchAllFarms({ maxItems: 2000 }),
+    enabled,
+    staleTime: QUERY_STALE_TIME.analytics,
+    gcTime: QUERY_GC_TIME.default,
   });
 };
 
@@ -29,12 +52,13 @@ export const useFarmQuery = (farmId, { enabled = true } = {}) => {
     queryKey: farmKeys.detail(farmId),
     queryFn: () => fetchFarmById(farmId),
     enabled: enabled && !!farmId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: QUERY_STALE_TIME.detail,
+    gcTime: QUERY_GC_TIME.default,
   });
 };
 
 // ============================================================
-// Farmers Query
+// Farmers — list
 // ============================================================
 export const useFarmersQuery = ({
   page = 1,
@@ -46,7 +70,22 @@ export const useFarmersQuery = ({
     queryKey: farmerKeys.list({ page, pageSize, search }),
     queryFn: () => farmerApi.list({ page, pageSize, search }),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: QUERY_STALE_TIME.analytics,
+    gcTime: QUERY_GC_TIME.default,
+    placeholderData: (prev) => prev,
+  });
+};
+
+// ============================================================
+// ✅ Farmers — ALL (auto-paginated)
+// ============================================================
+export const useAllFarmersQuery = ({ enabled = true } = {}) => {
+  return useQuery({
+    queryKey: farmerKeys.allFarmers(),
+    queryFn: () => farmerApi.listAll({ maxItems: 2000 }),
+    enabled,
+    staleTime: QUERY_STALE_TIME.analytics,
+    gcTime: QUERY_GC_TIME.default,
   });
 };
 
@@ -55,7 +94,8 @@ export const useFarmerQuery = (farmerId, { enabled = true } = {}) => {
     queryKey: farmerKeys.detail(farmerId),
     queryFn: () => farmerApi.get(farmerId),
     enabled: enabled && !!farmerId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: QUERY_STALE_TIME.detail,
+    gcTime: QUERY_GC_TIME.default,
   });
 };
 
@@ -74,7 +114,6 @@ export const useFarmQueryClient = () => {
     setFarmData: (id, data) =>
       queryClient.setQueryData(farmKeys.detail(id), data),
 
-    // Farmers
     invalidateFarmers: () =>
       queryClient.invalidateQueries({ queryKey: farmerKeys.lists() }),
     invalidateFarmer: (id) =>

@@ -1,36 +1,37 @@
 // src/features/dashboard/components/KpiCard.jsx
 import React from 'react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 const COLOR_THEMES = {
   primary: {
-    bg: 'from-primary-500/20 to-primary-700/5',
-    icon: 'text-primary-600',
-    border: 'border-primary-300/40',
+    iconBg: 'bg-primary-500/15',
+    iconColor: 'text-primary-600',
+    accent: 'bg-primary-500',
   },
   blue: {
-    bg: 'from-blue-500/20 to-blue-700/5',
-    icon: 'text-blue-600',
-    border: 'border-blue-300/40',
+    iconBg: 'bg-blue-500/15',
+    iconColor: 'text-blue-600',
+    accent: 'bg-blue-500',
   },
   amber: {
-    bg: 'from-amber-500/20 to-amber-700/5',
-    icon: 'text-amber-600',
-    border: 'border-amber-300/40',
+    iconBg: 'bg-amber-500/15',
+    iconColor: 'text-amber-600',
+    accent: 'bg-amber-500',
   },
   purple: {
-    bg: 'from-purple-500/20 to-purple-700/5',
-    icon: 'text-purple-600',
-    border: 'border-purple-300/40',
+    iconBg: 'bg-purple-500/15',
+    iconColor: 'text-purple-600',
+    accent: 'bg-purple-500',
   },
   emerald: {
-    bg: 'from-emerald-500/20 to-emerald-700/5',
-    icon: 'text-emerald-600',
-    border: 'border-emerald-300/40',
+    iconBg: 'bg-emerald-500/15',
+    iconColor: 'text-emerald-600',
+    accent: 'bg-emerald-500',
   },
-  rose: {
-    bg: 'from-rose-500/20 to-rose-700/5',
-    icon: 'text-rose-600',
-    border: 'border-rose-300/40',
+  sky: {
+    iconBg: 'bg-sky-500/15',
+    iconColor: 'text-sky-600',
+    accent: 'bg-sky-500',
   },
 };
 
@@ -41,79 +42,120 @@ const KpiCard = ({
   unit = '',
   color = 'primary',
   trend = null,
+  subtitle = null,
   delayClass = '',
+  onClick = null,
 }) => {
   const theme = COLOR_THEMES[color] || COLOR_THEMES.primary;
 
+  // ─── Trend icon ───
+  const TrendIcon =
+    trend === null
+      ? null
+      : trend > 0
+        ? TrendingUp
+        : trend < 0
+          ? TrendingDown
+          : Minus;
+
+  const trendColor =
+    trend === null
+      ? ''
+      : trend > 0
+        ? 'text-emerald-600 bg-emerald-500/15'
+        : trend < 0
+          ? 'text-rose-600 bg-rose-500/15'
+          : 'text-slate-500 bg-slate-500/15';
+
+  const Wrapper = onClick ? 'button' : 'div';
+  const wrapperProps = onClick
+    ? { type: 'button', onClick, className: 'text-right w-full' }
+    : {};
+
   return (
-    <div
+    <Wrapper
+      {...wrapperProps}
       className={`
         group relative
         flex flex-col gap-3
-        p-4 md:p-5 rounded-2xl
+        p-4 rounded-2xl
         bg-white/60 backdrop-blur-xl
         border border-white/70
-        shadow-[0_4px_20px_rgba(31,38,135,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]
-        hover:bg-white/85
-        hover:shadow-[0_8px_32px_rgba(31,38,135,0.14),inset_0_1px_0_rgba(255,255,255,0.95)]
-        card-hover-lift
+        shadow-[0_4px_20px_rgba(31,38,135,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]
+        hover:bg-white/80 hover:shadow-[0_8px_24px_rgba(31,38,135,0.10)]
+        transition-all duration-200
+        ${onClick ? 'cursor-pointer card-hover-lift' : ''}
         animate-fadeInUp
         ${delayClass}
+        ${wrapperProps.className || ''}
       `}
       dir="rtl"
     >
-      {/* آیکون */}
+      {/* نوار رنگی کناری */}
       <div
         className={`
-          w-10 h-10 md:w-11 md:h-11 rounded-xl
-          bg-gradient-to-br ${theme.bg}
-          border ${theme.border}
-          flex items-center justify-center
-          shadow-sm
-          transition-transform duration-200
-          group-hover:scale-110
+          absolute top-4 right-4 bottom-4 w-1 rounded-full
+          ${theme.accent} opacity-0 group-hover:opacity-60
+          transition-opacity
         `}
-      >
-        <Icon size={18} strokeWidth={2.2} className={theme.icon} />
+        aria-hidden="true"
+      />
+
+      {/* Header: icon + trend */}
+      <div className="flex items-start justify-between gap-2">
+        <div
+          className={`
+            w-10 h-10 rounded-xl
+            ${theme.iconBg}
+            flex items-center justify-center
+            transition-transform duration-200
+            group-hover:scale-105
+          `}
+        >
+          <Icon size={18} strokeWidth={2.2} className={theme.iconColor} />
+        </div>
+
+        {trend !== null && TrendIcon && (
+          <div
+            className={`
+              flex items-center gap-1 px-2 py-1 rounded-lg
+              text-[11px] font-bold
+              ${trendColor}
+            `}
+            dir="ltr"
+            title={`${trend > 0 ? '+' : ''}${trend}% نسبت به ماه قبل`}
+          >
+            <TrendIcon size={11} strokeWidth={2.5} />
+            <span>
+              {trend > 0 ? '+' : ''}
+              {trend.toLocaleString('fa-IR', { maximumFractionDigits: 1 })}%
+            </span>
+          </div>
+        )}
       </div>
 
       {/* متن */}
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] md:text-xs text-slate-500 font-medium truncate">
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-[11px] text-slate-500 font-medium truncate">
           {label}
         </span>
         <div className="flex items-baseline gap-1 flex-wrap">
-          <span className="text-xl md:text-2xl font-bold text-slate-900 tabular-nums">
+          <span className="text-xl font-bold text-slate-900 tabular-nums leading-none">
             {value}
           </span>
           {unit && (
-            <span className="text-[10px] md:text-xs text-slate-500 font-medium">
+            <span className="text-[11px] text-slate-500 font-medium">
               {unit}
             </span>
           )}
         </div>
+        {subtitle && (
+          <span className="text-[10px] text-slate-400 truncate mt-0.5">
+            {subtitle}
+          </span>
+        )}
       </div>
-
-      {/* Trend */}
-      {trend !== null && (
-        <div
-          className={`
-            absolute top-3 left-3
-            text-[10px] font-semibold
-            px-1.5 py-0.5 rounded-md
-            ${
-              trend >= 0
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'bg-rose-50 text-rose-700 border border-rose-200'
-            }
-          `}
-          dir="ltr"
-        >
-          {trend >= 0 ? '+' : ''}
-          {trend}%
-        </div>
-      )}
-    </div>
+    </Wrapper>
   );
 };
 

@@ -63,10 +63,6 @@ const normalizeResult = (item) => {
 
 // ============================================
 // Component
-//
-// prop `embedded`:
-//   اگر true باشد → به صورت inline داخل TopBar نمایش داده می‌شود
-//                    (بدون absolute، بدون top/left)
 // ============================================
 const LocationPicker = ({
   onLocationSelect,
@@ -84,27 +80,29 @@ const LocationPicker = ({
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
-  // اگر selectedLocation عوض شد، query را همگام کن
+  // ✅ فقط وقتی selectedLocation از بیرون عوض شد، query را همگام کن
   useEffect(() => {
     if (selectedLocation?.name) {
-      // با setTimeout تا خارج از body effect باشد
-      const t = setTimeout(() => {
-        setQuery(selectedLocation.name);
-      }, 0);
-      return () => clearTimeout(t);
+      skipNextSearchRef.current = true; // ✅ جلوگیری از search دوباره
+      setQuery(selectedLocation.name);
     }
-    return undefined;
   }, [selectedLocation]);
 
+  // ============================================================
+  // searchLocations — بدون state داخلی برای isSearching (بعداً set می‌شود)
+  // ============================================================
   const searchLocations = async (searchText) => {
     const cleanQuery = searchText.trim();
 
     if (cleanQuery.length < 2) {
       setSuggestions([]);
+      setIsSearching(false);
       return [];
     }
 
+    // ✅ abort قبلی — بدون trigger setState
     abortControllerRef.current?.abort();
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsSearching(true);
@@ -138,50 +136,63 @@ const LocationPicker = ({
             Number.isFinite(item.lat) && Number.isFinite(item.lon)
         );
 
-      setSuggestions(results);
+      // ✅ فقط اگر این controller هنوز فعّال است
+      if (!controller.signal.aborted) {
+        setSuggestions(results);
+        setIsSearching(false);
+      }
       return results;
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('خطای جستجوی مکان:', error);
-        setSuggestions([]);
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+          setIsSearching(false);
+        }
       }
       return [];
-    } finally {
-      if (!controller.signal.aborted) {
-        setIsSearching(false);
-      }
     }
   };
 
   // ============================================================
-  // Debounced search
+  // Debounced search — کاهش به 400ms + رفع باگ
   // ============================================================
   useEffect(() => {
     const cleanQuery = query.trim();
 
     if (onSearchChange) onSearchChange(false);
 
+    // ✅ اگر انتخاب قبلی بود، skip کن
     if (skipNextSearchRef.current) {
       skipNextSearchRef.current = false;
       return undefined;
     }
 
     if (cleanQuery.length < 2) {
+      // ✅ پاک کردن سریع
       const clearTimer = setTimeout(() => {
         setSuggestions([]);
+        setIsSearching(false);
       }, 0);
       return () => clearTimeout(clearTimer);
     }
 
+    // ✅ debounce کاهش یافت به 400ms
     const searchTimer = setTimeout(() => {
       searchLocations(cleanQuery);
-    }, 700);
+    }, 400);
 
-    return () => clearTimeout(searchTimer);
+    return () => {
+      clearTimeout(searchTimer);
+      // ✅ در cleanup، اگر سرچ در حال اجرا بود، لغو کن
+      // (اما نه setState — فقط abort)
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  // بستن suggestions با کلیک بیرون
+  // ============================================================
+  // کلیک بیرون
+  // ============================================================
   useEffect(() => {
     if (suggestions.length === 0) return;
 
@@ -205,18 +216,32 @@ const LocationPicker = ({
     };
   }, [suggestions.length]);
 
+  // ============================================================
+  // Cleanup روی unmount
+  // ============================================================
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
     };
   }, []);
 
+  // ============================================================
+  // handleSelect
+  // ============================================================
   const handleSelect = (location) => {
     const finalLocation = { ...location, zoom: getSmartZoom(location) };
+
+    // ✅ جلوگیری از search مجدد
     skipNextSearchRef.current = true;
+
     setQuery(location.persianName || location.name);
     setSuggestions([]);
+    setIsSearching(false);
+    abortControllerRef.current?.abort();
+
+    // ✅ فراخوانی onLocationSelect — parent (Layout → TopBar) این را می‌نویسد
     onLocationSelect?.(finalLocation);
+
     if (onSearchChange) onSearchChange(false);
     inputRef.current?.blur();
   };
@@ -235,16 +260,15 @@ const LocationPicker = ({
   };
 
   const handleClear = () => {
+    abortControllerRef.current?.abort();
     setQuery('');
     setSuggestions([]);
+    setIsSearching(false);
     inputRef.current?.focus();
   };
 
   const showSuggestions = suggestions.length > 0;
 
-  // ============================================================
-  // Wrapper classes
-  // ============================================================
   const wrapperClass = embedded
     ? 'relative w-full font-vazir'
     : 'absolute top-4 left-1/2 -translate-x-1/2 z-[1200] w-[min(520px,calc(100%-24px))] font-vazir';
@@ -351,6 +375,7 @@ const LocationPicker = ({
               <button
                 key={`${item.lat}-${item.lon}-${index}`}
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(item)}
                 className="
                   w-full flex flex-col items-start gap-1

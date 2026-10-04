@@ -12,8 +12,29 @@ export const agricultureKeys = {
 
 export const cropKeys = {
   all: ['crops'],
+  lists: () => [...cropKeys.all, 'list'],
   list: (activeOnly) => [...cropKeys.all, 'list', activeOnly],
   detail: (id) => [...cropKeys.all, 'detail', id],
+};
+
+// ============================================
+// Cache timings
+// ============================================
+const AGRICULTURE_STALE_TIME = 5 * 60 * 1000; // 5 min
+const CROPS_STALE_TIME = 60 * 1000; // 1 min
+const GC_TIME = 30 * 60 * 1000; // 30 min
+
+// ============================================
+// Default settings (برای جلوگیری از crash)
+// ============================================
+const DEFAULT_SETTINGS = {
+  default_area_unit: 'hectare',
+  default_water_unit: 'cubic_meter',
+  default_map_center_lat: 35.6892,
+  default_map_center_lng: 51.389,
+  default_map_zoom: 6,
+  default_map_layer: 'osm',
+  show_saved_farms: true,
 };
 
 // ============================================
@@ -24,14 +45,15 @@ export const useAgricultureSettingsQuery = () => {
     queryKey: agricultureKeys.settings(),
     queryFn: async () => {
       const res = await settingsApi.getAgricultureSettings();
-      return res.data;
+      return { ...DEFAULT_SETTINGS, ...(res.data || {}) };
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: AGRICULTURE_STALE_TIME,
+    gcTime: GC_TIME,
   });
 };
 
 // ============================================
-// Queries — Crops (شامل نرخ‌ها)
+// ✅ Queries — Crops — با refetch خودکار
 // ============================================
 export const useCropsQuery = ({ activeOnly = false } = {}) => {
   return useQuery({
@@ -40,9 +62,12 @@ export const useCropsQuery = ({ activeOnly = false } = {}) => {
       const res = await cropApi.list(activeOnly);
       return res.data || [];
     },
-    staleTime: 60 * 1000,            
-    refetchOnMount: 'always',         
-    refetchOnWindowFocus: true,       
+    staleTime: CROPS_STALE_TIME,
+    gcTime: GC_TIME,
+    // ✅ هر بار که mount شد، داده‌ی جدید بگیر
+    refetchOnMount: true,
+    // ✅ وقتی کاربر به tab برگردد
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -54,7 +79,8 @@ export const useCropQuery = (id, { enabled = true } = {}) => {
       return res.data;
     },
     enabled: enabled && !!id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: CROPS_STALE_TIME,
+    gcTime: GC_TIME,
   });
 };
 
@@ -72,14 +98,17 @@ export const useUpdateAgricultureSettingsMutation = () => {
 };
 
 // ============================================
-// Mutations — Crops
+// ✅ Mutations — Crops
 // ============================================
 export const useCreateCropMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data) => cropApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: cropKeys.all });
+      // ✅ invalidate همه‌ی listها (activeOnly: true و false)
+      queryClient.invalidateQueries({ queryKey: cropKeys.lists() });
+      // ✅ force refetch فوری
+      queryClient.refetchQueries({ queryKey: cropKeys.lists() });
     },
   });
 };
@@ -89,7 +118,8 @@ export const useUpdateCropMutation = () => {
   return useMutation({
     mutationFn: ({ id, data }) => cropApi.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: cropKeys.all });
+      queryClient.invalidateQueries({ queryKey: cropKeys.lists() });
+      queryClient.refetchQueries({ queryKey: cropKeys.lists() });
     },
   });
 };
@@ -99,13 +129,14 @@ export const useDeleteCropMutation = () => {
   return useMutation({
     mutationFn: (id) => cropApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: cropKeys.all });
+      queryClient.invalidateQueries({ queryKey: cropKeys.lists() });
+      queryClient.refetchQueries({ queryKey: cropKeys.lists() });
     },
   });
 };
 
 // ============================================
-// ✅ Hook ترکیبی
+// Hook ترکیبی
 // ============================================
 export const useAgricultureSettings = () => {
   const settingsQuery = useAgricultureSettingsQuery();
@@ -117,68 +148,22 @@ export const useAgricultureSettings = () => {
   const deleteCropMutation = useDeleteCropMutation();
 
   return {
-    // Data
     settings: settingsQuery.data,
     crops: cropsQuery.data || [],
 
     isLoading: settingsQuery.isLoading || cropsQuery.isLoading,
 
-    // Actions — Settings
     updateSettings: async (data) => {
-      try {
-        await updateSettingsMutation.mutateAsync(data);
-        alert('تنظیمات با موفقیت ذخیره شد.');
-      } catch (err) {
-        alert(
-          err?.response?.data?.detail ||
-            err?.message ||
-            'خطا در ذخیره تنظیمات'
-        );
-        throw err;
-      }
+      await updateSettingsMutation.mutateAsync(data);
     },
-
-    // Actions — Crops
     addCrop: async (data) => {
-      try {
-        await addCropMutation.mutateAsync(data);
-        alert(`محصول "${data.name}" با موفقیت افزوده شد.`);
-      } catch (err) {
-        alert(
-          err?.response?.data?.detail ||
-            err?.message ||
-            'خطا در افزودن محصول'
-        );
-        throw err;
-      }
+      await addCropMutation.mutateAsync(data);
     },
-
     updateCrop: async (id, data) => {
-      try {
-        await updateCropMutation.mutateAsync({ id, data });
-        alert('محصول با موفقیت به‌روزرسانی شد.');
-      } catch (err) {
-        alert(
-          err?.response?.data?.detail ||
-            err?.message ||
-            'خطا در به‌روزرسانی محصول'
-        );
-        throw err;
-      }
+      await updateCropMutation.mutateAsync({ id, data });
     },
-
     deleteCrop: async (id) => {
-      try {
-        await deleteCropMutation.mutateAsync(id);
-        alert('محصول با موفقیت حذف شد.');
-      } catch (err) {
-        alert(
-          err?.response?.data?.detail ||
-            err?.message ||
-            'خطا در حذف محصول'
-        );
-        throw err;
-      }
+      await deleteCropMutation.mutateAsync(id);
     },
   };
 };

@@ -2,39 +2,29 @@
 import React, { useMemo, useCallback, useEffect } from 'react';
 import {
   MapContainer,
-  TileLayer,
-  ScaleControl,
+  ScaleControl,   // ✅ بدون TileLayer
   useMap,
 } from 'react-leaflet';
 import SearchLocationController from './SearchLocationController';
 import MapController from './MapController';
 import SavedFarmsLayer from './SavedFarmsLayer';
 import SnapToggleControl from './SnapToggleControl';
+import MapSettingsControl from './MapSettingsControl';
 import useLocalStorageState from '../../../shared/hooks/useLocalStorageState';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
 
-// ============================================================
-// کلید ذخیره viewport
-// ============================================================
 const VIEWPORT_STORAGE_KEY = 'map_viewport_v1';
 const DEFAULT_CENTER = [35.6892, 51.389];
 const DEFAULT_ZOOM = 13;
 
-// ============================================================
-// ViewportSaver
-// ============================================================
 const ViewportSaver = () => {
   const map = useMap();
-  const [, setSavedViewport] = useLocalStorageState(
-    VIEWPORT_STORAGE_KEY,
-    null
-  );
+  const [, setSavedViewport] = useLocalStorageState(VIEWPORT_STORAGE_KEY, null);
 
   useEffect(() => {
     let timeoutId = null;
-
     const handleMoveEnd = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
@@ -47,9 +37,7 @@ const ViewportSaver = () => {
         });
       }, 300);
     };
-
     map.on('moveend', handleMoveEnd);
-
     return () => {
       map.off('moveend', handleMoveEnd);
       if (timeoutId) clearTimeout(timeoutId);
@@ -59,9 +47,6 @@ const ViewportSaver = () => {
   return null;
 };
 
-// ============================================================
-// MapComponent
-// ============================================================
 const MapComponent = ({
   selectedLocation,
   onPolygonsUpdate,
@@ -81,17 +66,10 @@ const MapComponent = ({
   onToggleSnap,
   snapToggleHidden = false,
 }) => {
-  const [savedViewport] = useLocalStorageState(
-    VIEWPORT_STORAGE_KEY,
-    null
-  );
+  const [savedViewport] = useLocalStorageState(VIEWPORT_STORAGE_KEY, null);
 
   const initialCenter = useMemo(() => {
-    if (
-      savedViewport &&
-      Number.isFinite(savedViewport.lat) &&
-      Number.isFinite(savedViewport.lng)
-    ) {
+    if (savedViewport && Number.isFinite(savedViewport.lat) && Number.isFinite(savedViewport.lng)) {
       return [savedViewport.lat, savedViewport.lng];
     }
     return DEFAULT_CENTER;
@@ -109,9 +87,7 @@ const MapComponent = ({
   const mapStyle = useMemo(() => ({ height: '100%', width: '100%' }), []);
 
   const handlePolygonsUpdate = useCallback(
-    (data) => {
-      onPolygonsUpdate?.(data);
-    },
+    (data) => { onPolygonsUpdate?.(data); },
     [onPolygonsUpdate]
   );
 
@@ -124,12 +100,7 @@ const MapComponent = ({
       attributionControl={true}
       className="leaflet-container"
     >
-      <TileLayer
-        url="https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
-        subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-        maxZoom={22}
-        attribution="&copy; Google Maps"
-      />
+      {/* ⚠️ TileLayer حذف شده — MapSettingsControl مدیریت می‌کند */}
 
       <ScaleControl position="bottomleft" imperial={false} metric={true} />
 
@@ -138,6 +109,8 @@ const MapComponent = ({
         onToggle={onToggleSnap}
         hidden={snapToggleHidden}
       />
+
+      <MapSettingsControl hidden={snapToggleHidden} />
 
       <SearchLocationController selectedLocation={selectedLocation} />
 

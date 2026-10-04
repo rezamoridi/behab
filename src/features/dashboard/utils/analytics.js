@@ -2,94 +2,106 @@
 
 /**
  * محاسبات آماری داشبورد
- * همه توابع pure هستند و از داده‌های API استفاده می‌کنند.
  */
 
 // ============================================================
-// KPI: کل مزارع
+// KPI: کل
 // ============================================================
-export const getTotalFarms = (farms = []) => {
-  return farms.length;
-};
+export const getTotalFarms = (farms = []) => farms.length;
+export const getTotalFarmers = (farmers = []) => farmers.length;
 
-// ============================================================
-// KPI: کل کشاورزان
-// ============================================================
-export const getTotalFarmers = (farmers = []) => {
-  return farmers.length;
-};
+export const getTotalAreaHa = (farms = []) =>
+  farms.reduce((sum, f) => sum + (Number(f.area_ha) || 0), 0);
 
-// ============================================================
-// KPI: مساحت کل (هکتار)
-// ============================================================
-export const getTotalAreaHa = (farms = []) => {
-  return farms.reduce((sum, f) => sum + (Number(f.area_ha) || 0), 0);
-};
-
-// ============================================================
-// KPI: آب مصرفی سالانه (m³)
-// آب = مساحت × نیاز آبی محصول
-// ============================================================
 export const getTotalWaterUsage = (farms = [], crops = []) => {
   const requirementByCrop = {};
   crops.forEach((c) => {
-    if (c?.name) {
-      requirementByCrop[c.name] = Number(c.requirement) || 0;
-    }
+    if (c?.name) requirementByCrop[c.name] = Number(c.requirement) || 0;
   });
-
   return farms.reduce((sum, farm) => {
     const area = Number(farm.area_ha) || 0;
-    const cropName = farm.crop;
-    const requirement = requirementByCrop[cropName] || 0;
+    const requirement = requirementByCrop[farm.crop] || 0;
     return sum + area * requirement;
   }, 0);
 };
 
+export const getActiveCropsCount = (crops = []) =>
+  crops.filter((c) => c.is_active).length;
+
 // ============================================================
-// KPI: تعداد محصولات فعال
+// ✅ Trend helpers (مقایسه با ماه قبل)
 // ============================================================
-export const getActiveCropsCount = (crops = []) => {
-  return crops.filter((c) => c.is_active).length;
+const getMonthKey = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${d.getMonth()}`;
+};
+
+const getCurrentAndPrevMonth = () => {
+  const now = new Date();
+  const currKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevKey = `${prevDate.getFullYear()}-${prevDate.getMonth()}`;
+  return { currKey, prevKey };
+};
+
+/**
+ * محاسبه trend: (thisMonth - lastMonth) / lastMonth * 100
+ */
+export const getFarmTrend = (farms = []) => {
+  const { currKey, prevKey } = getCurrentAndPrevMonth();
+  let curr = 0;
+  let prev = 0;
+
+  farms.forEach((farm) => {
+    if (!farm.created_at) return;
+    const key = getMonthKey(farm.created_at);
+    if (key === currKey) curr++;
+    else if (key === prevKey) prev++;
+  });
+
+  if (prev === 0) return curr > 0 ? 100 : 0;
+  return Number((((curr - prev) / prev) * 100).toFixed(1));
+};
+
+export const getFarmerTrend = (farmers = []) => {
+  const { currKey, prevKey } = getCurrentAndPrevMonth();
+  let curr = 0;
+  let prev = 0;
+
+  farmers.forEach((farmer) => {
+    if (!farmer.created_at) return;
+    const key = getMonthKey(farmer.created_at);
+    if (key === currKey) curr++;
+    else if (key === prevKey) prev++;
+  });
+
+  if (prev === 0) return curr > 0 ? 100 : 0;
+  return Number((((curr - prev) / prev) * 100).toFixed(1));
 };
 
 // ============================================================
-// KPI: مزارع این ماه
+// KPI: ماه جاری
 // ============================================================
 export const getFarmsThisMonth = (farms = []) => {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-
-  return farms.filter((farm) => {
-    if (!farm.created_at) return false;
-    const d = new Date(farm.created_at);
-    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-  }).length;
+  const { currKey } = getCurrentAndPrevMonth();
+  return farms.filter((f) => f.created_at && getMonthKey(f.created_at) === currKey).length;
 };
 
-// ============================================================
-// KPI: کشاورزان فعال (پسورد عوض کرده‌اند)
-// ============================================================
-export const getActiveFarmersCount = (farmers = []) => {
-  return farmers.filter((f) => f.password_changed_at !== null).length;
-};
+export const getActiveFarmersCount = (farmers = []) =>
+  farmers.filter((f) => f.password_changed_at !== null).length;
 
 // ============================================================
-// توزیع محصولات (برای نمودار دایره‌ای)
+// توزیع محصولات
 // ============================================================
 export const getCropDistribution = (farms = []) => {
-  const distribution = {};
+  const dist = {};
   farms.forEach((farm) => {
     const crop = farm.crop || 'نامشخص';
-    distribution[crop] = (distribution[crop] || 0) + 1;
+    dist[crop] = (dist[crop] || 0) + 1;
   });
-  return distribution;
+  return dist;
 };
 
-// ============================================================
-// مساحت به تفکیک محصول
-// ============================================================
 export const getAreaByCrop = (farms = []) => {
   const areaByCrop = {};
   farms.forEach((farm) => {
@@ -99,15 +111,10 @@ export const getAreaByCrop = (farms = []) => {
   return areaByCrop;
 };
 
-// ============================================================
-// آب مصرفی به تفکیک محصول
-// ============================================================
 export const getWaterByCrop = (farms = [], crops = []) => {
   const requirementByCrop = {};
   crops.forEach((c) => {
-    if (c?.name) {
-      requirementByCrop[c.name] = Number(c.requirement) || 0;
-    }
+    if (c?.name) requirementByCrop[c.name] = Number(c.requirement) || 0;
   });
 
   const waterByCrop = {};
@@ -121,7 +128,7 @@ export const getWaterByCrop = (farms = [], crops = []) => {
 };
 
 // ============================================================
-// روند ثبت مزارع (۶ ماه اخیر)
+// روند ثبت ۶ ماه
 // ============================================================
 export const getFarmsTrend = (farms = [], months = 6) => {
   const now = new Date();
@@ -138,50 +145,56 @@ export const getFarmsTrend = (farms = [], months = 6) => {
       return fd.getFullYear() === year && fd.getMonth() === month;
     }).length;
 
-    trend.push({
-      date: d,
-      count,
-    });
+    trend.push({ date: d, count });
   }
 
   return trend;
 };
 
 // ============================================================
-// توزیع استانی
+// ✅ توزیع استانی (Top N)
 // ============================================================
 export const getProvinceDistribution = (farms = []) => {
   const dist = {};
   farms.forEach((farm) => {
     const province = farm.province || 'نامشخص';
-    dist[province] = (dist[province] || 0) + 1;
+    if (!dist[province]) dist[province] = { count: 0, area: 0 };
+    dist[province].count++;
+    dist[province].area += Number(farm.area_ha) || 0;
   });
   return dist;
 };
 
 // ============================================================
-// وضعیت دعوت کشاورزان
+// ✅ Top Crops (بیشترین مساحت)
+// ============================================================
+export const getTopCrops = (farms = [], limit = 5) => {
+  const areaByCrop = getAreaByCrop(farms);
+  return Object.entries(areaByCrop)
+    .map(([name, area]) => ({ name, area }))
+    .sort((a, b) => b.area - a.area)
+    .slice(0, limit);
+};
+
+// ============================================================
+// وضعیت کشاورزان
 // ============================================================
 export const getFarmerStatusBreakdown = (farmers = []) => {
-  let pending = 0; // دعوت شده ولی لاگین نکرده
-  let loggedIn = 0; // لاگین کرده ولی پسورد عوض نکرده
-  let active = 0; // پسورد عوض کرده
+  let pending = 0;
+  let loggedIn = 0;
+  let active = 0;
 
   farmers.forEach((f) => {
-    if (f.password_changed_at) {
-      active++;
-    } else if (f.first_login_at) {
-      loggedIn++;
-    } else {
-      pending++;
-    }
+    if (f.password_changed_at) active++;
+    else if (f.first_login_at) loggedIn++;
+    else pending++;
   });
 
   return { pending, loggedIn, active };
 };
 
 // ============================================================
-// آخرین N مزرعه
+// Recent
 // ============================================================
 export const getRecentFarms = (farms = [], n = 5) => {
   return [...farms]
@@ -190,9 +203,6 @@ export const getRecentFarms = (farms = [], n = 5) => {
     .slice(0, n);
 };
 
-// ============================================================
-// آخرین N کشاورز
-// ============================================================
 export const getRecentFarmers = (farmers = [], n = 5) => {
   return [...farmers]
     .filter((f) => f.created_at)
@@ -201,7 +211,7 @@ export const getRecentFarmers = (farmers = [], n = 5) => {
 };
 
 // ============================================================
-// فرمت اعداد فارسی
+// فرمت
 // ============================================================
 export const formatNumber = (num, digits = 0) => {
   if (num === null || num === undefined) return '۰';

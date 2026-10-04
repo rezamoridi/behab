@@ -1,7 +1,8 @@
 // src/features/settings/hooks/useCropSettings.js
-import { useState, useMemo } from "react";
-import { useAgricultureSettings } from "./useAgricultureSettings";
-import { DEFAULT_FARM_COLOR, normalizeHex } from "../constants/cropColors";
+import { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAgricultureSettings, cropKeys } from './useAgricultureSettings';
+import { DEFAULT_FARM_COLOR, normalizeHex } from '../constants/cropColors';
 
 export const useCropSettings = () => {
   const {
@@ -12,7 +13,9 @@ export const useCropSettings = () => {
     deleteCrop,
   } = useAgricultureSettings();
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const queryClient = useQueryClient();
+
+  const [searchTerm, setSearchTerm] = useState('');
   const [editModalCrop, setEditModalCrop] = useState(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
@@ -31,7 +34,7 @@ export const useCropSettings = () => {
         id: c.id,
         name: c.name,
         isActive: c.is_active,
-        color: normalizeHex(c.color) || DEFAULT_FARM_COLOR, // ✅
+        color: normalizeHex(c.color) || DEFAULT_FARM_COLOR,
         requirement: c.requirement,
         price: c.price,
         fertilizer: c.fertilizer,
@@ -65,36 +68,39 @@ export const useCropSettings = () => {
   // Handlers
   // ============================================
 
-  // ✅ حالا آبجکت { name, color } می‌گیرد
   const handleAddCrop = async (payload) => {
     const data =
-      typeof payload === "string"
-        ? { name: payload }
-        : payload;
+      typeof payload === 'string' ? { name: payload } : payload;
 
     await addCrop({
       name: data.name,
       color: data.color || DEFAULT_FARM_COLOR,
       is_active: true,
     });
+
     setAddModalOpen(false);
+
+    // ✅ اطمینان نهایی: force refresh
+    queryClient.refetchQueries({ queryKey: cropKeys.lists() });
   };
 
   const handleToggleActive = async (crop) => {
     await updateCrop(crop.id, { is_active: !crop.isActive });
+    queryClient.refetchQueries({ queryKey: cropKeys.lists() });
   };
 
   const handleDeleteCrop = async (crop) => {
     if (window.confirm(`حذف محصول «${crop.name}»؟`)) {
       await deleteCrop(crop.id);
+      queryClient.refetchQueries({ queryKey: cropKeys.lists() });
     }
   };
 
   const handleSubmitEdit = async (payload) => {
     if (!editModalCrop) return;
-    // payload = { name, color, requirement, price, fertilizer, pesticide }
     await updateCrop(editModalCrop.id, payload);
     setEditModalCrop(null);
+    queryClient.refetchQueries({ queryKey: cropKeys.lists() });
   };
 
   return {

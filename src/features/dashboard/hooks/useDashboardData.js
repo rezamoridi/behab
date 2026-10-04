@@ -1,13 +1,9 @@
 // src/features/dashboard/hooks/useDashboardData.js
 import { useMemo } from 'react';
 import {
-  useFarmsQuery,
-  useFarmersQuery,
+  useAllFarmsQuery,
+  useAllFarmersQuery,
 } from '../../farm-registration/hooks/useFarmsQuery';
-import {
-  FARM_ANALYTICS_QUERY_PARAMS,
-  FARMER_ANALYTICS_QUERY_PARAMS,
-} from '../../farm-registration/hooks/farmQueryKeys';
 import { useCropsQuery } from '../../settings/hooks/useAgricultureSettings';
 
 import {
@@ -18,48 +14,46 @@ import {
   getActiveCropsCount,
   getFarmsThisMonth,
   getActiveFarmersCount,
+  getFarmTrend,
+  getFarmerTrend,
   getCropDistribution,
   getAreaByCrop,
   getWaterByCrop,
   getFarmsTrend,
   getProvinceDistribution,
+  getTopCrops,
   getFarmerStatusBreakdown,
   getRecentFarms,
   getRecentFarmers,
 } from '../utils/analytics';
 
 export const useDashboardData = () => {
-  const farmsQuery = useFarmsQuery(FARM_ANALYTICS_QUERY_PARAMS);
-  const farmersQuery = useFarmersQuery(FARMER_ANALYTICS_QUERY_PARAMS);
+  const farmsQuery = useAllFarmsQuery();
+  const farmersQuery = useAllFarmersQuery();
   const cropsQuery = useCropsQuery({ activeOnly: false });
 
-  const farms = useMemo(
-    () => farmsQuery.data?.farms || [],
-    [farmsQuery.data],
-  );
+  const farms = useMemo(() => farmsQuery.data?.farms || [], [farmsQuery.data]);
+  const farmers = useMemo(() => farmersQuery.data?.items || [], [farmersQuery.data]);
+  const crops = useMemo(() => cropsQuery.data || [], [cropsQuery.data]);
 
-  const farmers = useMemo(
-    () => farmersQuery.data?.items || [],
-    [farmersQuery.data],
-  );
-
-  const crops = useMemo(
-    () => cropsQuery.data || [],
-    [cropsQuery.data],
-  );
-
-  // ✅ جدید: Map از farmer_id به farmer
   const farmersById = useMemo(() => {
     const map = {};
     farmers.forEach((f) => {
-      if (f?.id != null) {
-        map[String(f.id)] = f;
-      }
+      if (f?.id != null) map[String(f.id)] = f;
     });
     return map;
   }, [farmers]);
 
-  // ── KPI ──
+  // ✅ colorByCrop — رنگ هر محصول از DB
+  const colorByCrop = useMemo(() => {
+    const map = {};
+    crops.forEach((c) => {
+      if (c?.name && c?.color) map[c.name] = c.color;
+    });
+    return map;
+  }, [crops]);
+
+  // ── KPI با trend ──
   const kpis = useMemo(
     () => ({
       totalFarms: getTotalFarms(farms),
@@ -69,6 +63,8 @@ export const useDashboardData = () => {
       activeCrops: getActiveCropsCount(crops),
       farmsThisMonth: getFarmsThisMonth(farms),
       activeFarmers: getActiveFarmersCount(farmers),
+      farmsTrend: getFarmTrend(farms),
+      farmersTrend: getFarmerTrend(farmers),
     }),
     [farms, farmers, crops],
   );
@@ -81,12 +77,13 @@ export const useDashboardData = () => {
       waterByCrop: getWaterByCrop(farms, crops),
       farmsTrend: getFarmsTrend(farms, 6),
       provinceDistribution: getProvinceDistribution(farms),
+      topCrops: getTopCrops(farms, 5),
       farmerStatus: getFarmerStatusBreakdown(farmers),
+      colorByCrop, // ✅ اضافه شد
     }),
-    [farms, farmers, crops],
+    [farms, farmers, crops, colorByCrop],
   );
 
-  // ── Recent ──
   const recent = useMemo(
     () => ({
       farms: getRecentFarms(farms, 5),
@@ -96,25 +93,30 @@ export const useDashboardData = () => {
   );
 
   const isLoading =
-    farmsQuery.isLoading ||
-    farmersQuery.isLoading ||
-    cropsQuery.isLoading;
+    farmsQuery.isLoading || farmersQuery.isLoading || cropsQuery.isLoading;
+
+  const isFetching =
+    farmsQuery.isFetching || farmersQuery.isFetching || cropsQuery.isFetching;
+
+  const hasData =
+    farmsQuery.data !== undefined ||
+    farmersQuery.data !== undefined ||
+    cropsQuery.data !== undefined;
 
   return {
     farms,
     farmers,
     crops,
-    farmersById, // ✅ جدید
-
+    farmersById,
+    colorByCrop, // ✅ اضافه شد
     kpis,
     chartData,
     recent,
-
     isLoading,
+    isFetching,
+    hasData,
     isError:
-      farmsQuery.isError ||
-      farmersQuery.isError ||
-      cropsQuery.isError,
+      farmsQuery.isError || farmersQuery.isError || cropsQuery.isError,
   };
 };
 

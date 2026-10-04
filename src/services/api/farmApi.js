@@ -1,10 +1,6 @@
 // src/services/api/farmApi.js
 import apiClient from './apiClient';
 
-// ============================================================
-// نرمال‌سازی پاسخ‌های API
-// ============================================================
-
 const normalizeListResponse = (response) => {
   const body = response?.data ?? response;
 
@@ -23,14 +19,9 @@ const normalizeListResponse = (response) => {
   return {
     farms,
     total: body.total ?? farms.length,
-    totalPages:
-      body.total_pages ??
-      Math.max(
-        1,
-        Math.ceil((body.total ?? farms.length) / (body.page_size || 20))
-      ),
+    totalPages: body.total_pages ?? body.pages ?? Math.max(1, Math.ceil((body.total ?? farms.length) / (body.page_size ?? body.size ?? 20))),
     page: body.page ?? 1,
-    pageSize: body.page_size ?? 20,
+    pageSize: body.page_size ?? body.size ?? 20,
     raw: body,
   };
 };
@@ -49,19 +40,8 @@ const normalizeFarmResponse = (response) => {
 };
 
 // ============================================================
-// Endpoints — farms.py
-//
-//   POST   /farms/create
-//   GET    /farms/read/{farm_id}
-//   GET    /farms/list
-//   PUT    /farms/update/{farm_id}
-//   DELETE /farms/delete/{farm_id}
-// ============================================================
-
 // POST /api/v1/farms/create
-//
-// ⚠️ نکته: فیلدهای farmer_name / national_id / phone_number حذف شده‌اند.
-// به جای آن‌ها farmer_id (اختیاری) پاس می‌شود.
+// ============================================================
 export const createFarm = async (payload) => {
   try {
     const response = await apiClient.post('/farms/create', payload);
@@ -71,10 +51,7 @@ export const createFarm = async (payload) => {
       ...(farm || {}),
       geojson: farm?.geojson ?? payload.geojson,
       area_ha: Number(farm?.area_ha ?? payload.area_ha) || 0,
-      polygon_count:
-        Number(farm?.polygon_count ?? payload.polygon_count) ||
-        payload.polygon_count ||
-        1,
+      polygon_count: Number(farm?.polygon_count ?? payload.polygon_count) || payload.polygon_count || 1,
       farm_id: farm?.farm_id || payload.farm_id,
       farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
       province: farm?.province ?? payload.province,
@@ -100,20 +77,19 @@ export const createFarm = async (payload) => {
   }
 };
 
-// GET /api/v1/farms/list?page=1&page_size=20&search=
-export const fetchFarms = async ({
-  page = 1,
-  pageSize = 20,
-  search = null,
-} = {}) => {
+// ============================================================
+// GET /api/v1/farms/list
+// ============================================================
+export const fetchFarms = async ({ page = 1, pageSize = 20, search = null } = {}) => {
+  // ✅ API سقف 100 دارد — کلمپ کن
+  const safePageSize = Math.min(Math.max(1, pageSize), 100);
+
   const params = new URLSearchParams({
     page: String(page),
-    page_size: String(pageSize),
+    page_size: String(safePageSize),
   });
 
-  if (search) {
-    params.append('search', search);
-  }
+  if (search) params.append('search', search);
 
   try {
     const response = await apiClient.get(`/farms/list?${params.toString()}`);
@@ -126,6 +102,38 @@ export const fetchFarms = async ({
     });
     throw error;
   }
+};
+
+// ============================================================
+// ✅ fetchAllFarms — pagination خودکار تا سقف مشخص
+// ============================================================
+export const fetchAllFarms = async ({ maxItems = 2000, search = null } = {}) => {
+  const allFarms = [];
+  let page = 1;
+  const pageSize = 100; // API max
+
+  while (allFarms.length < maxItems) {
+    const result = await fetchFarms({ page, pageSize, search });
+    const items = result.farms || [];
+    if (items.length === 0) break;
+
+    allFarms.push(...items);
+
+    // اگر آخرین صفحه بود، تمام
+    if (page >= result.totalPages) break;
+    // اگر تعداد کمتر از pageSize برگشت، تمام
+    if (items.length < pageSize) break;
+
+    page++;
+    // سقف ایمنی
+    if (page > 50) break;
+  }
+
+  return {
+    farms: allFarms,
+    total: allFarms.length,
+    totalPages: Math.ceil(allFarms.length / pageSize),
+  };
 };
 
 // GET /api/v1/farms/read/{farm_id}

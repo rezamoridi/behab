@@ -1,7 +1,12 @@
 // src/features/farm-registration/forms/sections/LocationSection.jsx
-import { useMemo, useEffect, useId } from 'react';
+import { useMemo, useId } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertCircle,
+  Wand2,
+  MapPin,
+} from 'lucide-react';
 import {
   getProvinces,
   getCounties,
@@ -66,7 +71,7 @@ const findMatchingName = (value, options) => {
 };
 
 // ============================================
-// ✅ ComboBox - Input با Datalist
+// ✅ ComboBox — مینیمال با استایل شیشه‌ای
 // ============================================
 const ComboBox = ({
   label,
@@ -77,14 +82,13 @@ const ComboBox = ({
   options = [],
   placeholder = 'تایپ کنید یا انتخاب کنید...',
   required = false,
-  hint,
-  showBadge = false,
 }) => {
   const listId = useId();
+  const hasError = !!errors[name];
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
         {label}
         {required && <span className="text-red-500 mr-1">*</span>}
       </label>
@@ -98,11 +102,19 @@ const ComboBox = ({
           placeholder={placeholder}
           autoComplete="off"
           className={`
-            w-full px-3 py-2 rounded-lg border shadow-sm text-sm
-            focus:border-primary-500 focus:ring-2 focus:ring-primary-200
-            outline-none transition-all
-            ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'}
-            ${errors[name] ? 'border-red-500' : 'border-gray-300'}
+            w-full px-3 py-2.5 rounded-xl text-sm font-medium
+            bg-white/40 backdrop-blur-md
+            ring-1 transition-all
+            outline-none
+            placeholder:text-slate-400 placeholder:text-xs
+            ${
+              disabled
+                ? 'bg-white/20 text-slate-400 cursor-not-allowed ring-white/30'
+                : hasError
+                  ? 'ring-red-400 focus:ring-red-500 focus:bg-white/60'
+                  : 'ring-white/50 hover:ring-white/70 focus:ring-primary-500 focus:bg-white/70 focus:shadow-[0_0_0_3px_rgba(46,125,50,0.1)]'
+            }
+            text-slate-800
           `}
           dir="rtl"
         />
@@ -114,13 +126,9 @@ const ComboBox = ({
         </datalist>
       </div>
 
-      {hint && !errors[name] && (
-        <p className="mt-1 text-[11px] text-gray-500">{hint}</p>
-      )}
-
-      {errors[name] && (
-        <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-          <AlertCircle size={12} />
+      {hasError && (
+        <p className="mt-1 text-[10px] text-red-600 flex items-center gap-1">
+          <AlertCircle size={10} />
           {errors[name].message}
         </p>
       )}
@@ -129,7 +137,7 @@ const ComboBox = ({
 };
 
 // ============================================
-// Component
+// Component اصلی
 // ============================================
 export const LocationSection = ({
   locationData,
@@ -148,6 +156,7 @@ export const LocationSection = ({
   const county = watch('county');
   const bakhsh = watch('bakhsh');
   const dehestan = watch('dehestan');
+  const village = watch('village');
 
   // ============================================
   // Base options از JSON
@@ -199,8 +208,8 @@ export const LocationSection = ({
     [baseDehestans, dehestan]
   );
   const villages = useMemo(
-    () => mergeOptions(baseVillages, watch('village')),
-    [baseVillages, watch('village')]
+    () => mergeOptions(baseVillages, village),
+    [baseVillages, village]
   );
 
   const isFilled = !!(province && county);
@@ -299,81 +308,73 @@ export const LocationSection = ({
     }
   };
 
+  // ============================================
+  // Render
+  // ============================================
   return (
     <div className="space-y-4">
-      {/* دکمه پر کردن از جستجو */}
+      {/* ─── نوار عملیات بالای فرم ─── */}
       <button
         type="button"
         onClick={handleFillFromSearch}
         disabled={!locationData || isSubmitting}
         className={`
-          w-full py-2.5 px-4 text-sm font-medium rounded-lg
-          border-2 transition-all duration-200
+          w-full py-2.5 px-3 text-xs font-semibold rounded-xl
+          transition-all duration-200
           flex items-center justify-center gap-2
           ${
             isFilled
-              ? 'bg-green-50 border-green-500 text-green-700'
+              ? 'bg-green-500/20 text-green-700 ring-1 ring-green-500/30'
               : locationData
-                ? 'bg-blue-50 border-blue-400 text-blue-600 hover:bg-blue-100'
-                : 'bg-gray-50 border-gray-300 text-gray-400'
+                ? 'bg-blue-500/20 text-blue-700 ring-1 ring-blue-500/30 hover:bg-blue-500/30'
+                : 'bg-white/20 text-slate-400 ring-1 ring-white/40'
           }
-          ${
-            !locationData || isSubmitting
-              ? 'opacity-50 cursor-not-allowed'
-              : 'cursor-pointer'
-          }
+          ${!locationData || isSubmitting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
         `}
       >
         {isFilled ? (
           <>
-            <CheckCircle2 size={16} />
-            <span>پر شد</span>
+            <CheckCircle2 size={14} />
+            <span>موقعیت اعمال شد</span>
           </>
         ) : (
           <>
-            <Wand2 size={16} />
+            <Wand2 size={14} />
             <span>
-              {locationData
-                ? 'پر کردن اطلاعات از جستجو'
-                : 'ابتدا یک مکان جستجو کنید'}
+              {locationData ? 'اعمال از جستجو' : 'ابتدا مکان را جستجو کنید'}
             </span>
           </>
         )}
       </button>
 
-      {/* Debug Box */}
+      {/* ─── کارت اطلاعات جستجو ─── */}
       {locationData && (
-        <div className="text-xs bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-1">
-          <div className="font-medium text-blue-700 mb-2">
-            📍 اطلاعات مکان جستجو شده:
+        <div className="rounded-xl bg-white/20 backdrop-blur-md ring-1 ring-white/40 px-3 py-2.5">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <MapPin size={11} className="text-blue-600" strokeWidth={2.4} />
+            <span className="text-[10px] font-bold text-slate-700">
+              از جستجو
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-gray-700">
-            <div>
-              <span className="text-gray-500">استان:</span>{' '}
-              {locationData.province || '—'}
-            </div>
-            <div>
-              <span className="text-gray-500">شهرستان:</span>{' '}
-              {locationData.county || locationData.city || '—'}
-            </div>
-            <div>
-              <span className="text-gray-500">بخش:</span>{' '}
-              {locationData.bakhsh || locationData.district || '—'}
-            </div>
-            <div>
-              <span className="text-gray-500">دهستان:</span>{' '}
-              {locationData.dehestan || locationData.suburb || '—'}
-            </div>
-            <div className="col-span-2">
-              <span className="text-gray-500">روستا/مکان:</span>{' '}
-              {locationData.village || locationData.name || '—'}
-            </div>
+          <div className="text-[11px] text-slate-700 leading-relaxed">
+            {[
+              locationData.province,
+              locationData.county || locationData.city,
+              locationData.bakhsh || locationData.district,
+            ]
+              .filter(Boolean)
+              .join(' • ')}
+            {(locationData.village || locationData.name) && (
+              <div className="text-slate-500 mt-0.5 text-[10px]">
+                {locationData.village || locationData.name}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* استان و شهرستان */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ─── گروه ۱: استان / شهرستان ─── */}
+      <div className="grid grid-cols-2 gap-3">
         <ComboBox
           label="استان"
           name="province"
@@ -384,7 +385,6 @@ export const LocationSection = ({
           placeholder="مثال: لرستان"
           required
         />
-
         <ComboBox
           label="شهرستان"
           name="county"
@@ -397,8 +397,8 @@ export const LocationSection = ({
         />
       </div>
 
-      {/* بخش و دهستان */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ─── گروه ۲: بخش / دهستان ─── */}
+      <div className="grid grid-cols-2 gap-3">
         <ComboBox
           label="بخش"
           name="bakhsh"
@@ -408,7 +408,6 @@ export const LocationSection = ({
           options={bakhshs}
           placeholder="مثال: مرکزی"
         />
-
         <ComboBox
           label="دهستان"
           name="dehestan"
@@ -420,8 +419,8 @@ export const LocationSection = ({
         />
       </div>
 
-      {/* روستا و مساحت */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ─── گروه ۳: روستا / مساحت ─── */}
+      <div className="grid grid-cols-2 gap-3">
         <ComboBox
           label="روستا"
           name="village"
@@ -430,38 +429,43 @@ export const LocationSection = ({
           disabled={isSubmitting}
           options={villages}
           placeholder="مثال: هوکی"
-          hint="می‌توانید نام جدید تایپ کنید"
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            مساحت کل زمین (هکتار)
+          <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+            مساحت کل
+            <span className="text-slate-400 font-normal mr-1">(هکتار)</span>
           </label>
-          <input
-            type="text"
-            value={totalArea > 0 ? totalArea.toFixed(2) : '۰'}
-            readOnly
+          <div
             className={`
-              w-full px-3 py-2 rounded-lg shadow-sm text-sm font-medium
+              w-full px-3 py-2.5 rounded-xl text-sm font-bold text-center
+              ring-1 backdrop-blur-md
               ${
                 totalArea > 0
-                  ? 'bg-green-50 border-green-300 text-green-700'
-                  : 'bg-orange-50 border-orange-300 text-orange-700'
+                  ? 'bg-green-500/15 text-green-700 ring-green-500/30'
+                  : 'bg-amber-500/15 text-amber-700 ring-amber-500/30'
               }
             `}
-          />
-          {polygonCount > 0 ? (
-            <p className="mt-1 text-xs text-green-600">
-              ✓ {polygonCount} قطعه - مساحت کل محاسبه شد
-            </p>
-          ) : (
-            <p className="mt-1 text-xs text-orange-600 flex items-center gap-1">
-              <AlertCircle size={12} />
-              لطفاً حداقل یک محدوده را روی نقشه رسم کنید
-            </p>
-          )}
+            dir="ltr"
+          >
+            {totalArea > 0
+              ? totalArea.toLocaleString('fa-IR', {
+                  maximumFractionDigits: 2,
+                })
+              : '۰'}
+          </div>
         </div>
       </div>
+
+      {/* ─── پیام راهنما ─── */}
+      {polygonCount === 0 && (
+        <div className="flex items-start gap-2 p-2.5 bg-amber-500/15 rounded-xl text-[11px] text-amber-800 leading-relaxed">
+          <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
+          <span>
+            برای محاسبه مساحت، ابتدا محدوده را روی نقشه رسم کنید
+          </span>
+        </div>
+      )}
     </div>
   );
 };

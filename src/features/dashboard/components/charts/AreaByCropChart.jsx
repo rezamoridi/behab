@@ -6,160 +6,196 @@ import {
   YAxis,
   Tooltip,
   Cell,
-  LabelList,
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { Ruler } from 'lucide-react';
-import ChartCard from './ChartCard';
-import { CHART_COLORS, formatFaNumber } from './chartDefaults';
+import {
+  getCropColor,
+  SPECIAL_COLORS,
+  formatFaNumber,
+} from './chartDefaults';
 import {
   commonTooltipProps,
   commonXAxisProps,
   commonYAxisProps,
   commonGridProps,
+  formatCompactFaNumber,
 } from './chartDefaults.recharts';
 
-/**
- * AreaByCropChart — مساحت به تفکیک محصول
- *
- * props:
- *   data: { "گندم": 25.4, "جو": 12.1, ... }  (هکتار)
- */
-const AreaByCropChart = ({ data = {} }) => {
-  // مرتب‌سازی نزولی — React Compiler خودش memoize می‌کند
-  const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
+const MAX_VISIBLE = 15;
+const OTHERS_LABEL = 'سایر';
 
+const shortenName = (name, maxLen = 12) => {
+  if (!name) return '';
+  if (name.length <= maxLen) return name;
+  return name.slice(0, maxLen - 1) + '…';
+};
+
+const AreaByCropChart = ({ data = {}, colorByCrop = {} }) => {
+  const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const totalArea = sorted.reduce((sum, [, area]) => sum + area, 0);
 
-  // ✅ Recharts data: [{ name, value, color }]
-  const chartData = sorted.map(([name, area], i) => ({
-    name,
-    value: Number(Number(area).toFixed(2)),
-    color: CHART_COLORS[i % CHART_COLORS.length],
-  }));
+  let chartData;
+  if (sorted.length > MAX_VISIBLE) {
+    const top = sorted.slice(0, MAX_VISIBLE);
+    const othersSum = sorted
+      .slice(MAX_VISIBLE)
+      .reduce((sum, [, area]) => sum + area, 0);
 
-  // ── حالت خالی ──
+    chartData = top.map(([name, area], i) => ({
+      name: shortenName(name),
+      fullName: name,
+      value: Number(Number(area).toFixed(2)),
+      color: getCropColor(name, colorByCrop, i),
+    }));
+
+    if (othersSum > 0) {
+      chartData.push({
+        name: `${OTHERS_LABEL} (${(sorted.length - MAX_VISIBLE).toLocaleString('fa-IR')})`,
+        fullName: OTHERS_LABEL,
+        value: Number(Number(othersSum).toFixed(2)),
+        color: SPECIAL_COLORS.others,
+      });
+    }
+  } else {
+    chartData = sorted.map(([name, area], i) => ({
+      name: shortenName(name),
+      fullName: name,
+      value: Number(Number(area).toFixed(2)),
+      color: getCropColor(name, colorByCrop, i),
+    }));
+  }
+
   if (chartData.length === 0) {
     return (
-      <ChartCard
-        title="مساحت به تفکیک محصول"
-        subtitle="واحد: هکتار"
-        icon={Ruler}
-        color="amber"
-      >
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
-            <Ruler size={20} />
-          </div>
-          <p className="text-xs text-slate-500">
-            هنوز داده‌ای برای نمایش نیست
-          </p>
-        </div>
-      </ChartCard>
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <p className="text-xs text-slate-500">داده‌ای موجود نیست</p>
+      </div>
     );
   }
 
-  // ✅ محاسبه ارتفاع بر اساس تعداد آیتم‌ها
-  // (تا barها در هم فشرده نشوند)
-  const chartHeight = Math.max(320, chartData.length * 40 + 60);
+  const rowHeight = 32;
+  const minHeight = 200;
+  const chartHeight = Math.max(minHeight, chartData.length * rowHeight + 40);
+  const needsScroll = chartHeight > 260;
 
   return (
-    <ChartCard
-      title="مساحت به تفکیک محصول"
-      subtitle="واحد: هکتار"
-      icon={Ruler}
-      color="amber"
-      action={
-        <div className="text-left">
-          <div className="text-[10px] text-slate-500">کل</div>
-          <div className="text-sm font-bold text-amber-600 tabular-nums">
-            {formatFaNumber(totalArea, 1)}
-            <span className="text-[10px] mr-1 text-amber-500">ha</span>
-          </div>
-        </div>
-      }
-    >
-      <div style={{ width: '100%', height: chartHeight }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 4, right: 60, left: 4, bottom: 4 }}
-          >
-            {/* گرادیانت مشترک برای همه barها */}
-            <defs>
-              {chartData.map((entry, i) => (
-                <linearGradient
-                  key={`gradient-${i}`}
-                  id={`barGradient-${i}`}
-                  x1="1"
-                  y1="0"
-                  x2="0"
-                  y2="0"
-                >
-                  <stop offset="0%" stopColor={entry.color} stopOpacity={1} />
-                  <stop offset="100%" stopColor={entry.color} stopOpacity={0.85} />
-                </linearGradient>
-              ))}
-            </defs>
-
-            <CartesianGrid
-              {...commonGridProps}
-              horizontal={false}
-              vertical={true}
-            />
-
-            <XAxis
-              type="number"
-              {...commonXAxisProps}
-              tickFormatter={(val) => formatFaNumber(val, 0)}
-            />
-
-            <YAxis
-              type="category"
-              dataKey="name"
-              {...commonYAxisProps}
-              width={70}
-              tick={{
-                ...commonYAxisProps.tick,
-                fontWeight: 600,
-                fontSize: 12,
-              }}
-            />
-
-            <Tooltip
-              {...commonTooltipProps}
-              formatter={(value) => [`${formatFaNumber(value, 2)} هکتار`, 'مساحت']}
-            />
-
-            <Bar
-              dataKey="value"
-              radius={[0, 6, 6, 0]}
-              barSize={24}
-            >
-              {chartData.map((entry, i) => (
-                <Cell key={`cell-${i}`} fill={`url(#barGradient-${i})`} />
-              ))}
-
-              <LabelList
-                dataKey="value"
-                position="right"
-                formatter={(val) => `${formatFaNumber(val, 1)} ha`}
-                style={{
-                  fontFamily: 'Vazirmatn, sans-serif',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  fill: '#334155',
-                  direction: 'ltr',
-                }}
-                offset={6}
-              />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+    <div className="h-full flex flex-col">
+      <div className="flex items-baseline justify-between mb-2 flex-shrink-0">
+        <span className="text-[10px] text-slate-500">مجموع</span>
+        <span
+          className="text-sm font-bold text-amber-600 tabular-nums"
+          dir="ltr"
+        >
+          {formatFaNumber(totalArea, 1)}
+          <span className="text-[9px] mr-1 text-amber-500">ha</span>
+        </span>
       </div>
-    </ChartCard>
+
+      <div
+        className={`flex-1 min-h-0 ${
+          needsScroll ? 'overflow-y-auto overflow-x-hidden pr-1 -mr-1' : ''
+        }`}
+      >
+        <div
+          style={{
+            height: needsScroll ? `${chartHeight}px` : '100%',
+            minHeight: '100%',
+            width: '100%',
+          }}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+              barCategoryGap="25%"
+            >
+              <defs>
+                {chartData.map((entry, i) => (
+                  <linearGradient
+                    key={`gradient-${i}`}
+                    id={`areaBarGradient-${i}`}
+                    x1="1"
+                    y1="0"
+                    x2="0"
+                    y2="0"
+                  >
+                    <stop offset="0%" stopColor={entry.color} stopOpacity={1} />
+                    <stop
+                      offset="100%"
+                      stopColor={entry.color}
+                      stopOpacity={0.85}
+                    />
+                  </linearGradient>
+                ))}
+              </defs>
+
+              <CartesianGrid
+                {...commonGridProps}
+                horizontal={false}
+                vertical={true}
+              />
+
+              <XAxis
+                type="number"
+                {...commonXAxisProps}
+                tickFormatter={(val) => formatCompactFaNumber(val)}
+                tickCount={5}
+              />
+
+              <YAxis
+                type="category"
+                dataKey="name"
+                {...commonYAxisProps}
+                width={90}
+                tickMargin={10}
+                tick={{
+                  ...commonYAxisProps.tick,
+                  fontWeight: 600,
+                  fontSize: 11,
+                }}
+                interval={0}
+                orientation="right"
+              />
+
+              <Tooltip
+                {...commonTooltipProps}
+                formatter={(value, name, props) => [
+                  `${formatFaNumber(value, 2)} هکتار`,
+                  props?.payload?.fullName || name,
+                ]}
+              />
+
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
+                {chartData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={`url(#areaBarGradient-${i})`}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {needsScroll && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 mt-1.5 text-[9px] text-slate-400">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          <span>برای دیدن بقیه، اسکرول کنید</span>
+        </div>
+      )}
+    </div>
   );
 };
 
