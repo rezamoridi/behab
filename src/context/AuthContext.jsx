@@ -20,12 +20,14 @@ const getInitialAuthState = () => {
     return {
       isAuthenticated: !!token,
       user: userData || null,
+      role: userData?.role || 'dehyar',
     };
   } catch (error) {
     console.warn('Failed to read auth state:', error);
     return {
       isAuthenticated: false,
       user: null,
+      role: 'dehyar',
     };
   }
 };
@@ -40,6 +42,7 @@ export const AuthProvider = ({ children }) => {
     setAuthState({
       isAuthenticated: true,
       user: userData || null,
+      role: userData?.role || 'dehyar',
     });
   }, []);
 
@@ -48,6 +51,7 @@ export const AuthProvider = ({ children }) => {
     setAuthState({
       isAuthenticated: false,
       user: null,
+      role: 'dehyar',
     });
   }, []);
 
@@ -57,13 +61,25 @@ export const AuthProvider = ({ children }) => {
     return newState.isAuthenticated;
   }, []);
 
+  // ✅ برای بعد از تغییر role از پنل کاربران
+  const refreshRole = useCallback(() => {
+    const userData = getUserData();
+    setAuthState((prev) => ({
+      ...prev,
+      user: userData || prev.user,
+      role: userData?.role || prev.role,
+    }));
+  }, []);
+
   const value = {
     isAuthenticated: authState.isAuthenticated,
     user: authState.user,
+    role: authState.role,
     loading: false,
     login,
     logout,
     checkAuth,
+    refreshRole,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

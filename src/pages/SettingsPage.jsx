@@ -1,7 +1,7 @@
 // src/pages/SettingsPage.jsx
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Settings, X, MessageSquare } from 'lucide-react';
+import { Settings, X } from 'lucide-react';
 
 import SettingsTabs from '../features/settings/components/SettingsTabs';
 import ProfileSettings from '../features/settings/components/ProfileSettings';
@@ -9,20 +9,36 @@ import AgricultureSettings from '../features/settings/components/AgricultureSett
 import CropSettingsManager from '../features/settings/components/CropSettingsManager';
 import UsersManagement from '../features/settings/components/UsersManagement';
 import LayerStyleSettings from '../features/settings/components/LayerStyleSettings';
-import SmsSettings from '../features/settings/components/SmsSettings';  // ✅ جدید
+import SmsSettings from '../features/settings/components/SmsSettings';
+import RegionSettings from '../features/settings/components/RegionSettings';
+import OrphansManagement from '../features/settings/components/OrphansManagement';
+import RestoreManagement from '../features/settings/components/RestoreManagement';
+import ImportData from '../features/settings/components/ImportData';           // ✅ جدید
+import DuplicateMerge from '../features/settings/components/DuplicateMerge';   // ✅ جدید
 
 import { useProfileSettings } from '../features/settings/hooks/useProfileSettings';
 import { useAgricultureSettings } from '../features/settings/hooks/useAgricultureSettings';
 
-// ✅ اضافه شدن 'sms'
-const VALID_TABS = [
-  'profile',
-  'agriculture',
-  'layer-style',
-  'crops',
-  'users',
-  'sms',
+// ═══════════════════════════════════════════════════════════
+// Tabs definition — یک منبع واحد
+// ═══════════════════════════════════════════════════════════
+const SETTINGS_TABS = [
+  { id: 'profile', label: 'پروفایل کاربری' },
+  { id: 'agriculture', label: 'تنظیمات کشاورزی' },
+  { id: 'layer-style', label: 'ظاهر لایه‌ها' },
+  { id: 'crops', label: 'تنظیمات محصولات' },
+  { id: 'regions', label: 'مناطق' },
+  { id: 'users', label: 'مدیریت کاربران' },
+  { id: 'orphans', label: 'داده‌های بدون منطقه' },
+  { id: 'restore', label: 'سبد بازیابی' },
+  { id: 'import', label: 'Import از Excel' },
+  { id: 'duplicates', label: 'کشاورزان تکراری' },
+  { id: 'sms', label: 'تنظیمات پیامک' },
 ];
+
+// ✅ استخراج به‌عنوان آرایه‌ی id
+const VALID_TABS = SETTINGS_TABS.map((t) => t.id);
+
 
 const SettingsPage = ({ onNavigateHome }) => {
   const location = useLocation();
@@ -44,16 +60,6 @@ const SettingsPage = ({ onNavigateHome }) => {
 
     return () => clearTimeout(timer);
   }, [location.state?.activeTab]);
-
-  // ✅ اضافه شدن تب SMS
-  const tabs = [
-    { id: 'profile', label: 'پروفایل کاربری' },
-    { id: 'agriculture', label: 'تنظیمات کشاورزی' },
-    { id: 'layer-style', label: 'ظاهر لایه‌ها' },
-    { id: 'crops', label: 'تنظیمات محصولات' },
-    { id: 'users', label: 'مدیریت کاربران' },
-    { id: 'sms', label: 'تنظیمات پیامک' },  // ✅ جدید
-  ];
 
   const {
     profile,
@@ -95,7 +101,7 @@ const SettingsPage = ({ onNavigateHome }) => {
       <SettingsTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        tabs={tabs}
+        tabs={SETTINGS_TABS}
       />
 
       {/* Content */}
@@ -122,9 +128,19 @@ const SettingsPage = ({ onNavigateHome }) => {
 
           {activeTab === 'crops' && <CropSettingsManager />}
 
+          {activeTab === 'regions' && <RegionSettings />}
+
           {activeTab === 'users' && <UsersManagement />}
 
-          {activeTab === 'sms' && <SmsSettings />}   {/* ✅ جدید */}
+          {activeTab === 'orphans' && <OrphansManagement />}
+
+          {activeTab === 'restore' && <RestoreManagement />}
+
+          {activeTab === 'import' && <ImportData />}
+
+          {activeTab === 'duplicates' && <DuplicateMerge />}
+
+          {activeTab === 'sms' && <SmsSettings />}
         </div>
       </div>
     </div>

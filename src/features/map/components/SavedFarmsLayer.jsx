@@ -13,6 +13,8 @@ import {
   useLayerStyle,
   getDashArray,
 } from "../../settings/hooks/useLayerStyle";
+import { useAuth } from "../../../context/useAuth";
+import { usePermissions } from "../../auth/hooks/usePermissions";
 
 // ============================================================
 // رنگ محصول
@@ -31,7 +33,8 @@ const getFarmColor = (farm, colorByCrop) => {
 };
 
 // ============================================================
-// استایل
+// ✅ استایل یکسان برای همه مزارع
+// (چه خودی چه دیگران)
 // ============================================================
 const getFarmStyle = (farm, isSelected, colorByCrop, layerStyle) => {
   const cropColor = getFarmColor(farm, colorByCrop);
@@ -121,8 +124,11 @@ const SavedFarmsLayer = ({
 }) => {
   const map = useMap();
   const { style: layerStyle } = useLayerStyle();
+  const { user } = useAuth();
+  const { isSuperAdmin, isManager } = usePermissions();
 
   const layerGroupRef = useRef(null);
+  // Map<farm_id, { polygons: L.Polygon[], isOwn: boolean, farm: Farm }>
   const polygonsByFarmRef = useRef(new Map());
   const popupRootsRef = useRef([]);
   const handlersRef = useRef({
@@ -136,9 +142,21 @@ const SavedFarmsLayer = ({
   const boundsFittedRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  // ============================================================
-  // همگام‌سازی handlerها
-  // ============================================================
+  // user / role refs
+  const currentUserIdRef = useRef(user?.id ?? null);
+  const userRoleRef = useRef(user?.role ?? null);
+  const userRegionIdsRef = useRef(user?.region_ids ?? []);
+  const isSuperAdminRef = useRef(isSuperAdmin);
+  const isManagerRef = useRef(isManager);
+
+  useEffect(() => {
+    currentUserIdRef.current = user?.id ?? null;
+    userRoleRef.current = user?.role ?? null;
+    userRegionIdsRef.current = user?.region_ids ?? [];
+    isSuperAdminRef.current = isSuperAdmin;
+    isManagerRef.current = isManager;
+  }, [user, isSuperAdmin, isManager]);
+
   useEffect(() => {
     handlersRef.current = {
       onFarmClick,
@@ -148,22 +166,52 @@ const SavedFarmsLayer = ({
     };
   }, [onFarmClick, onFarmEdit, onFarmEditGeometry, onFarmDelete]);
 
-  // ============================================================
-  // همگام‌سازی layerStyle
-  // ============================================================
   useEffect(() => {
     layerStyleRef.current = layerStyle;
   }, [layerStyle]);
 
-  // ============================================================
-  // همگام‌سازی farmersById
-  // ============================================================
   useEffect(() => {
     farmersByIdRef.current = farmersById;
   }, [farmersById]);
 
   // ============================================================
-  // cleanupAll
+  // تعیین مالکیت
+  // ============================================================
+  const isOwnFarm = useCallback((farm) => {
+    const role = userRoleRef.current;
+    const userId = currentUserIdRef.current;
+    const userRegions = userRegionIdsRef.current;
+
+    if (role === "super_admin") return true;
+
+    if (role === "manager") {
+      return (
+        farm.region_id != null &&
+        userRegions.includes(farm.region_id)
+      );
+    }
+
+    if (role === "dehyar") {
+      if (
+        farm.region_id != null &&
+        userRegions.includes(farm.region_id)
+      ) {
+        return true;
+      }
+      if (
+        farm.region_id == null &&
+        farm.created_by_user_id === userId
+      ) {
+        return true;
+      }
+      return false;
+    }
+
+    return false;
+  }, []);
+
+  // ============================================================
+  // cleanup
   // ============================================================
   const cleanupAll = useCallback(() => {
     try {
@@ -177,8 +225,9 @@ const SavedFarmsLayer = ({
     });
     popupRootsRef.current = [];
 
-    polygonsByFarmRef.current.forEach((polygons) => {
-      polygons.forEach((polygon) => {
+    polygonsByFarmRef.current.forEach((entry) => {
+      const polys = entry?.polygons || [];
+      polys.forEach((polygon) => {
         try {
           polygon.off();
           polygon.unbindTooltip();
@@ -207,14 +256,13 @@ const SavedFarmsLayer = ({
   }, [map]);
 
   // ============================================================
-  // createPopupContent
+  // createPopupContent — فقط برای مزرعه خودی
   // ============================================================
   const createPopupContent = useCallback(
     (farm) => {
       const container = document.createElement("div");
       container.className = "farm-popup-container";
 
-      // ✅ پیدا کردن کشاورز از Map
       const farmer = farm?.farmer_id
         ? farmersByIdRef.current[String(farm.farmer_id)] || null
         : null;
@@ -299,6 +347,9 @@ const SavedFarmsLayer = ({
       const features = getFeatures(farm.geojson);
       if (!features || features.length === 0) return;
 
+      const isOwn = isOwnFarm(farm);
+
+      // ✅ استایل یکسان برای همه
       const styleOptions = getFarmStyle(
         farm,
         false,
@@ -315,25 +366,39 @@ const SavedFarmsLayer = ({
         const polys = geometryToLeafletPolygons(geometry, styleOptions);
 
         for (const polygon of polys) {
-          polygon.on("click", (e) => {
-            L.DomEvent.stopPropagation(e);
-            const { onFarmClick: cb } = handlersRef.current;
-            if (typeof cb === "function") {
-              cb(farm, e);
-            }
-          });
+          if (isOwn) {
+            // ✅ مزرعه خودی: کلیک + popup
+            polygon.on("click", (e) => {
+              L.DomEvent.stopPropagation(e);
+              const { onFarmClick: cb } = handlersRef.current;
+              if (typeof cb === "function") {
+                cb(farm, e);
+              }
+            });
 
-          const popupContent = createPopupContent(farm);
-          polygon.bindPopup(popupContent, {
-            className: "farm-popup",
-            offset: L.point(0, -10),
-            closeButton: false,
-            minWidth: 260,
-            maxWidth: 320,
-            autoPan: true,
-            autoPanPadding: L.point(20, 20),
-            keepInView: true,
-          });
+            const popupContent = createPopupContent(farm);
+            polygon.bindPopup(popupContent, {
+              className: "farm-popup",
+              offset: L.point(0, -10),
+              closeButton: false,
+              minWidth: 260,
+              maxWidth: 320,
+              autoPan: true,
+              autoPanPadding: L.point(20, 20),
+              keepInView: true,
+            });
+          } else {
+            // ✅ مزرعه دیگران: ظاهر یکسان، ولی بدون popup
+            // هیچ اطلاعاتی لو نمی‌رود — فقط شکل دیده می‌شود
+            polygon.on("click", (e) => {
+              L.DomEvent.stopPropagation(e);
+              // ✅ فقط deselect — بدون popup، بدون onFarmClick
+              const { onFarmClick: cb } = handlersRef.current;
+              if (typeof cb === "function") {
+                cb(null);
+              }
+            });
+          }
 
           layerGroup.addLayer(polygon);
           farmPolygons.push(polygon);
@@ -341,17 +406,22 @@ const SavedFarmsLayer = ({
       }
 
       if (farmPolygons.length > 0) {
-        polygonsByFarmRef.current.set(String(farm.farm_id), farmPolygons);
+        polygonsByFarmRef.current.set(String(farm.farm_id), {
+          polygons: farmPolygons,
+          isOwn,
+          farm,
+        });
       }
     });
 
     layerGroup.addTo(map);
 
+    // ✅ fitBounds بر اساس همه مزارع (چون ظاهر یکسان است)
     if (!boundsFittedRef.current && polygonsByFarmRef.current.size > 0) {
       try {
         const bounds = L.latLngBounds();
 
-        polygonsByFarmRef.current.forEach((polygons) => {
+        polygonsByFarmRef.current.forEach(({ polygons }) => {
           polygons.forEach((polygon) => {
             const latLngs = polygon.getLatLngs();
             const processCoords = (coords) => {
@@ -383,14 +453,17 @@ const SavedFarmsLayer = ({
     return () => {
       cleanupAll();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, farms, colorByCrop, cleanupAll, createPopupContent]);
 
   // ============================================================
-  // Style Effect
+  // Style Effect — برای همه مزارع (انتخاب‌شده/غیرانتخاب‌شده)
   // ============================================================
   useEffect(() => {
-    polygonsByFarmRef.current.forEach((polygons, farmId) => {
-      const farm = farms.find((f) => String(f.farm_id) === String(farmId));
+    polygonsByFarmRef.current.forEach((entry, farmId) => {
+      const polys = entry?.polygons || [];
+      const farm = entry?.farm;
+
       if (!farm) return;
 
       const isSelected = String(farmId) === String(selectedFarmId);
@@ -401,7 +474,7 @@ const SavedFarmsLayer = ({
         layerStyle,
       );
 
-      polygons.forEach((polygon) => {
+      polys.forEach((polygon) => {
         try {
           polygon.setStyle(styleOptions);
         } catch {

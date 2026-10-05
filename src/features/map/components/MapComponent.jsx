@@ -2,12 +2,14 @@
 import React, { useMemo, useCallback, useEffect } from 'react';
 import {
   MapContainer,
-  ScaleControl,   // ✅ بدون TileLayer
+  ScaleControl,
   useMap,
 } from 'react-leaflet';
 import SearchLocationController from './SearchLocationController';
 import MapController from './MapController';
 import SavedFarmsLayer from './SavedFarmsLayer';
+import RegionsLayer from './RegionsLayer';
+import RegionEditController from './RegionEditController';   // ✅ جدید
 import SnapToggleControl from './SnapToggleControl';
 import MapSettingsControl from './MapSettingsControl';
 import useLocalStorageState from '../../../shared/hooks/useLocalStorageState';
@@ -65,11 +67,28 @@ const MapComponent = ({
   snapEnabled = false,
   onToggleSnap,
   snapToggleHidden = false,
+
+  // ✅ فاز ۸ — نمایش مناطق
+  showRegions = false,
+  selectedRegionId = null,
+  onRegionClick,
+
+  // ✅ فاز ۹ — ویرایش مرز منطقه
+  editRegionId = null,
+  drawnItemsRef = null,
+  onRegionEditLoaded,
+  onRegionEditError,
+  onDrawnItemsReady,
+  onDrawingApiReady,
 }) => {
   const [savedViewport] = useLocalStorageState(VIEWPORT_STORAGE_KEY, null);
 
   const initialCenter = useMemo(() => {
-    if (savedViewport && Number.isFinite(savedViewport.lat) && Number.isFinite(savedViewport.lng)) {
+    if (
+      savedViewport &&
+      Number.isFinite(savedViewport.lat) &&
+      Number.isFinite(savedViewport.lng)
+    ) {
       return [savedViewport.lat, savedViewport.lng];
     }
     return DEFAULT_CENTER;
@@ -87,8 +106,10 @@ const MapComponent = ({
   const mapStyle = useMemo(() => ({ height: '100%', width: '100%' }), []);
 
   const handlePolygonsUpdate = useCallback(
-    (data) => { onPolygonsUpdate?.(data); },
-    [onPolygonsUpdate]
+    (data) => {
+      onPolygonsUpdate?.(data);
+    },
+    [onPolygonsUpdate],
   );
 
   return (
@@ -100,9 +121,22 @@ const MapComponent = ({
       attributionControl={true}
       className="leaflet-container"
     >
-      {/* ⚠️ TileLayer حذف شده — MapSettingsControl مدیریت می‌کند */}
-
       <ScaleControl position="bottomleft" imperial={false} metric={true} />
+
+      {/* ✅ مناطق — قبل از مزارع تا زیر آن‌ها باشند */}
+      <RegionsLayer
+        visible={showRegions}
+        selectedRegionId={selectedRegionId}
+        onRegionClick={onRegionClick}
+      />
+
+      {/* ✅ فاز ۹: Controller ویرایش مرز منطقه */}
+      <RegionEditController
+        editRegionId={editRegionId}
+        drawnItemsRef={drawnItemsRef}
+        onLoaded={onRegionEditLoaded}
+        onError={onRegionEditError}
+      />
 
       <SnapToggleControl
         enabled={snapEnabled}
@@ -124,6 +158,8 @@ const MapComponent = ({
         geometriesToEdit={geometriesToEdit}
         editGeometryOptions={editGeometryOptions}
         snapEnabled={snapEnabled}
+        onDrawnItemsReady={onDrawnItemsReady}
+        onDrawingApiReady={onDrawingApiReady}
       />
 
       <SavedFarmsLayer

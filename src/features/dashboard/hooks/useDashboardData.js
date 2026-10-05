@@ -5,6 +5,7 @@ import {
   useAllFarmersQuery,
 } from '../../farm-registration/hooks/useFarmsQuery';
 import { useCropsQuery } from '../../settings/hooks/useAgricultureSettings';
+import { usePermissions } from '../../auth/hooks/usePermissions';
 
 import {
   getTotalFarms,
@@ -27,14 +28,48 @@ import {
   getRecentFarmers,
 } from '../utils/analytics';
 
-export const useDashboardData = () => {
-  const farmsQuery = useAllFarmsQuery();
-  const farmersQuery = useAllFarmersQuery();
+export const useDashboardData = ({
+  regionFilter = null,
+} = {}) => {
+  const { isSuperAdmin, isManager, user } = usePermissions();
+
+  // ✅ scope برای Query (فقط برای cache key)
+  // backend خودش بر اساس role فیلتر می‌کند.
+  //
+  // - super_admin: createdBy = null
+  // - manager: createdBy = null (region_ids از backend)
+  // - dehyar: createdBy = user.id
+  const createdByFilter =
+    isSuperAdmin || isManager ? null : user?.id ?? null;
+
+  // ✅ regionFilter فقط برای super_admin معتبر است
+  const effectiveRegionFilter =
+    isSuperAdmin && regionFilter ? regionFilter : null;
+
+  const farmsQuery = useAllFarmsQuery({
+    createdByUserId: createdByFilter,
+    regionFilter: effectiveRegionFilter,
+  });
+
+  const farmersQuery = useAllFarmersQuery({
+    createdByUserId: createdByFilter,
+    regionFilter: effectiveRegionFilter,
+  });
+
   const cropsQuery = useCropsQuery({ activeOnly: false });
 
-  const farms = useMemo(() => farmsQuery.data?.farms || [], [farmsQuery.data]);
-  const farmers = useMemo(() => farmersQuery.data?.items || [], [farmersQuery.data]);
-  const crops = useMemo(() => cropsQuery.data || [], [cropsQuery.data]);
+  const farms = useMemo(
+    () => farmsQuery.data?.farms || [],
+    [farmsQuery.data],
+  );
+  const farmers = useMemo(
+    () => farmersQuery.data?.items || [],
+    [farmersQuery.data],
+  );
+  const crops = useMemo(
+    () => cropsQuery.data || [],
+    [cropsQuery.data],
+  );
 
   const farmersById = useMemo(() => {
     const map = {};
@@ -44,7 +79,6 @@ export const useDashboardData = () => {
     return map;
   }, [farmers]);
 
-  // ✅ colorByCrop — رنگ هر محصول از DB
   const colorByCrop = useMemo(() => {
     const map = {};
     crops.forEach((c) => {
@@ -53,7 +87,7 @@ export const useDashboardData = () => {
     return map;
   }, [crops]);
 
-  // ── KPI با trend ──
+  // ── KPI ──
   const kpis = useMemo(
     () => ({
       totalFarms: getTotalFarms(farms),
@@ -79,7 +113,7 @@ export const useDashboardData = () => {
       provinceDistribution: getProvinceDistribution(farms),
       topCrops: getTopCrops(farms, 5),
       farmerStatus: getFarmerStatusBreakdown(farmers),
-      colorByCrop, // ✅ اضافه شد
+      colorByCrop,
     }),
     [farms, farmers, crops, colorByCrop],
   );
@@ -93,10 +127,14 @@ export const useDashboardData = () => {
   );
 
   const isLoading =
-    farmsQuery.isLoading || farmersQuery.isLoading || cropsQuery.isLoading;
+    farmsQuery.isLoading ||
+    farmersQuery.isLoading ||
+    cropsQuery.isLoading;
 
   const isFetching =
-    farmsQuery.isFetching || farmersQuery.isFetching || cropsQuery.isFetching;
+    farmsQuery.isFetching ||
+    farmersQuery.isFetching ||
+    cropsQuery.isFetching;
 
   const hasData =
     farmsQuery.data !== undefined ||
@@ -108,7 +146,7 @@ export const useDashboardData = () => {
     farmers,
     crops,
     farmersById,
-    colorByCrop, // ✅ اضافه شد
+    colorByCrop,
     kpis,
     chartData,
     recent,
@@ -116,7 +154,11 @@ export const useDashboardData = () => {
     isFetching,
     hasData,
     isError:
-      farmsQuery.isError || farmersQuery.isError || cropsQuery.isError,
+      farmsQuery.isError ||
+      farmersQuery.isError ||
+      cropsQuery.isError,
+    isSuperAdmin,
+    isManager,
   };
 };
 

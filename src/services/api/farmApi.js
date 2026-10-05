@@ -1,6 +1,10 @@
 // src/services/api/farmApi.js
 import apiClient from './apiClient';
 
+// ═══════════════════════════════════════════════════════════
+// Normalizers
+// ═══════════════════════════════════════════════════════════
+
 const normalizeListResponse = (response) => {
   const body = response?.data ?? response;
 
@@ -19,7 +23,16 @@ const normalizeListResponse = (response) => {
   return {
     farms,
     total: body.total ?? farms.length,
-    totalPages: body.total_pages ?? body.pages ?? Math.max(1, Math.ceil((body.total ?? farms.length) / (body.page_size ?? body.size ?? 20))),
+    totalPages:
+      body.total_pages ??
+      body.pages ??
+      Math.max(
+        1,
+        Math.ceil(
+          (body.total ?? farms.length) /
+            (body.page_size ?? body.size ?? 20),
+        ),
+      ),
     page: body.page ?? 1,
     pageSize: body.page_size ?? body.size ?? 20,
     raw: body,
@@ -30,7 +43,11 @@ const normalizeFarmResponse = (response) => {
   const body = response?.data ?? response;
   if (!body || typeof body !== 'object') return null;
 
-  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+  if (
+    body.data &&
+    typeof body.data === 'object' &&
+    !Array.isArray(body.data)
+  ) {
     return body.data;
   }
   if (body.item && typeof body.item === 'object') {
@@ -39,9 +56,9 @@ const normalizeFarmResponse = (response) => {
   return body;
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // POST /api/v1/farms/create
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 export const createFarm = async (payload) => {
   try {
     const response = await apiClient.post('/farms/create', payload);
@@ -51,9 +68,13 @@ export const createFarm = async (payload) => {
       ...(farm || {}),
       geojson: farm?.geojson ?? payload.geojson,
       area_ha: Number(farm?.area_ha ?? payload.area_ha) || 0,
-      polygon_count: Number(farm?.polygon_count ?? payload.polygon_count) || payload.polygon_count || 1,
+      polygon_count:
+        Number(farm?.polygon_count ?? payload.polygon_count) ||
+        payload.polygon_count ||
+        1,
       farm_id: farm?.farm_id || payload.farm_id,
       farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
+      region_id: farm?.region_id ?? payload.region_id ?? null, // ✅
       province: farm?.province ?? payload.province,
       county: farm?.county ?? payload.county,
       bakhsh: farm?.bakhsh ?? payload.bakhsh,
@@ -68,6 +89,7 @@ export const createFarm = async (payload) => {
       coverage_status: farm?.coverage_status ?? payload.coverage_status,
       water_source: farm?.water_source ?? payload.water_source,
       irrigation_system: farm?.irrigation_system ?? payload.irrigation_system,
+      created_by_user_id: farm?.created_by_user_id ?? null, // ✅
     };
   } catch (error) {
     if (error.response?.status === 409) {
@@ -77,11 +99,16 @@ export const createFarm = async (payload) => {
   }
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // GET /api/v1/farms/list
-// ============================================================
-export const fetchFarms = async ({ page = 1, pageSize = 20, search = null } = {}) => {
-  // ✅ API سقف 100 دارد — کلمپ کن
+// ═══════════════════════════════════════════════════════════
+export const fetchFarms = async ({
+  page = 1,
+  pageSize = 20,
+  search = null,
+  createdByUserId = null,
+  regionFilter = null, // ✅ جدید
+} = {}) => {
   const safePageSize = Math.min(Math.max(1, pageSize), 100);
 
   const params = new URLSearchParams({
@@ -91,8 +118,18 @@ export const fetchFarms = async ({ page = 1, pageSize = 20, search = null } = {}
 
   if (search) params.append('search', search);
 
+  if (regionFilter !== null && regionFilter !== undefined) {
+    params.append('region_filter', String(regionFilter)); // ✅
+  }
+
+  // ⚠️ نکته: createdByUserId را به backend نمی‌فرستیم.
+  // backend خودش از روی current_user.role فیلتر می‌کند.
+  // ولی برای cache key از آن استفاده می‌شود.
+
   try {
-    const response = await apiClient.get(`/farms/list?${params.toString()}`);
+    const response = await apiClient.get(
+      `/farms/list?${params.toString()}`,
+    );
     return normalizeListResponse(response);
   } catch (error) {
     console.error('❌ fetchFarms error:', {
@@ -104,16 +141,28 @@ export const fetchFarms = async ({ page = 1, pageSize = 20, search = null } = {}
   }
 };
 
-// ============================================================
-// ✅ fetchAllFarms — pagination خودکار تا سقف مشخص
-// ============================================================
-export const fetchAllFarms = async ({ maxItems = 2000, search = null } = {}) => {
+// ═══════════════════════════════════════════════════════════
+// fetchAllFarms — pagination خودکار
+// ═══════════════════════════════════════════════════════════
+export const fetchAllFarms = async ({
+  maxItems = 2000,
+  search = null,
+  createdByUserId = null,
+  regionFilter = null, // ✅ جدید
+} = {}) => {
   const allFarms = [];
   let page = 1;
   const pageSize = 100; // API max
 
   while (allFarms.length < maxItems) {
-    const result = await fetchFarms({ page, pageSize, search });
+    const result = await fetchFarms({
+      page,
+      pageSize,
+      search,
+      createdByUserId,
+      regionFilter, // ✅
+    });
+
     const items = result.farms || [];
     if (items.length === 0) break;
 
@@ -136,32 +185,44 @@ export const fetchAllFarms = async ({ maxItems = 2000, search = null } = {}) => 
   };
 };
 
+// ═══════════════════════════════════════════════════════════
 // GET /api/v1/farms/read/{farm_id}
+// ═══════════════════════════════════════════════════════════
 export const fetchFarmById = async (farmId) => {
   if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
   const response = await apiClient.get(`/farms/read/${farmId}`);
   return normalizeFarmResponse(response);
 };
 
+// ═══════════════════════════════════════════════════════════
 // PUT /api/v1/farms/update/{farm_id}
+// ═══════════════════════════════════════════════════════════
 export const updateFarm = async (farmId, payload) => {
   if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
 
-  const response = await apiClient.put(`/farms/update/${farmId}`, payload);
+  const response = await apiClient.put(
+    `/farms/update/${farmId}`,
+    payload,
+  );
   const farm = normalizeFarmResponse(response);
 
   return {
     ...(farm || {}),
     geojson: farm?.geojson ?? payload.geojson,
     area_ha: Number(farm?.area_ha ?? payload.area_ha) || 0,
-    polygon_count: Number(farm?.polygon_count ?? payload.polygon_count) || 1,
+    polygon_count:
+      Number(farm?.polygon_count ?? payload.polygon_count) || 1,
     farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
+    region_id: farm?.region_id ?? payload.region_id ?? null, // ✅
     crop_id: farm?.crop_id ?? payload.crop_id ?? null,
     crop_color: farm?.crop_color ?? payload.crop_color ?? null,
+    created_by_user_id: farm?.created_by_user_id ?? null, // ✅
   };
 };
 
+// ═══════════════════════════════════════════════════════════
 // DELETE /api/v1/farms/delete/{farm_id}
+// ═══════════════════════════════════════════════════════════
 export const deleteFarm = async (farmId) => {
   if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
 

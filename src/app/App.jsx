@@ -1,10 +1,16 @@
 // src/app/App.jsx
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from 'react-router-dom';
 
 import ProtectedLayout from './ProtectedLayout';
 import ErrorBoundary from '../shared/components/ErrorBoundary/ErrorBoundary';
 import LoadingSpinner from '../shared/components/LoadingSpinner/LoadingSpinner';
+import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import { AuthProvider } from '../context/AuthContext';
 import { QueryProvider } from '../providers/QueryProvider';
 import { ToastProvider } from '../shared/components/Toast/ToastProvider';
@@ -28,20 +34,59 @@ const App = () => {
               <BrowserRouter>
                 <Suspense fallback={<LoadingSpinner fullScreen />}>
                   <Routes>
+                    {/* ─── عمومی ─── */}
                     <Route path="/login" element={<LoginPage />} />
 
+                    {/* ─── محافظت‌شده ─── */}
                     <Route element={<ProtectedLayout />}>
+                      {/* ✅ همه نقش‌ها */}
                       <Route path="/" element={<DashboardPage />} />
                       <Route path="/map" element={<MapViewPage />} />
-                      <Route path="/farmers" element={<FarmersPage />} />
+
+                      {/* ✅ super_admin + manager + operator */}
                       <Route
-                        path="/conversations"
-                        element={<ConversationsPage />}
-                      />
-                      <Route path="/settings" element={<SettingsPage />} />
+                        element={
+                          <ProtectedRoute
+                            allowedRoles={[
+                              'super_admin',
+                              'manager',
+                              'operator',
+                            ]}
+                            redirectTo="/map"
+                          />
+                        }
+                      >
+                        <Route
+                          path="/farmers"
+                          element={<FarmersPage />}
+                        />
+                      </Route>
+
+                      {/* ✅ فقط super_admin */}
+                      <Route
+                        element={
+                          <ProtectedRoute
+                            allowedRoles={['super_admin']}
+                            redirectTo="/map"
+                          />
+                        }
+                      >
+                        <Route
+                          path="/conversations"
+                          element={<ConversationsPage />}
+                        />
+                        <Route
+                          path="/settings"
+                          element={<SettingsPage />}
+                        />
+                      </Route>
                     </Route>
 
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    {/* ─── fallback ─── */}
+                    <Route
+                      path="*"
+                      element={<Navigate to="/" replace />}
+                    />
                   </Routes>
                 </Suspense>
               </BrowserRouter>

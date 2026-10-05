@@ -13,20 +13,36 @@ import {
   logout as logoutApi,
 } from '../../services/api/authApi';
 import { useAuth } from '../../context/useAuth';
+import { usePermissions } from '../auth/hooks/usePermissions';
 import { useFarmPanel } from '../farm-registration/panel/FarmPanelContext';
 import LocationPicker from '../location/components/LocationPicker';
 
+// ═══════════════════════════════════════════════════════════
+// Role labels
+// ═══════════════════════════════════════════════════════════
 const ROLE_LABELS = {
+  super_admin: 'مدیر ارشد',
+  manager: 'مدیر منطقه',
+  dehyar: 'دهیار',
   admin: 'مدیر سیستم',
-  manager: 'مدیر',
   operator: 'اپراتور',
   user: 'کاربر',
+};
+
+const ROLE_COLORS = {
+  super_admin: 'from-rose-400 to-rose-700',
+  manager: 'from-violet-400 to-violet-700',
+  dehyar: 'from-primary-400 to-primary-700',
+  admin: 'from-rose-400 to-rose-700',
+  operator: 'from-amber-400 to-amber-700',
+  user: 'from-slate-400 to-slate-700',
 };
 
 const TopBar = ({ onLocationSelect, selectedLocation }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout: logoutContext } = useAuth();
+  const { isSuperAdmin, role } = usePermissions();
   const { isOpen: isPanelOpen } = useFarmPanel();
 
   const isMapPage = location.pathname.startsWith('/map');
@@ -91,7 +107,9 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
     if (!name) return 'ع';
     const parts = name.trim().split(' ');
     if (parts.length === 1) return parts[0].charAt(0);
-    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    return (
+      parts[0].charAt(0) + parts[parts.length - 1].charAt(0)
+    ).toUpperCase();
   };
 
   const getFullName = () => {
@@ -107,6 +125,11 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
   const getUserRole = () => {
     if (!userData) return 'کاربر';
     return ROLE_LABELS[userData.role] || userData.role || 'کاربر';
+  };
+
+  const getUserRoleColor = () => {
+    const r = userData?.role || role;
+    return ROLE_COLORS[r] || ROLE_COLORS.user;
   };
 
   const handleLogout = async () => {
@@ -137,10 +160,6 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
         "
       >
         {/* ─── راست: لوگو ─── */}
-        {/* 
-          ✅ نکته: کارت «آب خوان» در داشبورد حذف می‌شود چون در داشبورد هستیم.
-          در `/map` و بقیه صفحات، باقی می‌ماند.
-        */}
         {!isDashboard && (
           <div className="pointer-events-auto shrink-0">
             <button
@@ -165,9 +184,13 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
                   shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_2px_6px_rgba(46,125,50,0.3)]
                 "
               >
-                <span className="text-white text-sm font-bold drop-shadow">آ</span>
+                <span className="text-white text-sm font-bold drop-shadow">
+                  آ
+                </span>
               </div>
-              <span className="text-slate-800 text-sm font-bold">آب خوان</span>
+              <span className="text-slate-800 text-sm font-bold">
+                آب خوان
+              </span>
             </button>
           </div>
         )}
@@ -205,7 +228,7 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
               shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]
               ${
                 isDashboard
-                  ? 'gap-0.5 px-1 py-1' /* داشبورد: فشرده‌تر */
+                  ? 'gap-0.5 px-1 py-1'
                   : 'gap-0.5 md:gap-1 px-1.5 py-1.5'
               }
             `}
@@ -224,7 +247,6 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
               "
             >
               <Bell size={17} strokeWidth={2.2} />
-              {/* نقطه اعلان — فقط برای نمونه */}
               {!isDashboard && (
                 <span
                   className="
@@ -237,8 +259,8 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
               )}
             </button>
 
-            {/* Settings */}
-            {!isDashboard && (
+            {/* ✅ Settings — فقط super_admin */}
+            {isSuperAdmin && !isDashboard && (
               <button
                 type="button"
                 onClick={() => navigate('/settings')}
@@ -276,21 +298,20 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
                 aria-label="منوی کاربر"
               >
                 <div
-                  className="
+                  className={`
                     w-8 h-8 rounded-xl
-                    bg-gradient-to-br from-primary-400 to-primary-700
+                    bg-gradient-to-br ${getUserRoleColor()}
                     flex items-center justify-center
                     shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_2px_6px_rgba(46,125,50,0.25)]
                     shrink-0
-                  "
+                  `}
                 >
                   <span className="text-white text-xs font-bold">
                     {isLoading ? '...' : getInitials(getFullName())}
                   </span>
                 </div>
-                {/* نام کاربر — فقط در /map و صفحات غیرداشبورد */}
                 {!isDashboard && (
-                  <div className="hidden md:flex flex-col items-start pr-0.5 max-w-[120px]">
+                  <div className="hidden md:flex flex-col items-start pr-0.5 max-w-[130px]">
                     <span className="text-slate-800 text-xs font-semibold leading-tight truncate w-full">
                       {isLoading ? '...' : getFullName()}
                     </span>
@@ -324,45 +345,51 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      navigate('/settings', {
-                        state: { activeTab: 'profile' },
-                      });
-                    }}
-                    className="
-                      w-full flex items-center gap-2.5
-                      px-4 py-2.5
-                      text-slate-700 text-xs
-                      hover:bg-slate-100/80 transition-colors
-                      cursor-pointer
-                    "
-                    role="menuitem"
-                  >
-                    <UserIcon size={14} />
-                    پروفایل کاربری
-                  </button>
+                  {/* ✅ پروفایل — برای همه */}
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate('/settings', {
+                          state: { activeTab: 'profile' },
+                        });
+                      }}
+                      className="
+                        w-full flex items-center gap-2.5
+                        px-4 py-2.5
+                        text-slate-700 text-xs
+                        hover:bg-slate-100/80 transition-colors
+                        cursor-pointer
+                      "
+                      role="menuitem"
+                    >
+                      <UserIcon size={14} />
+                      پروفایل کاربری
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      navigate('/settings');
-                    }}
-                    className="
-                      w-full flex items-center gap-2.5
-                      px-4 py-2.5
-                      text-slate-700 text-xs
-                      hover:bg-slate-100/80 transition-colors
-                      cursor-pointer
-                    "
-                    role="menuitem"
-                  >
-                    <SettingsIcon size={14} />
-                    تنظیمات
-                  </button>
+                  {/* ✅ تنظیمات — فقط super_admin */}
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate('/settings');
+                      }}
+                      className="
+                        w-full flex items-center gap-2.5
+                        px-4 py-2.5
+                        text-slate-700 text-xs
+                        hover:bg-slate-100/80 transition-colors
+                        cursor-pointer
+                      "
+                      role="menuitem"
+                    >
+                      <SettingsIcon size={14} />
+                      تنظیمات
+                    </button>
+                  )}
 
                   <div className="h-px bg-slate-200/60" />
 

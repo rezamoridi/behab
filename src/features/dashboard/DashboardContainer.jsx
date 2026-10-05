@@ -28,7 +28,11 @@ import AreaByCropChart from './components/charts/AreaByCropChart';
 import WaterByCropChart from './components/charts/WaterByCropChart';
 import RecentFarmsTable from './components/RecentFarmsTable';
 import RecentFarmersTable from './components/RecentFarmersTable';
+import RegionFilterBar from './components/RegionFilterBar';
+import ManagerRegionsBar from './components/ManagerRegionsBar';  // ✅ جدید
 import { getUserData } from '../../services/api/authApi';
+import { usePermissions } from '../auth/hooks/usePermissions';
+import useSessionState from '../../shared/hooks/useSessionState';
 
 // ============================================================
 // Skeleton
@@ -46,10 +50,7 @@ const FirstLoadSkeleton = () => (
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-64 rounded-2xl bg-white/40 animate-pulse"
-          />
+          <div key={i} className="h-64 rounded-2xl bg-white/40 animate-pulse" />
         ))}
       </div>
     </div>
@@ -65,7 +66,7 @@ const RefreshIndicator = ({ visible }) => (
       bg-white/90 backdrop-blur-md shadow-lg border border-white/70
       text-xs font-medium text-slate-600
       transition-all duration-300
-      ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}
+      ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}
     `}
     dir="rtl"
   >
@@ -80,59 +81,57 @@ const RefreshIndicator = ({ visible }) => (
 const CompactHero = ({ userName, onNavigate }) => {
   const today = useMemo(() => {
     try {
-      return new Date().toLocaleDateString('fa-IR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
+      return new Date().toLocaleDateString("fa-IR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
       });
     } catch {
-      return '';
+      return "";
     }
   }, []);
 
-  // ✅ رفع باگ: منطق درست برای greeting
   const greeting = useMemo(() => {
     const h = new Date().getHours();
-    if (h < 5) return 'شب بخیر';
-    if (h < 12) return 'صبح بخیر';
-    if (h < 17) return 'ظهر بخیر';
-    if (h < 20) return 'عصر بخیر';
-    return 'شب بخیر';
+    if (h < 5) return "شب بخیر";
+    if (h < 12) return "صبح بخیر";
+    if (h < 17) return "ظهر بخیر";
+    if (h < 20) return "عصر بخیر";
+    return "شب بخیر";
   }, []);
 
   const quickAccess = [
     {
-      id: 'farmers',
-      label: 'کشاورزان',
+      id: "farmers",
+      label: "کشاورزان",
       icon: Users,
-      onClick: () => onNavigate('/farmers'),
+      onClick: () => onNavigate("/farmers"),
       color:
-        'text-blue-700 bg-blue-500/15 border-blue-400/30 hover:bg-blue-500/25',
+        "text-blue-700 bg-blue-500/15 border-blue-400/30 hover:bg-blue-500/25",
     },
     {
-      id: 'map',
-      label: 'نقشه',
+      id: "map",
+      label: "نقشه",
       icon: MapIcon,
-      onClick: () => onNavigate('/map'),
+      onClick: () => onNavigate("/map"),
       color:
-        'text-emerald-700 bg-emerald-500/15 border-emerald-400/30 hover:bg-emerald-500/25',
+        "text-emerald-700 bg-emerald-500/15 border-emerald-400/30 hover:bg-emerald-500/25",
     },
     {
-      id: 'crops',
-      label: 'محصولات',
+      id: "crops",
+      label: "محصولات",
       icon: Sprout,
-      onClick: () =>
-        onNavigate('/settings', { state: { activeTab: 'crops' } }),
+      onClick: () => onNavigate("/settings", { state: { activeTab: "crops" } }),
       color:
-        'text-amber-700 bg-amber-500/15 border-amber-400/30 hover:bg-amber-500/25',
+        "text-amber-700 bg-amber-500/15 border-amber-400/30 hover:bg-amber-500/25",
     },
     {
-      id: 'settings',
-      label: 'تنظیمات',
+      id: "settings",
+      label: "تنظیمات",
       icon: Settings2,
-      onClick: () => onNavigate('/settings'),
+      onClick: () => onNavigate("/settings"),
       color:
-        'text-slate-700 bg-slate-500/15 border-slate-400/30 hover:bg-slate-500/25',
+        "text-slate-700 bg-slate-500/15 border-slate-400/30 hover:bg-slate-500/25",
     },
   ];
 
@@ -224,7 +223,7 @@ const Panel = ({
   icon: Icon,
   action,
   children,
-  className = '',
+  className = "",
 }) => (
   <div
     className={`
@@ -265,7 +264,7 @@ const Panel = ({
 );
 
 // ============================================================
-// ✅ Top Crops List — با getCropColor
+// Top Crops List
 // ============================================================
 const TopCropsList = ({ crops = [], colorByCrop = {} }) => {
   const maxArea = Math.max(...crops.map((c) => c.area), 1);
@@ -282,7 +281,6 @@ const TopCropsList = ({ crops = [], colorByCrop = {} }) => {
     <div className="space-y-3">
       {crops.map((crop, i) => {
         const pct = (crop.area / maxArea) * 100;
-        // ✅ استفاده از helper — نامشخص/سایر → توسی
         const color = getCropColor(crop.name, colorByCrop, i);
 
         return (
@@ -325,6 +323,14 @@ const TopCropsList = ({ crops = [], colorByCrop = {} }) => {
 // ============================================================
 const DashboardContainer = () => {
   const navigate = useNavigate();
+  const { isSuperAdmin, isManager } = usePermissions();  // ✅ isManager
+
+  // ✅ Region filter state (sessionStorage)
+  const [regionFilter, setRegionFilter] = useSessionState(
+    'dashboard_region_filter',
+    null,
+  );
+
   const {
     kpis,
     chartData,
@@ -333,24 +339,29 @@ const DashboardContainer = () => {
     isLoading,
     isFetching,
     hasData,
-  } = useDashboardData();
+  } = useDashboardData({
+    regionFilter: regionFilter ?? null,
+  });
 
   const userName = useMemo(() => {
     const user = getUserData();
-    return user?.fname || user?.username || 'کاربر';
+    return user?.fname || user?.username || "کاربر";
   }, []);
 
   if (isLoading && !hasData) {
     return <FirstLoadSkeleton />;
   }
 
-  const goToFarmers = () => navigate('/farmers');
-  const goToMap = () => navigate('/map');
+  const goToFarmers = () => navigate("/farmers");
+  const goToMap = () => navigate("/map");
   const goToSettings = (tab) =>
-    navigate('/settings', tab ? { state: { activeTab: tab } } : undefined);
-  const goToDashboard = () => navigate('/');
+    navigate("/settings", tab ? { state: { activeTab: tab } } : undefined);
+  const goToDashboard = () => navigate("/");
 
   const colorByCrop = chartData.colorByCrop || {};
+
+  // ✅ آیا کاربر دسترسی به کشاورزان دارد؟
+  const canSeeFarmers = isSuperAdmin || isManager;
 
   return (
     <div
@@ -363,6 +374,19 @@ const DashboardContainer = () => {
         {/* 1. Hero */}
         <CompactHero userName={userName} onNavigate={navigate} />
 
+        {/* ✅ Region Filter Bar — فقط super_admin */}
+        {isSuperAdmin && (
+          <RegionFilterBar
+            selectedRegionId={regionFilter}
+            onRegionChange={setRegionFilter}
+            onClear={() => setRegionFilter(null)}
+            isLoading={isLoading}
+          />
+        )}
+
+        {/* ✅ Manager Regions Bar — فقط manager */}
+        {isManager && <ManagerRegionsBar />}
+
         {/* 2. Row 1: KPI Stack + Trend Chart */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 lg:col-span-5 order-2 lg:order-1">
@@ -373,6 +397,7 @@ const DashboardContainer = () => {
               className="h-[340px]"
             >
               <div className="grid grid-cols-2 gap-1.5 h-full content-start">
+                {/* کل مزارع */}
                 <KpiMini
                   icon={Wheat}
                   label="کل مزارع"
@@ -384,17 +409,22 @@ const DashboardContainer = () => {
                   actionLabel="مشاهده روی نقشه"
                   compact
                 />
-                <KpiMini
-                  icon={Users}
-                  label="کل کشاورزان"
-                  value={formatNumber(kpis.totalFarmers)}
-                  unit="نفر"
-                  trend={kpis.farmersTrend}
-                  color="blue"
-                  onClick={goToFarmers}
-                  actionLabel="مشاهده لیست"
-                  compact
-                />
+
+                {/* ✅ کل کشاورزان — super_admin و manager */}
+                {canSeeFarmers && (
+                  <KpiMini
+                    icon={Users}
+                    label="کل کشاورزان"
+                    value={formatNumber(kpis.totalFarmers)}
+                    unit="نفر"
+                    trend={kpis.farmersTrend}
+                    color="blue"
+                    onClick={goToFarmers}
+                    actionLabel="مشاهده لیست"
+                    compact
+                  />
+                )}
+
                 <KpiMini
                   icon={Ruler}
                   label="مساحت کل"
@@ -405,6 +435,7 @@ const DashboardContainer = () => {
                   actionLabel="مشاهده روی نقشه"
                   compact
                 />
+
                 <KpiMini
                   icon={Droplets}
                   label="آب مصرفی سالانه"
@@ -415,6 +446,7 @@ const DashboardContainer = () => {
                   actionLabel="مشاهده در داشبورد"
                   compact
                 />
+
                 <KpiMini
                   icon={TrendingUp}
                   label="مزارع این ماه"
@@ -425,16 +457,20 @@ const DashboardContainer = () => {
                   actionLabel="ثبت مزرعه جدید"
                   compact
                 />
-                <KpiMini
-                  icon={UserCheck}
-                  label="کشاورزان فعال"
-                  value={formatNumber(kpis.activeFarmers)}
-                  unit="نفر"
-                  color="emerald"
-                  onClick={goToFarmers}
-                  actionLabel="مشاهده لیست"
-                  compact
-                />
+
+                {/* ✅ کشاورزان فعال — super_admin و manager */}
+                {canSeeFarmers && (
+                  <KpiMini
+                    icon={UserCheck}
+                    label="کشاورزان فعال"
+                    value={formatNumber(kpis.activeFarmers)}
+                    unit="نفر"
+                    color="emerald"
+                    onClick={goToFarmers}
+                    actionLabel="مشاهده لیست"
+                    compact
+                  />
+                )}
               </div>
             </Panel>
           </div>
@@ -474,18 +510,20 @@ const DashboardContainer = () => {
             icon={Wheat}
             className="h-[320px]"
             action={
-              <button
-                type="button"
-                onClick={() => goToSettings('crops')}
-                className="
-                  flex items-center gap-1 text-[10px] font-bold
-                  text-amber-700 bg-amber-500/10 hover:bg-amber-500/20
-                  px-2 py-1 rounded-lg transition-colors cursor-pointer
-                "
-              >
-                <span>مدیریت</span>
-                <ArrowLeft size={10} />
-              </button>
+              isSuperAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => goToSettings("crops")}
+                  className="
+                    flex items-center gap-1 text-[10px] font-bold
+                    text-amber-700 bg-amber-500/10 hover:bg-amber-500/20
+                    px-2 py-1 rounded-lg transition-colors cursor-pointer
+                  "
+                >
+                  <span>مدیریت</span>
+                  <ArrowLeft size={10} />
+                </button>
+              ) : null
             }
           >
             <CropDistributionChart
@@ -534,15 +572,12 @@ const DashboardContainer = () => {
           </Panel>
 
           <div className="lg:col-span-2">
-            <RecentFarmsTable
-              farms={recent.farms}
-              farmersById={farmersById}
-            />
+            <RecentFarmsTable farms={recent.farms} farmersById={farmersById} />
           </div>
         </div>
 
-        {/* 5. Row 4: Recent Farmers */}
-        <RecentFarmersTable farmers={recent.farmers} />
+        {/* 5. Row 4: Recent Farmers — ✅ super_admin و manager */}
+        {canSeeFarmers && <RecentFarmersTable farmers={recent.farmers} />}
       </div>
     </div>
   );

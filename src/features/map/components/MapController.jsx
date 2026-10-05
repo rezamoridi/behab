@@ -1,17 +1,14 @@
 // src/features/map/components/MapController.jsx
-import React, { useEffect, useMemo, useRef } from 'react';
-import { useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { useMapDrawing } from '../hooks/useMapDrawing';
+import React, { useEffect, useMemo, useRef } from "react";
+import { useMap } from "react-leaflet";
+import L from "leaflet";
+import { useMapDrawing } from "../hooks/useMapDrawing";
 import {
   extractVertices,
   extractPolygons,
   findSnapVertex,
-} from '../utils/snapUtils';
+} from "../utils/snapUtils";
 
-// ============================================================
-// ✅ استخراج زنده‌ی رئوس از drawnItems
-// ============================================================
 const getLiveDrawnVertices = (drawnItems) => {
   const vertices = [];
   if (!drawnItems?.current) return vertices;
@@ -26,7 +23,7 @@ const getLiveDrawnVertices = (drawnItems) => {
         if (!Array.isArray(ring)) return;
         for (const ll of ring) {
           if (!ll) continue;
-          if (typeof ll.lat === 'number' && typeof ll.lng === 'number') {
+          if (typeof ll.lat === "number" && typeof ll.lng === "number") {
             vertices.push([ll.lng, ll.lat]);
           } else {
             processRing(ll);
@@ -36,7 +33,7 @@ const getLiveDrawnVertices = (drawnItems) => {
       processRing(latlngs);
     }
   } catch (err) {
-    console.warn('getLiveDrawnVertices failed:', err);
+    console.warn("getLiveDrawnVertices failed:", err);
   }
 
   return vertices;
@@ -48,12 +45,13 @@ const MapController = ({
   clearTrigger = null,
   editGeometryTrigger = null,
   geometriesToEdit = null,
-  editGeometryOptions = null,   // ✅ جدید
+  editGeometryOptions = null,
   snapEnabled = false,
+  onDrawnItemsReady, // ✅
+  onDrawingApiReady, // ✅
 }) => {
   const map = useMap();
 
-  // ✅ رئوس و polygonهای مزارع ذخیره‌شده
   const snapVertices = useMemo(() => {
     if (!snapEnabled) return [];
     return extractVertices(savedFarms);
@@ -71,6 +69,7 @@ const MapController = ({
     handleEdited,
     clearPolygons,
     loadGeometriesForEdit,
+    getDrawnGeojson,
   } = useMapDrawing(onPolygonsUpdate, snapEnabled, snapVertices, snapPolygons);
 
   const snapEnabledRef = useRef(snapEnabled);
@@ -83,12 +82,12 @@ const MapController = ({
     snapPolygonsRef.current = snapPolygons;
   }, [snapEnabled, snapVertices, snapPolygons]);
 
-  // ✅ Setup Draw controls + snap mousemove
+  // ✅ Setup Draw controls
   useEffect(() => {
     map.addLayer(drawnItems.current);
 
     const drawControl = new L.Control.Draw({
-      position: 'topleft',
+      position: "topleft",
       draw: {
         polyline: false,
         circle: false,
@@ -96,17 +95,17 @@ const MapController = ({
         marker: false,
         rectangle: {
           shapeOptions: {
-            color: '#4CAF50',
+            color: "#4CAF50",
             weight: 3,
-            fillColor: '#4CAF50',
+            fillColor: "#4CAF50",
             fillOpacity: 0.25,
           },
         },
         polygon: {
           shapeOptions: {
-            color: '#4CAF50',
+            color: "#4CAF50",
             weight: 3,
-            fillColor: '#4CAF50',
+            fillColor: "#4CAF50",
             fillOpacity: 0.25,
           },
           allowIntersection: false,
@@ -153,19 +152,19 @@ const MapController = ({
       const snapped = findSnapVertex(
         e.latlng,
         combinedVertices,
-        snapPolygonsRef.current
+        snapPolygonsRef.current,
       );
 
       if (snapped) {
         if (!snapIndicator) {
           snapIndicator = L.circleMarker(snapped, {
             radius: 6,
-            color: '#FF6B35',
-            fillColor: '#FF6B35',
+            color: "#FF6B35",
+            fillColor: "#FF6B35",
             fillOpacity: 0.85,
             weight: 2,
             interactive: false,
-            pane: 'markerPane',
+            pane: "markerPane",
           }).addTo(map);
         } else {
           snapIndicator.setLatLng(snapped);
@@ -176,13 +175,13 @@ const MapController = ({
     };
 
     const handleDrawStart = () => {
-      map.getContainer().style.cursor = 'crosshair';
-      map.on('mousemove', handleSnapMouseMove);
+      map.getContainer().style.cursor = "crosshair";
+      map.on("mousemove", handleSnapMouseMove);
     };
 
     const handleDrawStop = () => {
-      map.getContainer().style.cursor = '';
-      map.off('mousemove', handleSnapMouseMove);
+      map.getContainer().style.cursor = "";
+      map.off("mousemove", handleSnapMouseMove);
       clearSnapIndicator();
     };
 
@@ -199,14 +198,42 @@ const MapController = ({
       map.off(L.Draw.Event.EDITED, handleEdited);
       map.off(L.Draw.Event.DRAWSTART, handleDrawStart);
       map.off(L.Draw.Event.DRAWSTOP, handleDrawStop);
-      map.off('mousemove', handleSnapMouseMove);
+      map.off("mousemove", handleSnapMouseMove);
       clearSnapIndicator();
       map.removeControl(drawControl);
       map.removeLayer(drawnItems.current);
-      map.getContainer().style.cursor = '';
+      map.getContainer().style.cursor = "";
     };
   }, [map, handleCreated, handleDeleted, handleEdited, drawnItems]);
 
+  // در MapController — useEffect انتهایی (پاس دادن API به بیرون)
+
+  // ✅ پاس دادن FeatureGroup به بیرون
+  useEffect(() => {
+    if (typeof onDrawnItemsReady === "function") {
+      onDrawnItemsReady(drawnItems.current); // ✅ .current
+    }
+
+    if (typeof onDrawingApiReady === "function") {
+      onDrawingApiReady({
+        getDrawnGeojson,
+        clearPolygons,
+        loadGeometriesForEdit,
+        getPolygonCount: () => {
+          return drawnItems.current
+            .getLayers()
+            .filter((l) => l instanceof L.Polygon).length;
+        },
+      });
+    }
+  }, [
+    drawnItems,
+    onDrawnItemsReady,
+    onDrawingApiReady,
+    getDrawnGeojson,
+    clearPolygons,
+    loadGeometriesForEdit,
+  ]);
   // Clear trigger
   useEffect(() => {
     if (clearTrigger !== null && clearTrigger !== undefined) {
@@ -217,7 +244,7 @@ const MapController = ({
     }
   }, [clearTrigger, clearPolygons]);
 
-  // Edit geometry trigger — ✅ با options
+  // Edit geometry trigger
   useEffect(() => {
     if (
       editGeometryTrigger !== null &&
@@ -227,7 +254,7 @@ const MapController = ({
       const timeoutId = setTimeout(() => {
         loadGeometriesForEdit(
           geometriesToEdit,
-          editGeometryOptions || undefined
+          editGeometryOptions || undefined,
         );
       }, 50);
       return () => clearTimeout(timeoutId);

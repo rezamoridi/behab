@@ -4,19 +4,21 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import DockButton from './DockButton';
 import { DOCK_ITEMS } from './navigationConfig';
 import { useFarmPanel } from '../farm-registration/panel/FarmPanelContext';
+import { usePermissions } from '../auth/hooks/usePermissions';
 
 const SHORTCUTS = {
   dashboard: 'D',
   map: 'M',
   conversations: 'C',
   'farm-panel': 'F',
+  farmers: 'K',
 };
 
 const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  // ✅ isOpen را خودش از context می‌خواند (فقط این کامپوننت re-render می‌شود)
   const { isOpen: farmPanelOpen } = useFarmPanel();
+  const { role } = usePermissions(); // ✅
 
   const isRouteActive = (path) => {
     if (path === '/') return location.pathname === '/';
@@ -31,8 +33,10 @@ const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {
     }
   };
 
+  // ✅ فیلتر بر اساس نقش + hideFarmPanelAction
   const visibleItems = DOCK_ITEMS.filter((item) => {
     if (hideFarmPanelAction && item.id === 'farm-panel') return false;
+    if (item.roles && !item.roles.includes(role)) return false;
     return true;
   });
 

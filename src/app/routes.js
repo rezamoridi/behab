@@ -17,3 +17,12 @@ export const PROTECTED_ROUTES = [
 ];
 
 export const PUBLIC_ROUTES = [ROUTES.LOGIN];
+
+// ✅ جدید: نقش‌های مجاز برای هر route
+export const ROUTE_ROLES = {
+  [ROUTES.HOME]: ['super_admin', 'dehyar'],
+  [ROUTES.MAP]: ['super_admin', 'dehyar'],
+  [ROUTES.SETTINGS]: ['super_admin'],
+  [ROUTES.FARMERS]: ['super_admin'],
+  [ROUTES.CONVERSATIONS]: ['super_admin'],
+};

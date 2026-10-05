@@ -13,6 +13,7 @@ import {
   Waves,
   Save,
   X,
+  Lock,
 } from 'lucide-react';
 
 import { farmSchema, farmUpdateSchema } from '../schemas/farmSchema';
@@ -34,6 +35,7 @@ import {
 } from '../utils/geometryUtils';
 
 import { useActiveCrops } from '../../settings/hooks/useActiveCrops';
+import { usePermissions } from '../../auth/hooks/usePermissions';   // ✅
 import { useToast } from '../../../shared/components/Toast/ToastProvider';
 
 import { LocationSection } from './sections/LocationSection';
@@ -48,7 +50,6 @@ const SECTION_MAP = {
   water: WaterSection,
 };
 
-// ✅ تب‌ها با رنگ مشخص
 const TAB_META = {
   location: {
     icon: MapPin,
@@ -93,6 +94,7 @@ export const FarmFormContainer = ({
   const [submitSuccess, setSubmitSuccess] = useState(null);
 
   const toast = useToast();
+  const { isOperator } = usePermissions();   // ✅
 
   const { updateFarm, isLoading: isUpdatingFarm } = useFarmMutation();
   const registerMutation = useRegisterWithFarmsMutation();
@@ -100,6 +102,9 @@ export const FarmFormContainer = ({
   const isMutating = isUpdatingFarm || registerMutation.isPending;
 
   const { crops: activeCrops, getRequirement } = useActiveCrops();
+
+  // ✅ اپراتور در حالت ویرایش، قفل است
+  const isLockedForOperator = isEditing && isOperator;
 
   const defaultValues = useMemo(() => {
     if (isEditing && initialData) return apiToForm(initialData);
@@ -166,6 +171,13 @@ export const FarmFormContainer = ({
     async (formData) => {
       setSubmitError(null);
       setSubmitSuccess(null);
+
+      // ✅ چک operator
+      if (isLockedForOperator) {
+        setSubmitError('اپراتور فقط می‌تواند ثبت کند، نه ویرایش');
+        return;
+      }
+
       try {
         const geometry = extractGeometry(geojson);
         if (!geometry) {
@@ -257,6 +269,7 @@ export const FarmFormContainer = ({
       activeCrops,
       initialData,
       toast,
+      isLockedForOperator,
     ],
   );
 
@@ -280,7 +293,21 @@ export const FarmFormContainer = ({
         className="relative flex flex-col h-full"
         dir="rtl"
       >
-        {/* Alerts — شفافیت بیشتر */}
+        {/* ✅ هشدار اپراتور */}
+        {isLockedForOperator && (
+          <div className="flex-shrink-0 mx-4 mt-3 p-2.5 bg-amber-500/25 backdrop-blur-md rounded-xl flex items-start gap-2 text-xs ring-1 ring-amber-500/30">
+            <Lock
+              size={14}
+              className="text-amber-700 flex-shrink-0 mt-0.5"
+            />
+            <span className="text-amber-900 flex-1 leading-relaxed font-medium">
+              شما به‌عنوان اپراتور فقط می‌توانید ثبت کنید.
+              ویرایش این مزرعه مجاز نیست.
+            </span>
+          </div>
+        )}
+
+        {/* Alerts */}
         {submitSuccess && (
           <div className="flex-shrink-0 mx-4 mt-3 p-2.5 bg-green-500/25 backdrop-blur-md rounded-xl flex items-start gap-2 text-xs ring-1 ring-green-500/30">
             <CheckCircle2
@@ -320,7 +347,7 @@ export const FarmFormContainer = ({
 
         {/* Main */}
         <div className="flex-1 flex min-h-0">
-          {/* ─── Sidebar — ~30% مات ─── */}
+          {/* Sidebar */}
           <aside
             className="
               flex-shrink-0 w-[72px]
@@ -329,7 +356,6 @@ export const FarmFormContainer = ({
               border-l border-white/40
             "
             style={{
-              // ✅ از 0.15 به 0.30
               background: 'rgba(255, 255, 255, 0.30)',
             }}
           >
@@ -394,34 +420,30 @@ export const FarmFormContainer = ({
             })}
           </aside>
 
-          {/* ─── Content ─── */}
+          {/* Content */}
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
-            {/* Title بالای فرم */}
             <div className="flex-shrink-0 px-5 pt-4 pb-3">
               <h4 className="text-base font-bold text-slate-800 drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)]">
                 {activeMeta.label}
               </h4>
             </div>
 
-            {/* Form body */}
             <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
               <ActiveSection {...sectionProps} />
             </div>
           </div>
         </div>
 
-        {/* ─── Footer — ~35% مات ─── */}
+        {/* Footer */}
         <div
           className="flex-shrink-0 border-t border-white/40"
           style={{
-            // ✅ از 0.18 به 0.35
             background: 'rgba(255, 255, 255, 0.35)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
           }}
         >
           <div className="px-4 py-2.5 flex items-center justify-between gap-3">
-            {/* Water info */}
             <div className="flex items-center gap-2 min-w-0">
               <Droplet
                 size={14}
@@ -448,7 +470,6 @@ export const FarmFormContainer = ({
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -469,22 +490,38 @@ export const FarmFormContainer = ({
 
               <button
                 type="submit"
-                disabled={!isValid || isMutating}
-                className="
+                disabled={
+                  !isValid ||
+                  isMutating ||
+                  isLockedForOperator
+                }
+                className={`
                   inline-flex items-center gap-1.5
                   px-4 py-2 rounded-xl
-                  bg-gradient-to-br from-primary-500 to-primary-700
-                  hover:from-primary-600 hover:to-primary-800
                   text-white text-sm font-bold
                   transition-all
                   disabled:opacity-50 disabled:cursor-not-allowed
-                  shadow-[0_4px_14px_rgba(46,125,50,0.3)]
-                "
+                  ${
+                    isLockedForOperator
+                      ? 'bg-slate-400 cursor-not-allowed'
+                      : 'bg-gradient-to-br from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 shadow-[0_4px_14px_rgba(46,125,50,0.3)]'
+                  }
+                `}
+                title={
+                  isLockedForOperator
+                    ? 'اپراتور نمی‌تواند ویرایش کند'
+                    : undefined
+                }
               >
                 {isMutating ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
                     <span>در حال ثبت...</span>
+                  </>
+                ) : isLockedForOperator ? (
+                  <>
+                    <Lock size={14} strokeWidth={2.2} />
+                    <span>فقط مشاهده</span>
                   </>
                 ) : (
                   <>

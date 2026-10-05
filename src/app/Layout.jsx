@@ -8,10 +8,12 @@ import {
   FarmPanelProvider,
   useFarmPanel,
 } from '../features/farm-registration/panel/FarmPanelContext';
+import { usePermissions } from '../features/auth/hooks/usePermissions'; // ✅
 import useSessionState from '../shared/hooks/useSessionState';
 
 const InnerLayout = () => {
   const { togglePanel, closePanel } = useFarmPanel();
+  const { isSuperAdmin } = usePermissions(); // ✅
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -56,10 +58,12 @@ const InnerLayout = () => {
       } else if (key === 'm') {
         e.preventDefault();
         navigate('/map');
-      } else if (key === 'c') {
+      } else if (key === 'c' && isSuperAdmin) {
+        // ✅ فقط super_admin
         e.preventDefault();
         navigate('/conversations');
-      } else if (key === 'd') {
+      } else if (key === 'd' && isSuperAdmin) {
+        // ✅ فقط super_admin
         e.preventDefault();
         navigate('/');
       } else if (e.key === 'Escape') {
@@ -69,11 +73,10 @@ const InnerLayout = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePanel, closePanel, navigate, isMapPage]);
+  }, [togglePanel, closePanel, navigate, isMapPage, isSuperAdmin]); // ✅
 
   return (
     <div className="app-layout-new" dir="rtl">
-      {/* ✅ TopBar فقط خارج از /settings */}
       {!isSettingsPage && (
         <TopBar
           selectedLocation={selectedLocation}

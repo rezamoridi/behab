@@ -3,7 +3,8 @@ import {
   LayoutDashboard,
   Map as MapIcon,
   PlusCircle,
-  MessageSquare,   // ✅ جدید
+  MessageSquare,
+  Users,
 } from 'lucide-react';
 
 export const DOCK_ITEMS = [
@@ -13,6 +14,7 @@ export const DOCK_ITEMS = [
     icon: LayoutDashboard,
     path: '/',
     type: 'route',
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],   // ✅
   },
   {
     id: 'map',
@@ -20,13 +22,7 @@ export const DOCK_ITEMS = [
     icon: MapIcon,
     path: '/map',
     type: 'route',
-  },
-  {
-    id: 'conversations',   // ✅ جدید
-    label: 'گفتگو',
-    icon: MessageSquare,
-    path: '/conversations',
-    type: 'route',
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],   // ✅
   },
   {
     id: 'farm-panel',
@@ -34,5 +30,22 @@ export const DOCK_ITEMS = [
     icon: PlusCircle,
     type: 'action',
     actionKey: 'toggleFarmPanel',
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],   // ✅
+  },
+  {
+    id: 'farmers',
+    label: 'کشاورزان',
+    icon: Users,
+    path: '/farmers',
+    type: 'route',
+    roles: ['super_admin', 'manager', 'operator'],   // ✅
+  },
+  {
+    id: 'conversations',
+    label: 'گفتگو',
+    icon: MessageSquare,
+    path: '/conversations',
+    type: 'route',
+    roles: ['super_admin'],
   },
 ];

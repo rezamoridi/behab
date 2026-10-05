@@ -1,8 +1,8 @@
 // src/features/farm-registration/constants/defaultValues.js
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // مقادیر پیش‌فرض فرم
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const DEFAULT_FARM_FORM_VALUES = {
   province: '',
   county: '',
@@ -21,15 +21,12 @@ export const DEFAULT_FARM_FORM_VALUES = {
   irrigationSystems: [],
   studyArea: '',
   coverageStatus: 'تحت پوشش شبکه آب رسانی',
+  regionId: null,   // ✅ جدید
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // تبدیل داده API به فرم
-//
-// ⚠️ نکته: API فیلدهای کشاورز را در Farm برنمی‌گرداند.
-// در حالت ویرایش، این فیلدها خالی می‌مانند و مهم نیستند
-// (چون endpoint ویرایش مزرعه، فیلدهای کشاورز را نادیده می‌گیرد).
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const apiToForm = (apiData) => {
   if (!apiData) return { ...DEFAULT_FARM_FORM_VALUES };
 
@@ -53,7 +50,6 @@ export const apiToForm = (apiData) => {
     bakhsh: apiData.bakhsh || '',
     dehestan: apiData.dehestan || '',
     village: apiData.village || '',
-    // ↓ این‌ها در ویرایش خالی می‌مانند
     firstName: apiData.fname || '',
     lastName: apiData.lname || '',
     nationalId: apiData.national_id || '',
@@ -67,24 +63,26 @@ export const apiToForm = (apiData) => {
     studyArea: apiData.project_name || '',
     coverageStatus:
       apiData.coverage_status || 'تحت پوشش شبکه آب رسانی',
+    regionId: apiData.region_id ?? null,   // ✅
   };
 };
 
-// ============================================================
-// تبدیل فرم به payload کشاورز (برای register-with-farms)
-// ============================================================
+// ═══════════════════════════════════════════════════════════
+// تبدیل فرم به payload کشاورز
+// ═══════════════════════════════════════════════════════════
 export const formToFarmerPayload = (formData) => {
   return {
     national_id: String(formData.nationalId || '').trim(),
     phone_number: String(formData.phone || '').trim(),
     fname: formData.firstName ? String(formData.firstName).trim() : null,
     lname: formData.lastName ? String(formData.lastName).trim() : null,
+    region_id: formData.regionId ?? null,   // ✅
   };
 };
 
-// ============================================================
-// تبدیل فرم به payload مزرعه (برای farms/create)
-// ============================================================
+// ═══════════════════════════════════════════════════════════
+// تبدیل فرم به payload مزرعه
+// ═══════════════════════════════════════════════════════════
 export const formToFarmPayload = ({
   formData,
   areaHa,
@@ -94,32 +92,29 @@ export const formToFarmPayload = ({
   farmerId = null,
 }) => {
   return {
-    // موقعیت
     province: formData.province || null,
     county: formData.county || null,
     bakhsh: formData.bakhsh || null,
     dehestan: formData.dehestan || null,
     village: formData.village || null,
 
-    // کشاورز (اختیاری — فقط برای farms/create)
     farmer_id: farmerId ?? null,
 
-    // زمین
     land_type: formData.landType || null,
     crop: formData.crop || null,
     crop_id: cropId ?? null,
     irrigation_type: formData.irrigationType || null,
 
-    // هندسه
+    // ✅ منطقه
+    region_id: formData.regionId ?? null,
+
     geojson: geometry,
     area_ha: Number(areaHa) || 0,
     polygon_count: polygonCount || 1,
 
-    // شبکه
     project_name: formData.studyArea || null,
     coverage_status: formData.coverageStatus || null,
 
-    // منابع آب
     water_source: formData.waterSources.length
       ? formData.waterSources.join('، ')
       : null,
@@ -129,9 +124,9 @@ export const formToFarmPayload = ({
   };
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // payload کامل برای register-with-farms
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 export const formToRegisterPayload = ({
   formData,
   areaHa,
@@ -147,10 +142,9 @@ export const formToRegisterPayload = ({
     polygonCount,
     geometry,
     cropId,
-    farmerId: null, // ← بک‌اند خودش پر می‌کند
+    farmerId: null,
   });
 
-  // حذف farmer_id از farm (چون بک‌اند override می‌کند)
   delete farm.farmer_id;
 
   return {
@@ -159,9 +153,9 @@ export const formToRegisterPayload = ({
   };
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Backward compatibility
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 export const formToApi = formToFarmPayload;
 
 export default DEFAULT_FARM_FORM_VALUES;

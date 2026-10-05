@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Wand2,
   MapPin,
+  Layers,
 } from 'lucide-react';
 import {
   getProvinces,
@@ -14,6 +15,8 @@ import {
   getDehestans,
   getVillages,
 } from '../../constants/locations';
+import { useRegionsQuery, useMyRegionsQuery } from '../../../regions/hooks/useRegions';
+import { usePermissions } from '../../../auth/hooks/usePermissions';
 
 // ============================================
 // Helper: نرمال‌سازی نام
@@ -37,12 +40,8 @@ const normalizeName = (name) => {
     .trim();
 };
 
-// ============================================
-// Helper: پیدا کردن گزینه match در لیست
-// ============================================
 const findMatchingName = (value, options) => {
   if (!value || !options || options.length === 0) return null;
-
   const normalizedValue = normalizeName(value);
   if (!normalizedValue) return null;
 
@@ -71,7 +70,7 @@ const findMatchingName = (value, options) => {
 };
 
 // ============================================
-// ✅ ComboBox — مینیمال با استایل شیشه‌ای
+// ComboBox
 // ============================================
 const ComboBox = ({
   label,
@@ -137,6 +136,58 @@ const ComboBox = ({
 };
 
 // ============================================
+// Region Selector (فقط برای super_admin)
+// ============================================
+const RegionSelector = ({ register, watch, isSubmitting }) => {
+  const { isSuperAdmin } = usePermissions();
+  const { data: allRegions = [] } = useRegionsQuery({});
+
+  // فقط super_admin می‌بیند
+  if (!isSuperAdmin) return null;
+
+  const activeRegions = allRegions.filter((r) => r.is_active);
+
+  if (activeRegions.length === 0) {
+    return (
+      <div className="rounded-xl bg-amber-500/15 ring-1 ring-amber-500/30 px-3 py-2.5 text-[11px] text-amber-800">
+        هیچ منطقه فعالی تعریف نشده. برای اختصاص منطقه، ابتدا در تنظیمات منطقه بسازید.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+        <Layers size={11} className="inline ml-1" />
+        منطقه
+      </label>
+      <select
+        {...register('regionId')}
+        disabled={isSubmitting}
+        className="
+          w-full px-3 py-2.5 rounded-xl text-sm font-medium
+          bg-white/40 backdrop-blur-md
+          ring-1 ring-white/50
+          focus:ring-primary-500 focus:bg-white/70
+          outline-none transition-all
+          text-slate-800 cursor-pointer
+        "
+      >
+        <option value="">— بدون منطقه (فقط خودم) —</option>
+        {activeRegions.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-[10px] text-slate-500">
+        اگر منطقه انتخاب کنید، همه‌ی دهیاران آن منطقه می‌توانند این مزرعه را ویرایش کنند.
+      </p>
+    </div>
+  );
+};
+
+// ============================================
 // Component اصلی
 // ============================================
 export const LocationSection = ({
@@ -158,9 +209,6 @@ export const LocationSection = ({
   const dehestan = watch('dehestan');
   const village = watch('village');
 
-  // ============================================
-  // Base options از JSON
-  // ============================================
   const baseProvinces = useMemo(() => getProvinces(), []);
   const baseCounties = useMemo(() => getCounties(province), [province]);
   const baseBakhshs = useMemo(
@@ -176,9 +224,6 @@ export const LocationSection = ({
     [province, county, bakhsh, dehestan]
   );
 
-  // ============================================
-  // Merge: اگر مقدار فعلی در لیست نیست، آن را اضافه کن
-  // ============================================
   const mergeOptions = (options, currentValue) => {
     if (!currentValue) return options;
     const exists = options.some(
@@ -214,9 +259,6 @@ export const LocationSection = ({
 
   const isFilled = !!(province && county);
 
-  // ============================================
-  // پر کردن از جستجو
-  // ============================================
   const handleFillFromSearch = () => {
     if (!locationData) {
       alert('لطفاً ابتدا یک مکان را جستجو کنید.');
@@ -308,12 +350,9 @@ export const LocationSection = ({
     }
   };
 
-  // ============================================
-  // Render
-  // ============================================
   return (
     <div className="space-y-4">
-      {/* ─── نوار عملیات بالای فرم ─── */}
+      {/* نوار عملیات */}
       <button
         type="button"
         onClick={handleFillFromSearch}
@@ -347,7 +386,7 @@ export const LocationSection = ({
         )}
       </button>
 
-      {/* ─── کارت اطلاعات جستجو ─── */}
+      {/* کارت اطلاعات جستجو */}
       {locationData && (
         <div className="rounded-xl bg-white/20 backdrop-blur-md ring-1 ring-white/40 px-3 py-2.5">
           <div className="flex items-center gap-1.5 mb-1.5">
@@ -373,7 +412,7 @@ export const LocationSection = ({
         </div>
       )}
 
-      {/* ─── گروه ۱: استان / شهرستان ─── */}
+      {/* گروه ۱: استان / شهرستان */}
       <div className="grid grid-cols-2 gap-3">
         <ComboBox
           label="استان"
@@ -397,7 +436,7 @@ export const LocationSection = ({
         />
       </div>
 
-      {/* ─── گروه ۲: بخش / دهستان ─── */}
+      {/* گروه ۲: بخش / دهستان */}
       <div className="grid grid-cols-2 gap-3">
         <ComboBox
           label="بخش"
@@ -419,7 +458,7 @@ export const LocationSection = ({
         />
       </div>
 
-      {/* ─── گروه ۳: روستا / مساحت ─── */}
+      {/* گروه ۳: روستا / مساحت */}
       <div className="grid grid-cols-2 gap-3">
         <ComboBox
           label="روستا"
@@ -457,7 +496,14 @@ export const LocationSection = ({
         </div>
       </div>
 
-      {/* ─── پیام راهنما ─── */}
+      {/* ✅ Region Selector — فقط super_admin */}
+      <RegionSelector
+        register={register}
+        watch={watch}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* پیام راهنما */}
       {polygonCount === 0 && (
         <div className="flex items-start gap-2 p-2.5 bg-amber-500/15 rounded-xl text-[11px] text-amber-800 leading-relaxed">
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />

@@ -38,6 +38,46 @@ export const hasUserData = () => {
 };
 
 // ============================================
+// ✅ Permissions
+// ============================================
+export const fetchMyPermissions = async () => {
+  try {
+    const response = await apiClient.get('/users/me/permissions');
+    return response.data;
+  } catch (error) {
+    console.error('خطا در fetchMyPermissions:', error);
+    return null;
+  }
+};
+
+/**
+ * ✅ گرفتن region_ids و اضافه کردن به userData
+ * @param {object} userData - شیء کاربر (از /me)
+ * @returns {object} userData با region_ids
+ */
+const enrichUserWithPermissions = async (userData) => {
+  if (!userData) return userData;
+
+  try {
+    const perms = await fetchMyPermissions();
+    if (perms) {
+      return {
+        ...userData,
+        region_ids: perms.region_ids || [],
+      };
+    }
+  } catch (err) {
+    console.warn('Could not enrich user with permissions:', err);
+  }
+
+  // fallback
+  return {
+    ...userData,
+    region_ids: userData.region_ids || [],
+  };
+};
+
+// ============================================
 // Current user
 // ============================================
 export const getCurrentUser = async () => {
@@ -49,7 +89,11 @@ export const getCurrentUser = async () => {
     }
 
     const response = await apiClient.get('/me');
-    const userData = response.data;
+    let userData = response.data;
+
+    // ✅ اضافه کردن region_ids
+    userData = await enrichUserWithPermissions(userData);
+
     setUserData(userData);
     return userData;
   } catch (error) {
@@ -66,7 +110,10 @@ export const validateToken = async () => {
     await apiClient.get('/me');
     return true;
   } catch (error) {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (
+      error.response?.status === 401 ||
+      error.response?.status === 403
+    ) {
       return false;
     }
     return true;
@@ -74,6 +121,20 @@ export const validateToken = async () => {
 };
 
 export const getCachedUser = () => getUserData();
+
+/**
+ * ✅ بازخوانی کامل کاربر + permissions
+ * (برای استفاده بعد از تغییر نقش/مناطق از پنل تنظیمات)
+ */
+export const refreshUserWithPermissions = async () => {
+  try {
+    const userData = await getCurrentUser();
+    return userData;
+  } catch (error) {
+    console.error('خطا در refreshUserWithPermissions:', error);
+    return null;
+  }
+};
 
 // ============================================
 // Login — Phase 1
@@ -109,7 +170,15 @@ export const loginWithCredentials = async (username, password) => {
       setAuthToken(data.access_token);
     }
 
-    const userData = data.user || (await getCurrentUser());
+    let userData = data.user || (await getCurrentUser());
+
+    // ✅ اگر region_ids نداریم، از permissions بگیر
+    if (userData && !userData.region_ids) {
+      userData = await enrichUserWithPermissions(userData);
+    }
+
+    if (userData) setUserData(userData);
+
     return {
       success: true,
       user: userData,
@@ -122,7 +191,7 @@ export const loginWithCredentials = async (username, password) => {
 };
 
 // ============================================
-// ✅ Login — Phase 2: Verify OTP
+// Login — Phase 2: Verify OTP
 // ============================================
 export const verifyOtp = async (tempToken, code) => {
   try {
@@ -137,7 +206,14 @@ export const verifyOtp = async (tempToken, code) => {
       setAuthToken(data.access_token);
     }
 
-    const userData = data.user || (await getCurrentUser());
+    let userData = data.user || (await getCurrentUser());
+
+    // ✅ اگر region_ids نداریم، از permissions بگیر
+    if (userData && !userData.region_ids) {
+      userData = await enrichUserWithPermissions(userData);
+    }
+
+    if (userData) setUserData(userData);
 
     return {
       success: true,
@@ -150,7 +226,7 @@ export const verifyOtp = async (tempToken, code) => {
 };
 
 // ============================================
-// ✅ Login — Resend OTP
+// Login — Resend OTP
 // ============================================
 export const resendOtp = async (tempToken) => {
   try {
@@ -165,7 +241,7 @@ export const resendOtp = async (tempToken) => {
 };
 
 // ============================================
-// ✅ Forgot Password — Request
+// Forgot Password — Request
 // ============================================
 export const requestPasswordReset = async (username) => {
   try {
@@ -180,7 +256,7 @@ export const requestPasswordReset = async (username) => {
 };
 
 // ============================================
-// ✅ Forgot Password — Verify
+// Forgot Password — Verify
 // ============================================
 export const verifyPasswordResetOtp = async (username, code) => {
   try {
@@ -188,7 +264,7 @@ export const verifyPasswordResetOtp = async (username, code) => {
       username,
       code: String(code),
     });
-    return response.data; // { reset_token, message }
+    return response.data;
   } catch (error) {
     console.error('خطا در verifyPasswordResetOtp:', error);
     throw error;
@@ -196,7 +272,7 @@ export const verifyPasswordResetOtp = async (username, code) => {
 };
 
 // ============================================
-// ✅ Forgot Password — Confirm
+// Forgot Password — Confirm
 // ============================================
 export const confirmPasswordReset = async (resetToken, newPassword) => {
   try {

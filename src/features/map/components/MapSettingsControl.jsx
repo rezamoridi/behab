@@ -4,6 +4,7 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { createRoot } from 'react-dom/client';
 import useLocalStorageState from '../../../shared/hooks/useLocalStorageState';
+import { usePermissions } from '../../auth/hooks/usePermissions';   // ✅ جدید
 
 // ============================================================
 // ✅ آیکون‌های SVG
@@ -18,10 +19,12 @@ const SVG_ICONS = {
   school: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 4 2 10l10 6 10-6z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>`,
   bank: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/></svg>`,
   mosque: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-2 2-4 4-4 7a4 4 0 0 0 8 0c0-3-2-5-4-7z"/><path d="M4 21V14a8 8 0 0 1 16 0v7"/><path d="M9 21v-4a3 3 0 0 1 6 0v4"/></svg>`,
+  // ✅ جدید
+  regions: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`,
 };
 
 // ============================================================
-// ✅ آیکون‌های نقشه پایه — رنگ با currentColor
+// ✅ آیکون‌های نقشه پایه
 // ============================================================
 const BASE_ICONS = {
   satellite: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>`,
@@ -213,6 +216,7 @@ const SvgIcon = ({ svg, size = 16, className = '' }) => (
 // ============================================================
 const MapSettingsControl = ({ hidden = false }) => {
   const map = useMap();
+  const { isSuperAdmin } = usePermissions();   // ✅
   const controlRef = useRef(null);
   const containerRef = useRef(null);
   const rootRef = useRef(null);
@@ -226,6 +230,12 @@ const MapSettingsControl = ({ hidden = false }) => {
   const [showLabels, setShowLabels] = useLocalStorageState('map_show_labels_v1', true);
   const [labelLang, setLabelLang] = useLocalStorageState('map_label_lang_v1', 'fa');
   const [activeLayers, setActiveLayers] = useLocalStorageState('map_active_poi_layers_v1', []);
+
+  // ✅ جدید: نمایش مرز مناطق
+  const [showRegions, setShowRegions] = useLocalStorageState(
+    'map_show_regions_v1',
+    false,
+  );
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('base');
@@ -469,7 +479,7 @@ const MapSettingsControl = ({ hidden = false }) => {
         >
           <SvgIcon svg={layersTabSvg} size={18} />
 
-          {hasActiveLayers && (
+          {(hasActiveLayers || showRegions) && (
             <span className="absolute top-[3px] right-[3px] w-1.5 h-1.5 rounded-full bg-blue-500 ring-1 ring-white" aria-hidden="true" />
           )}
 
@@ -478,7 +488,7 @@ const MapSettingsControl = ({ hidden = false }) => {
           )}
         </button>
 
-        {/* پنل — پس‌زمینه کاملاً مات + کنتراست بالا */}
+        {/* پنل */}
         {isOpen && (
           <div
             className="
@@ -510,9 +520,9 @@ const MapSettingsControl = ({ hidden = false }) => {
                   className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-colors relative ${activeTab === 'poi' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-200'}`}
                 >
                   لایه‌ها
-                  {hasActiveLayers && (
+                  {(hasActiveLayers || showRegions) && (
                     <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center font-bold ring-2 ring-white">
-                      {activeLayers.length}
+                      {activeLayers.length + (showRegions ? 1 : 0)}
                     </span>
                   )}
                 </button>
@@ -560,7 +570,6 @@ const MapSettingsControl = ({ hidden = false }) => {
                             : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                         }`}
                       >
-                        {/* آیکون با رنگ تیره در حالت غیرفعال */}
                         <span
                           className={isActive ? 'text-emerald-700' : 'text-gray-700'}
                           style={{ width: 18, height: 18, display: 'inline-block', flexShrink: 0 }}
@@ -623,7 +632,82 @@ const MapSettingsControl = ({ hidden = false }) => {
                     </div>
                   )}
 
+                  {/* ✅ بخش مناطق — فقط super_admin */}
+                  {isSuperAdmin && (
+                    <div className="border-b border-gray-200 bg-purple-50/30">
+                      <div className="text-[10px] font-bold text-purple-700 uppercase px-3 pt-2 pb-1">
+                        مناطق
+                      </div>
+
+                      <div className="p-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowRegions((v) => !v)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-right transition-colors border ${
+                            showRegions
+                              ? 'bg-purple-50 border-purple-300'
+                              : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                          }`}
+                        >
+                          {/* checkbox */}
+                          <span
+                            className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                              showRegions
+                                ? 'bg-purple-600 border-purple-600'
+                                : 'bg-white border-gray-400'
+                            }`}
+                          >
+                            {showRegions && (
+                              <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="3.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
+
+                          {/* آیکون */}
+                          <span
+                            className="flex-shrink-0"
+                            style={{
+                              color: '#7C3AED',
+                              width: 18,
+                              height: 18,
+                              display: 'inline-block',
+                            }}
+                            dangerouslySetInnerHTML={{
+                              __html: (SVG_ICONS.regions('#7C3AED') || '').replace(
+                                /stroke-width/g,
+                                'strokeWidth',
+                              ),
+                            }}
+                          />
+
+                          <span
+                            className={`text-[13px] font-semibold flex-1 ${
+                              showRegions ? 'text-purple-900' : 'text-gray-800'
+                            }`}
+                          >
+                            مرز مناطق
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* POI Layers */}
                   <div className="p-1.5 space-y-0.5">
+                    <div className="text-[10px] font-bold text-gray-500 uppercase px-1.5 pt-1.5 pb-1">
+                      اماکن و خدمات
+                    </div>
+
                     {POI_LAYERS.map((layer) => {
                       const isActive = activeLayers.includes(layer.id);
                       return (
@@ -647,7 +731,6 @@ const MapSettingsControl = ({ hidden = false }) => {
                             )}
                           </span>
 
-                          {/* آیکون SVG با رنگ layer — همیشه رنگی */}
                           <span
                             className="flex-shrink-0"
                             style={{ color: layer.color, width: 18, height: 18, display: 'inline-block' }}
@@ -735,10 +818,13 @@ const MapSettingsControl = ({ hidden = false }) => {
     error,
     poiCount,
     hidden,
+    isSuperAdmin,      // ✅ جدید
+    showRegions,       // ✅ جدید
     setBaseMapId,
     setBaseOpacity,
     setShowLabels,
     setLabelLang,
+    setShowRegions,    // ✅ جدید
   ]);
 
   return null;

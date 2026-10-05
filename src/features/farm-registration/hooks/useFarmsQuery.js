@@ -15,18 +15,33 @@ import {
 
 export { farmKeys, farmerKeys } from './farmQueryKeys';
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Farms — list (paginated)
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 export const useFarmsQuery = ({
   page = 1,
   pageSize = 20,
   search = null,
+  createdByUserId = null,
+  regionFilter = null,   // ✅ جدید
   enabled = true,
 } = {}) => {
   return useQuery({
-    queryKey: farmKeys.list({ page, pageSize, search }),
-    queryFn: () => fetchFarms({ page, pageSize, search }),
+    queryKey: farmKeys.list({
+      page,
+      pageSize,
+      search,
+      createdByUserId,
+      regionFilter,
+    }),
+    queryFn: () =>
+      fetchFarms({
+        page,
+        pageSize,
+        search,
+        createdByUserId,
+        regionFilter,
+      }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
     gcTime: QUERY_GC_TIME.default,
@@ -34,13 +49,25 @@ export const useFarmsQuery = ({
   });
 };
 
-// ============================================================
-// ✅ Farms — ALL (auto-paginated برای analytics)
-// ============================================================
-export const useAllFarmsQuery = ({ enabled = true } = {}) => {
+// ═══════════════════════════════════════════════════════════
+// Farms — ALL (auto-paginated برای analytics)
+// ═══════════════════════════════════════════════════════════
+export const useAllFarmsQuery = ({
+  createdByUserId = null,
+  regionFilter = null,   // ✅ جدید
+  enabled = true,
+} = {}) => {
   return useQuery({
-    queryKey: farmKeys.allFarms(),
-    queryFn: () => fetchAllFarms({ maxItems: 2000 }),
+    queryKey: [
+      ...farmKeys.allFarms(),
+      { createdByUserId, regionFilter },
+    ],
+    queryFn: () =>
+      fetchAllFarms({
+        maxItems: 2000,
+        createdByUserId,
+        regionFilter,
+      }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
     gcTime: QUERY_GC_TIME.default,
@@ -57,18 +84,33 @@ export const useFarmQuery = (farmId, { enabled = true } = {}) => {
   });
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Farmers — list
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 export const useFarmersQuery = ({
   page = 1,
   pageSize = 100,
   search = null,
+  createdByUserId = null,
+  regionFilter = null,   // ✅ جدید
   enabled = true,
 } = {}) => {
   return useQuery({
-    queryKey: farmerKeys.list({ page, pageSize, search }),
-    queryFn: () => farmerApi.list({ page, pageSize, search }),
+    queryKey: farmerKeys.list({
+      page,
+      pageSize,
+      search,
+      createdByUserId,
+      regionFilter,
+    }),
+    queryFn: () =>
+      farmerApi.list({
+        page,
+        pageSize,
+        search,
+        createdByUserId,
+        regionFilter,
+      }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
     gcTime: QUERY_GC_TIME.default,
@@ -76,13 +118,25 @@ export const useFarmersQuery = ({
   });
 };
 
-// ============================================================
-// ✅ Farmers — ALL (auto-paginated)
-// ============================================================
-export const useAllFarmersQuery = ({ enabled = true } = {}) => {
+// ═══════════════════════════════════════════════════════════
+// Farmers — ALL (auto-paginated)
+// ═══════════════════════════════════════════════════════════
+export const useAllFarmersQuery = ({
+  createdByUserId = null,
+  regionFilter = null,   // ✅ جدید
+  enabled = true,
+} = {}) => {
   return useQuery({
-    queryKey: farmerKeys.allFarmers(),
-    queryFn: () => farmerApi.listAll({ maxItems: 2000 }),
+    queryKey: [
+      ...farmerKeys.allFarmers(),
+      { createdByUserId, regionFilter },
+    ],
+    queryFn: () =>
+      farmerApi.listAll({
+        maxItems: 2000,
+        createdByUserId,
+        regionFilter,
+      }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
     gcTime: QUERY_GC_TIME.default,
@@ -99,9 +153,9 @@ export const useFarmerQuery = (farmerId, { enabled = true } = {}) => {
   });
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Query Client Helpers
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 export const useFarmQueryClient = () => {
   const queryClient = useQueryClient();
   return {

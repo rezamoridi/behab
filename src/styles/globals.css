@@ -212,6 +212,31 @@ body {
 }
 
 /* ============================================ */
+/* ✅ Region Tooltip — فاز ۸                     */
+/* ============================================ */
+.region-tooltip {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(8px) saturate(150%);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  border: 1px solid rgba(124, 58, 237, 0.3) !important;
+  border-radius: 10px !important;
+  box-shadow:
+    0 4px 16px rgba(124, 58, 237, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+  padding: 4px 6px !important;
+  color: #5B21B6;
+  font-family: "Vazirmatn", sans-serif !important;
+  font-weight: 700;
+  font-size: 12px;
+  direction: rtl;
+  white-space: nowrap;
+}
+
+.region-tooltip::before {
+  border-top-color: rgba(124, 58, 237, 0.3) !important;
+}
+
+/* ============================================ */
 /* Animations                                   */
 /* ============================================ */
 
@@ -303,14 +328,6 @@ body {
 /* Performance Optimizations                    */
 /* ============================================ */
 
-/* 
- * پنل مزرعه: transform-based transition با GPU acceleration
- *
- * نکته مهم:
- * - will-change: transform → GPU acceleration
- * - backface-visibility: hidden → جلوگیری از flicker
- * - contain حذف شد چون باعث تکه‌تکه شدن انیمیشن می‌شد
- */
 .farm-panel-aside {
   will-change: transform;
   backface-visibility: hidden;
@@ -458,7 +475,6 @@ body {
   }
 }
 
-
 /* ============================================ */
 /* POI Markers                                  */
 /* ============================================ */
@@ -481,4 +497,19 @@ body {
     /* جلوگیری از خروج پنل از viewport */
     max-width: calc(100vw - 20px);
   }
+}
+
+
+/* ============================================ */
+/* Foreign Farm Outline (دهیار)                 */
+/* ============================================ */
+
+.foreign-farm-outline {
+  pointer-events: none !important;
+}
+
+/* اگر Leaflet SVG را نمی‌گیرد، از CSS مستقیم */
+path.foreign-farm-outline {
+  pointer-events: none !important;
+  cursor: default !important;
 }

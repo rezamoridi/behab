@@ -16,13 +16,16 @@ import {
   Send,
   AlertCircle,
   CheckSquare,
-  Square,
   SendHorizontal,
   FileDown,
+  Loader2,
+  Layers,
 } from 'lucide-react';
 import { farmerApi } from '../../../services/api/farmerApi';
 import { useToast } from '../../../shared/components/Toast/ToastProvider';
 import { useConfirm } from '../../../shared/components/ConfirmDialog/ConfirmDialogProvider';
+import { usePermissions } from '../../auth/hooks/usePermissions';
+import { useRegionsQuery } from '../../regions/hooks/useRegions';
 import useSessionState from '../../../shared/hooks/useSessionState';
 
 // ============================================================
@@ -73,6 +76,7 @@ const BulkActionsBar = ({
   onExport,
   isResending,
   isDeleting,
+  isExporting,
 }) => {
   if (selectedCount === 0) return null;
 
@@ -90,7 +94,6 @@ const BulkActionsBar = ({
       "
       dir="rtl"
     >
-      {/* تعداد انتخاب شده */}
       <div className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-primary-500/20 border border-primary-300/50 flex items-center justify-center">
           <CheckSquare size={13} className="text-primary-700" strokeWidth={2.4} />
@@ -105,13 +108,11 @@ const BulkActionsBar = ({
         </div>
       </div>
 
-      {/* دکمه‌های عملیات */}
       <div className="flex items-center gap-1.5">
-        {/* ارسال دعوت مجدد */}
         <button
           type="button"
           onClick={onResend}
-          disabled={isResending || isDeleting}
+          disabled={isResending || isDeleting || isExporting}
           className="
             flex items-center gap-1.5
             px-3 py-1.5 rounded-lg
@@ -124,38 +125,40 @@ const BulkActionsBar = ({
           title="ارسال دعوت مجدد به انتخاب‌شده‌ها"
         >
           {isResending ? (
-            <span className="w-3 h-3 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
+            <Loader2 size={12} className="animate-spin" />
           ) : (
             <SendHorizontal size={12} strokeWidth={2.4} />
           )}
           <span>ارسال دعوت</span>
         </button>
 
-        {/* خروجی Excel */}
         <button
           type="button"
           onClick={onExport}
-          disabled={isResending || isDeleting}
+          disabled={isResending || isDeleting || isExporting}
           className="
             flex items-center gap-1.5
             px-3 py-1.5 rounded-lg
-            bg-sky-500/15 hover:bg-sky-500/25
-            text-sky-800 text-[11px] font-bold
-            border border-sky-400/40
+            bg-emerald-500/15 hover:bg-emerald-500/25
+            text-emerald-800 text-[11px] font-bold
+            border border-emerald-400/40
             transition-colors cursor-pointer
             disabled:opacity-50 disabled:cursor-not-allowed
           "
-          title="خروجی Excel"
+          title="خروجی Excel از انتخاب‌شده‌ها"
         >
-          <FileDown size={12} strokeWidth={2.4} />
-          <span>خروجی</span>
+          {isExporting ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <FileDown size={12} strokeWidth={2.4} />
+          )}
+          <span>Excel</span>
         </button>
 
-        {/* حذف */}
         <button
           type="button"
           onClick={onDelete}
-          disabled={isDeleting || isResending}
+          disabled={isDeleting || isResending || isExporting}
           className="
             flex items-center gap-1.5
             px-3 py-1.5 rounded-lg
@@ -168,18 +171,17 @@ const BulkActionsBar = ({
           title="حذف انتخاب‌شده‌ها"
         >
           {isDeleting ? (
-            <span className="w-3 h-3 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+            <Loader2 size={12} className="animate-spin" />
           ) : (
             <Trash2 size={12} strokeWidth={2.4} />
           )}
           <span>حذف</span>
         </button>
 
-        {/* پاک کردن انتخاب */}
         <button
           type="button"
           onClick={onClear}
-          disabled={isResending || isDeleting}
+          disabled={isResending || isDeleting || isExporting}
           className="
             flex items-center gap-1
             px-2.5 py-1.5 rounded-lg
@@ -199,7 +201,7 @@ const BulkActionsBar = ({
 };
 
 // ============================================================
-// Checkbox
+// Row Checkbox
 // ============================================================
 const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
   <button
@@ -222,7 +224,16 @@ const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
     aria-checked={checked}
   >
     {checked && (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="white"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <polyline points="20 6 9 17 4 12" />
       </svg>
     )}
@@ -235,12 +246,67 @@ const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
 );
 
 // ============================================================
+// Region Filter (فقط super_admin)
+// ============================================================
+const RegionFilterSelect = ({ value, onChange }) => {
+  const { data: regions = [] } = useRegionsQuery({ activeOnly: true });
+
+  return (
+    <div className="relative">
+      <Layers
+        size={13}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-500 pointer-events-none z-10"
+      />
+      <select
+        value={value ?? ''}
+        onChange={(e) =>
+          onChange(e.target.value === '' ? null : Number(e.target.value))
+        }
+        className={`
+          w-full md:w-44 pr-8 pl-7 py-2 rounded-lg border text-sm
+          outline-none transition-all cursor-pointer appearance-none
+          ${
+            value != null
+              ? 'bg-purple-50 border-purple-300 text-purple-900 font-semibold'
+              : 'bg-white border-gray-300 text-gray-700'
+          }
+          focus:border-purple-500 focus:ring-2 focus:ring-purple-200
+        `}
+      >
+        <option value="">همه مناطق</option>
+        {regions.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={value != null ? 'text-purple-600' : 'text-gray-400'}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
 // Main Component
 // ============================================================
 const FarmersManagement = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
+  const { isSuperAdmin } = usePermissions();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingFarmer, setEditingFarmer] = useState(null);
@@ -256,11 +322,28 @@ const FarmersManagement = () => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isBulkResending, setIsBulkResending] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // ✅ Region filter (فقط super_admin از آن استفاده می‌کند)
+  const [regionFilter, setRegionFilter] = useSessionState(
+    'farmers_region_filter',
+    null,
+  );
 
   // ── Query ──
-  const { data, isLoading } = useQuery({
-    queryKey: farmerKeys.list({ page: 1, pageSize: 200, search: null }),
-    queryFn: () => farmerApi.list({ page: 1, pageSize: 200 }),
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: farmerKeys.list({
+      page: 1,
+      pageSize: 200,
+      search: null,
+      regionFilter: isSuperAdmin ? regionFilter : null,
+    }),
+    queryFn: () =>
+      farmerApi.list({
+        page: 1,
+        pageSize: 200,
+        regionFilter: isSuperAdmin ? regionFilter : null,
+      }),
     staleTime: 60 * 1000,
   });
 
@@ -332,7 +415,7 @@ const FarmersManagement = () => {
         err?.response?.data?.detail ||
         err?.message ||
         'خطا در ارسال پیامک';
-      toast.error(msg, 'خطا');
+      toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg), 'خطا');
     },
   });
 
@@ -441,14 +524,12 @@ const FarmersManagement = () => {
   );
 
   // ══════════════════════════════════════════════════════════
-  // ✅ Bulk actions handlers
+  // ✅ Bulk actions
   // ══════════════════════════════════════════════════════════
 
-  // ── Bulk Resend ──
   const handleBulkResend = useCallback(async () => {
     if (selectedIds.size === 0) return;
 
-    // فیلتر: فقط کشاورزانی که pending هستند
     const pendingFarmers = farmers.filter(
       (f) => selectedIds.has(f.id) && !f.password_changed_at,
     );
@@ -498,7 +579,6 @@ const FarmersManagement = () => {
     setSelectedIds(new Set());
   }, [selectedIds, farmers, confirm, queryClient, toast]);
 
-  // ── Bulk Delete ──
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
 
@@ -539,61 +619,49 @@ const FarmersManagement = () => {
     setSelectedIds(new Set());
   }, [selectedIds, confirm, queryClient, toast]);
 
-  // ── Bulk Export (CSV) ──
-  const handleBulkExport = useCallback(() => {
-    if (selectedIds.size === 0) return;
+  // ✅ خروجی Excel — از endpoint جدید backend
+  const handleBulkExport = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const response = await farmerApi.exportExcel({
+        search: searchTerm.trim() || null,
+      });
 
-    const selected = farmers.filter((f) => selectedIds.has(f.id));
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `farmers-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-    // BOM برای Excel فارسی
-    const BOM = '\uFEFF';
-    const headers = ['نام', 'نام خانوادگی', 'کد ملی', 'تلفن', 'وضعیت', 'تاریخ ثبت'];
-    const rows = selected.map((f) => {
-      const status = f.password_changed_at
-        ? 'فعال'
-        : f.first_login_at
-          ? 'لاگین کرده'
-          : 'دعوت‌شده';
-      const createdAt = f.created_at
-        ? new Date(f.created_at).toLocaleDateString('fa-IR')
-        : '—';
-      return [
-        f.fname || '',
-        f.lname || '',
-        f.national_id || '',
-        f.phone_number || '',
-        status,
-        createdAt,
-      ];
-    });
+      toast.success('خروجی Excel دانلود شد', 'موفق');
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail || 'خطا در خروجی',
+        'خطا',
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [searchTerm, toast]);
 
-    const csv = BOM + [
-      headers.join(','),
-      ...rows.map((r) =>
-        r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','),
-      ),
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `farmers-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast.success(
-      `${selected.length.toLocaleString('fa-IR')} کشاورز در فایل CSV ذخیره شد`,
-      'خروجی موفق',
-    );
-  }, [selectedIds, farmers, toast]);
-
-  // ── Clear selection ──
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+
+  // ── تغییر فیلتر منطقه: ریست انتخاب‌ها ──
+  const handleRegionFilterChange = useCallback(
+    (val) => {
+      setRegionFilter(val);
+      setSelectedIds(new Set());
+    },
+    [setRegionFilter],
+  );
 
   // ── Loading ──
   if (isLoading) {
@@ -605,7 +673,10 @@ const FarmersManagement = () => {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-3" dir="rtl">
+    <div
+      className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-3"
+      dir="rtl"
+    >
       {/* ─── Header ─── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
         <div className="flex items-center gap-2">
@@ -619,18 +690,29 @@ const FarmersManagement = () => {
           </span>
         </div>
 
-        <div className="relative">
-          <Search
-            size={14}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
-          <input
-            type="text"
-            placeholder="جستجوی کشاورز..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-72 pr-9 pl-3 py-2 rounded-lg border border-gray-300 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* ✅ فیلتر منطقه — فقط super_admin */}
+          {isSuperAdmin && (
+            <RegionFilterSelect
+              value={regionFilter}
+              onChange={handleRegionFilterChange}
+            />
+          )}
+
+          {/* جستجو */}
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              placeholder="جستجوی کشاورز..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full md:w-64 pr-9 pl-3 py-2 rounded-lg border border-gray-300 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -643,6 +725,7 @@ const FarmersManagement = () => {
         onExport={handleBulkExport}
         isResending={isBulkResending}
         isDeleting={isBulkDeleting}
+        isExporting={isExporting}
       />
 
       {/* ─── Table ─── */}
@@ -650,7 +733,6 @@ const FarmersManagement = () => {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50">
-              {/* ✅ Select-all checkbox */}
               <th className="w-10 px-3 py-3">
                 <RowCheckbox
                   checked={allSelected}
@@ -681,7 +763,8 @@ const FarmersManagement = () => {
           <tbody>
             {filteredFarmers.length > 0 ? (
               filteredFarmers.map((farmer, index) => {
-                const fullName = `${farmer.fname || ''} ${farmer.lname || ''}`.trim();
+                const fullName =
+                  `${farmer.fname || ''} ${farmer.lname || ''}`.trim();
                 const isPending = !farmer.password_changed_at;
                 const isSelected = selectedIds.has(farmer.id);
 
@@ -694,7 +777,6 @@ const FarmersManagement = () => {
                       ${isSelected ? 'bg-primary-50/40' : 'hover:bg-gray-50'}
                     `}
                   >
-                    {/* Checkbox */}
                     <td className="w-10 px-3 py-3">
                       <RowCheckbox
                         checked={isSelected}
@@ -702,21 +784,31 @@ const FarmersManagement = () => {
                       />
                     </td>
 
-                    <td className="px-3 py-3 text-gray-500">
-                      {index + 1}
-                    </td>
+                    <td className="px-3 py-3 text-gray-500">{index + 1}</td>
+
                     <td className="px-4 py-3 font-medium text-gray-800">
                       {fullName || '—'}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700" dir="ltr">
+
+                    <td
+                      className="px-4 py-3 font-mono text-xs text-gray-700"
+                      dir="ltr"
+                    >
                       {farmer.national_id}
                     </td>
-                    <td className="px-4 py-3 text-gray-700" dir="ltr" style={{ textAlign: 'right' }}>
+
+                    <td
+                      className="px-4 py-3 text-gray-700"
+                      dir="ltr"
+                      style={{ textAlign: 'right' }}
+                    >
                       {farmer.phone_number}
                     </td>
+
                     <td className="px-4 py-3">
                       <StatusBadge farmer={farmer} />
                     </td>
+
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         {isPending && (
@@ -753,7 +845,10 @@ const FarmersManagement = () => {
               })
             ) : (
               <tr>
-                <td colSpan="7" className="text-center py-8 text-gray-400 text-sm">
+                <td
+                  colSpan="7"
+                  className="text-center py-8 text-gray-400 text-sm"
+                >
                   {searchTerm
                     ? 'کشاورزی با این مشخصات یافت نشد'
                     : 'هیچ کشاورزی ثبت نشده است'}
@@ -771,10 +866,16 @@ const FarmersManagement = () => {
           <span>| نتایج: {filteredFarmers.length.toLocaleString('fa-IR')}</span>
         )}
         <span className="text-emerald-600">
-          | فعال: {farmers.filter((f) => f.password_changed_at).length.toLocaleString('fa-IR')}
+          | فعال:{' '}
+          {farmers
+            .filter((f) => f.password_changed_at)
+            .length.toLocaleString('fa-IR')}
         </span>
         <span className="text-amber-600">
-          | در انتظار: {farmers.filter((f) => !f.password_changed_at).length.toLocaleString('fa-IR')}
+          | در انتظار:{' '}
+          {farmers
+            .filter((f) => !f.password_changed_at)
+            .length.toLocaleString('fa-IR')}
         </span>
       </div>
 
