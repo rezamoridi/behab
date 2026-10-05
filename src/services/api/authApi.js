@@ -2,9 +2,8 @@
 import apiClient from './apiClient';
 
 // ============================================
-// مدیریت توکن
+// Token Management
 // ============================================
-
 export const setAuthToken = (token) => {
   localStorage.setItem('access_token', token);
 };
@@ -19,9 +18,8 @@ export const removeAuthToken = () => {
 };
 
 // ============================================
-// اطلاعات کاربر
+// User Data
 // ============================================
-
 export const setUserData = (userData) => {
   localStorage.setItem('user_data', JSON.stringify(userData));
 };
@@ -40,9 +38,8 @@ export const hasUserData = () => {
 };
 
 // ============================================
-// API
+// Current user
 // ============================================
-
 export const getCurrentUser = async () => {
   try {
     const token = getAuthToken();
@@ -78,6 +75,9 @@ export const validateToken = async () => {
 
 export const getCachedUser = () => getUserData();
 
+// ============================================
+// Login — Phase 1
+// ============================================
 export const loginWithCredentials = async (username, password) => {
   try {
     const formData = new URLSearchParams();
@@ -96,27 +96,39 @@ export const loginWithCredentials = async (username, password) => {
 
     const data = response.data;
 
+    // ── OTP required ──
+    if (data.requires_otp) {
+      return {
+        requires_otp: true,
+        temp_token: data.temp_token,
+      };
+    }
+
+    // ── Direct login (OTP disabled) ──
     if (data.access_token) {
       setAuthToken(data.access_token);
     }
 
-    if (data.requires_2fa) {
-      return { requires_2fa: true, temp_token: data.temp_token };
-    }
-
-    const userData = await getCurrentUser();
-    return { success: true, user: userData };
+    const userData = data.user || (await getCurrentUser());
+    return {
+      success: true,
+      user: userData,
+      requires_otp: false,
+    };
   } catch (error) {
     console.error('خطا در loginWithCredentials:', error);
     throw error;
   }
 };
 
-export const verifyOTP = async (tempToken, otpCode) => {
+// ============================================
+// ✅ Login — Phase 2: Verify OTP
+// ============================================
+export const verifyOtp = async (tempToken, code) => {
   try {
     const response = await apiClient.post('/login/verify-otp', {
       temp_token: tempToken,
-      otp_code: otpCode,
+      code: String(code),
     });
 
     const data = response.data;
@@ -125,14 +137,83 @@ export const verifyOTP = async (tempToken, otpCode) => {
       setAuthToken(data.access_token);
     }
 
-    const userData = await getCurrentUser();
-    return { success: true, user: userData };
+    const userData = data.user || (await getCurrentUser());
+
+    return {
+      success: true,
+      user: userData,
+    };
   } catch (error) {
-    console.error('خطا در verifyOTP:', error);
+    console.error('خطا در verifyOtp:', error);
     throw error;
   }
 };
 
+// ============================================
+// ✅ Login — Resend OTP
+// ============================================
+export const resendOtp = async (tempToken) => {
+  try {
+    const response = await apiClient.post('/login/resend-otp', {
+      temp_token: tempToken,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('خطا در resendOtp:', error);
+    throw error;
+  }
+};
+
+// ============================================
+// ✅ Forgot Password — Request
+// ============================================
+export const requestPasswordReset = async (username) => {
+  try {
+    const response = await apiClient.post('/password-reset/request', {
+      username,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('خطا در requestPasswordReset:', error);
+    throw error;
+  }
+};
+
+// ============================================
+// ✅ Forgot Password — Verify
+// ============================================
+export const verifyPasswordResetOtp = async (username, code) => {
+  try {
+    const response = await apiClient.post('/password-reset/verify', {
+      username,
+      code: String(code),
+    });
+    return response.data; // { reset_token, message }
+  } catch (error) {
+    console.error('خطا در verifyPasswordResetOtp:', error);
+    throw error;
+  }
+};
+
+// ============================================
+// ✅ Forgot Password — Confirm
+// ============================================
+export const confirmPasswordReset = async (resetToken, newPassword) => {
+  try {
+    const response = await apiClient.post('/password-reset/confirm', {
+      reset_token: resetToken,
+      new_password: newPassword,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('خطا در confirmPasswordReset:', error);
+    throw error;
+  }
+};
+
+// ============================================
+// Logout
+// ============================================
 export const logout = async () => {
   try {
     const token = getAuthToken();

@@ -17,6 +17,7 @@ const InnerLayout = () => {
 
   const isMapPage = location.pathname.startsWith('/map');
   const isSettingsPage = location.pathname.startsWith('/settings');
+  const isConversationsPage = location.pathname.startsWith('/conversations');
 
   const [selectedLocation, setSelectedLocation] = useSessionState(
     'map_selected_location',
@@ -55,6 +56,9 @@ const InnerLayout = () => {
       } else if (key === 'm') {
         e.preventDefault();
         navigate('/map');
+      } else if (key === 'c') {
+        e.preventDefault();
+        navigate('/conversations');
       } else if (key === 'd') {
         e.preventDefault();
         navigate('/');

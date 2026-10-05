@@ -1,7 +1,7 @@
 // src/pages/SettingsPage.jsx
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Settings, X } from 'lucide-react';
+import { Settings, X, MessageSquare } from 'lucide-react';
 
 import SettingsTabs from '../features/settings/components/SettingsTabs';
 import ProfileSettings from '../features/settings/components/ProfileSettings';
@@ -9,11 +9,20 @@ import AgricultureSettings from '../features/settings/components/AgricultureSett
 import CropSettingsManager from '../features/settings/components/CropSettingsManager';
 import UsersManagement from '../features/settings/components/UsersManagement';
 import LayerStyleSettings from '../features/settings/components/LayerStyleSettings';
+import SmsSettings from '../features/settings/components/SmsSettings';  // ✅ جدید
 
 import { useProfileSettings } from '../features/settings/hooks/useProfileSettings';
 import { useAgricultureSettings } from '../features/settings/hooks/useAgricultureSettings';
 
-const VALID_TABS = ['profile', 'agriculture', 'layer-style', 'crops', 'users'];
+// ✅ اضافه شدن 'sms'
+const VALID_TABS = [
+  'profile',
+  'agriculture',
+  'layer-style',
+  'crops',
+  'users',
+  'sms',
+];
 
 const SettingsPage = ({ onNavigateHome }) => {
   const location = useLocation();
@@ -24,8 +33,7 @@ const SettingsPage = ({ onNavigateHome }) => {
 
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  // اگر از داشبورد با tab جدید آمد، با setTimeout به‌روز کن
-  // (تا از cascading render در body effect جلوگیری شود)
+  // اگر از داشبورد با tab جدید آمد
   useEffect(() => {
     const nextTab = location.state?.activeTab;
     if (!nextTab || !VALID_TABS.includes(nextTab)) return;
@@ -37,15 +45,16 @@ const SettingsPage = ({ onNavigateHome }) => {
     return () => clearTimeout(timer);
   }, [location.state?.activeTab]);
 
+  // ✅ اضافه شدن تب SMS
   const tabs = [
     { id: 'profile', label: 'پروفایل کاربری' },
     { id: 'agriculture', label: 'تنظیمات کشاورزی' },
     { id: 'layer-style', label: 'ظاهر لایه‌ها' },
     { id: 'crops', label: 'تنظیمات محصولات' },
     { id: 'users', label: 'مدیریت کاربران' },
+    { id: 'sms', label: 'تنظیمات پیامک' },  // ✅ جدید
   ];
 
-  // Profile
   const {
     profile,
     isLoading: profileLoading,
@@ -53,7 +62,6 @@ const SettingsPage = ({ onNavigateHome }) => {
     changePassword,
   } = useProfileSettings();
 
-  // Agriculture Settings
   const {
     settings,
     isLoading: agricultureLoading,
@@ -115,6 +123,8 @@ const SettingsPage = ({ onNavigateHome }) => {
           {activeTab === 'crops' && <CropSettingsManager />}
 
           {activeTab === 'users' && <UsersManagement />}
+
+          {activeTab === 'sms' && <SmsSettings />}   {/* ✅ جدید */}
         </div>
       </div>
     </div>

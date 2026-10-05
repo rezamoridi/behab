@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Map as MapIcon,
   PlusCircle,
+  MessageSquare,   // ✅ جدید
 } from 'lucide-react';
 
 export const DOCK_ITEMS = [
@@ -18,6 +19,13 @@ export const DOCK_ITEMS = [
     label: 'نقشه',
     icon: MapIcon,
     path: '/map',
+    type: 'route',
+  },
+  {
+    id: 'conversations',   // ✅ جدید
+    label: 'گفتگو',
+    icon: MessageSquare,
+    path: '/conversations',
     type: 'route',
   },
   {

@@ -8,6 +8,7 @@ import { useFarmPanel } from '../farm-registration/panel/FarmPanelContext';
 const SHORTCUTS = {
   dashboard: 'D',
   map: 'M',
+  conversations: 'C',
   'farm-panel': 'F',
 };
 

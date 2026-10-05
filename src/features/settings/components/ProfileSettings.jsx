@@ -1,6 +1,16 @@
 // src/features/settings/components/ProfileSettings.jsx
 import { useState, useEffect } from 'react';
-import { User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import {
+  User,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Shield,
+  CheckCircle2,
+} from 'lucide-react';
+import apiClient from '../../../services/api/apiClient';
+import { useToast } from '../../../shared/components/Toast/ToastProvider';
 
 const ProfileSettings = ({
   profile,
@@ -8,6 +18,8 @@ const ProfileSettings = ({
   onChangePassword,
   isLoading,
 }) => {
+  const toast = useToast();
+
   const [formData, setFormData] = useState({
     fname: '',
     lname: '',
@@ -27,6 +39,10 @@ const ProfileSettings = ({
   const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
+  // ── OTP state ──
+  const [otpEnabled, setOtpEnabled] = useState(false);
+  const [isTogglingOtp, setIsTogglingOtp] = useState(false);
+
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -35,9 +51,13 @@ const ProfileSettings = ({
         username: profile.username || '',
         phone_number: profile.phone_number || '',
       });
+      setOtpEnabled(profile.otp_enabled ?? false);
     }
   }, [profile]);
 
+  // ============================================
+  // Handlers
+  // ============================================
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -107,6 +127,57 @@ const ProfileSettings = ({
     }
   };
 
+  // ============================================
+  // ✅ Toggle OTP
+  // ============================================
+  const handleToggleOtp = async () => {
+    // چک شماره تلفن قبل از فعال‌سازی
+    if (!otpEnabled && !formData.phone_number) {
+      toast.warning(
+        'برای فعال‌سازی OTP، ابتدا شماره تلفن خود را ثبت کنید',
+        'توجه',
+      );
+      return;
+    }
+
+    if (!otpEnabled && !/^09\d{9}$/.test(formData.phone_number)) {
+      toast.warning(
+        'شماره تلفن معتبر نیست. ابتدا شماره را اصلاح کنید.',
+        'توجه',
+      );
+      return;
+    }
+
+    // تأیید کاربر
+    const action = otpEnabled ? 'غیرفعال' : 'فعال';
+    const ok = window.confirm(
+      `آیا از ${action} کردن تایید دو مرحله‌ای اطمینان دارید؟\n\n` +
+        (otpEnabled
+          ? 'در این حالت، ورود شما فقط با رمز عبور خواهد بود.'
+          : `در این حالت، کد تایید به شماره ${formData.phone_number} ارسال می‌شود.`),
+    );
+    if (!ok) return;
+
+    setIsTogglingOtp(true);
+    try {
+      const response = await apiClient.put('/users/me/otp', {
+        enabled: !otpEnabled,
+      });
+      setOtpEnabled(response.data.otp_enabled);
+      toast.success(
+        `تایید دو مرحله‌ای ${action} شد`,
+        'ذخیره شد',
+      );
+    } catch (err) {
+      toast.error(
+        err.response?.data?.detail || 'خطا در تغییر تنظیمات',
+        'خطا',
+      );
+    } finally {
+      setIsTogglingOtp(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -143,11 +214,7 @@ const ProfileSettings = ({
                 w-full px-3.5 py-2.5 rounded-lg border text-sm
                 focus:border-primary-500 focus:ring-2 focus:ring-primary-200
                 outline-none transition-all
-                ${
-                  errors.fname
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                }
+                ${errors.fname ? 'border-red-500' : 'border-gray-300'}
               `}
             />
             {errors.fname && (
@@ -171,11 +238,7 @@ const ProfileSettings = ({
                 w-full px-3.5 py-2.5 rounded-lg border text-sm
                 focus:border-primary-500 focus:ring-2 focus:ring-primary-200
                 outline-none transition-all
-                ${
-                  errors.lname
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                }
+                ${errors.lname ? 'border-red-500' : 'border-gray-300'}
               `}
             />
             {errors.lname && (
@@ -243,6 +306,77 @@ const ProfileSettings = ({
         </button>
       </form>
 
+      {/* ✅ OTP Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+          <Shield size={18} className="text-primary-600" />
+          <h3 className="text-base font-semibold text-gray-900">
+            امنیت حساب
+          </h3>
+        </div>
+
+        <div
+          className={`
+            flex items-start justify-between gap-4 p-4 rounded-lg border-2 transition-colors
+            ${
+              otpEnabled
+                ? 'bg-emerald-50/50 border-emerald-200'
+                : 'bg-gray-50 border-gray-200'
+            }
+          `}
+        >
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div
+              className={`
+                w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                ${otpEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}
+              `}
+            >
+              {otpEnabled ? (
+                <CheckCircle2 size={18} strokeWidth={2.4} />
+              ) : (
+                <Shield size={18} strokeWidth={2.4} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-gray-900">
+                تایید دو مرحله‌ای (OTP)
+              </div>
+              <div className="text-xs text-gray-600 mt-1 leading-relaxed">
+                {otpEnabled
+                  ? 'در هر ورود، کد تایید به شماره موبایل شما ارسال می‌شود.'
+                  : 'با فعال‌سازی، امنیت حساب شما به میزان قابل توجهی افزایش می‌یابد.'}
+              </div>
+              {!otpEnabled && !formData.phone_number && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">
+                  ⚠️ ابتدا شماره تلفن خود را ثبت کنید
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleOtp}
+            disabled={isTogglingOtp}
+            className={`
+              relative inline-flex items-center h-6 w-11 rounded-full
+              transition-colors duration-200 flex-shrink-0
+              disabled:opacity-50 disabled:cursor-wait
+              ${otpEnabled ? 'bg-emerald-600' : 'bg-gray-300'}
+            `}
+          >
+            <span
+              className={`
+                inline-block w-5 h-5 bg-white rounded-full shadow
+                transform transition-transform duration-200
+                ${otpEnabled ? '-translate-x-5' : '-translate-x-0.5'}
+              `}
+            />
+          </button>
+        </div>
+      </div>
+
       {/* Password Form */}
       <form
         onSubmit={handlePasswordSubmit}
@@ -269,11 +403,7 @@ const ProfileSettings = ({
                 w-full px-3.5 py-2.5 pl-10 rounded-lg border text-sm
                 focus:border-primary-500 focus:ring-2 focus:ring-primary-200
                 outline-none transition-all
-                ${
-                  errors.current_password
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                }
+                ${errors.current_password ? 'border-red-500' : 'border-gray-300'}
               `}
               style={{ direction: 'ltr' }}
             />
@@ -307,11 +437,7 @@ const ProfileSettings = ({
                   w-full px-3.5 py-2.5 pl-10 rounded-lg border text-sm
                   focus:border-primary-500 focus:ring-2 focus:ring-primary-200
                   outline-none transition-all
-                  ${
-                    errors.new_password
-                      ? 'border-red-500'
-                      : 'border-gray-300'
-                  }
+                  ${errors.new_password ? 'border-red-500' : 'border-gray-300'}
                 `}
                 style={{ direction: 'ltr' }}
               />
@@ -343,11 +469,7 @@ const ProfileSettings = ({
                 w-full px-3.5 py-2.5 rounded-lg border text-sm
                 focus:border-primary-500 focus:ring-2 focus:ring-primary-200
                 outline-none transition-all
-                ${
-                  errors.confirm_password
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                }
+                ${errors.confirm_password ? 'border-red-500' : 'border-gray-300'}
               `}
               style={{ direction: 'ltr' }}
             />
