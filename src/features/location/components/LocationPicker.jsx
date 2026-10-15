@@ -1,14 +1,14 @@
 // src/features/location/components/LocationPicker.jsx
-import React, { useEffect, useRef, useState } from 'react';
-import { Search, X, MapPin, Loader2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from "react";
+import { Search, X, MapPin, Loader2 } from "lucide-react";
 
 // ============================================
 // Helpers
 // ============================================
 const getSmartZoom = (item) => {
-  if (item.type === 'city' || item.importance > 0.7) return 12;
-  if (item.type === 'town' || item.importance > 0.5) return 14;
-  if (item.type === 'village' || item.importance > 0.3) return 16;
+  if (item.type === "city" || item.importance > 0.7) return 12;
+  if (item.type === "town" || item.importance > 0.5) return 14;
+  if (item.type === "village" || item.importance > 0.3) return 16;
   return 18;
 };
 
@@ -23,39 +23,39 @@ const normalizeResult = (item) => {
     address.fa ||
     item.display_name;
 
-  const province = address.state || address.province || address.region || '';
-  const county = address.county || address.city || address.town || '';
+  const province = address.state || address.province || address.region || "";
+  const county = address.county || address.city || address.town || "";
   const bakhsh =
-    address.district || address.municipality || address.county || '';
+    address.district || address.municipality || address.county || "";
   const dehestan =
     address.suburb ||
     address.neighbourhood ||
     address.city ||
     address.town ||
-    '';
+    "";
   const village =
-    address.village || address.hamlet || address.village_cleansed || '';
-  const city = address.city || address.town || '';
+    address.village || address.hamlet || address.village_cleansed || "";
+  const city = address.city || address.town || "";
 
   return {
     name: persianName,
     lat: Number(item.lat),
     lon: Number(item.lon),
-    type: item.type || '',
+    type: item.type || "",
     importance: Number(item.importance || 0),
-    source: 'عمومی',
+    source: "عمومی",
     province,
     county,
-    bakhsh: bakhsh || '',
-    dehestan: dehestan || '',
-    village: village || '',
+    bakhsh: bakhsh || "",
+    dehestan: dehestan || "",
+    village: village || "",
     city,
-    town: address.town || '',
-    suburb: address.suburb || '',
-    neighbourhood: address.neighbourhood || '',
-    hamlet: address.hamlet || '',
-    municipality: address.municipality || '',
-    district: address.district || '',
+    town: address.town || "",
+    suburb: address.suburb || "",
+    neighbourhood: address.neighbourhood || "",
+    hamlet: address.hamlet || "",
+    municipality: address.municipality || "",
+    district: address.district || "",
     displayName: item.display_name,
     persianName,
   };
@@ -70,7 +70,7 @@ const LocationPicker = ({
   embedded = false,
   selectedLocation = null,
 }) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -80,16 +80,26 @@ const LocationPicker = ({
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
+  // ✅ جدید: cache آخرین انتخاب
+  const lastSelectedRef = useRef(null);
+
+  // ✅ جدید: فقط برنامه‌ریزی برای پاک کردن cache انتخاب
+  // وقتی کاربر input را دستی تغییر می‌دهد.
+  const userEditedRef = useRef(false);
+
   // ✅ فقط وقتی selectedLocation از بیرون عوض شد، query را همگام کن
   useEffect(() => {
     if (selectedLocation?.name) {
-      skipNextSearchRef.current = true; // ✅ جلوگیری از search دوباره
+      skipNextSearchRef.current = true;
       setQuery(selectedLocation.name);
+      // ✅ همگام‌سازی cache با انتخاب بیرونی
+      lastSelectedRef.current = selectedLocation;
+      userEditedRef.current = false;
     }
   }, [selectedLocation]);
 
   // ============================================================
-  // searchLocations — بدون state داخلی برای isSearching (بعداً set می‌شود)
+  // searchLocations
   // ============================================================
   const searchLocations = async (searchText) => {
     const cleanQuery = searchText.trim();
@@ -100,7 +110,6 @@ const LocationPicker = ({
       return [];
     }
 
-    // ✅ abort قبلی — بدون trigger setState
     abortControllerRef.current?.abort();
 
     const controller = new AbortController();
@@ -109,42 +118,40 @@ const LocationPicker = ({
 
     try {
       const params = new URLSearchParams({
-        format: 'json',
+        format: "json",
         q: `${cleanQuery} Iran`,
-        limit: '8',
-        addressdetails: '1',
-        'accept-language': 'fa',
-        namedetails: '1',
-        extratags: '1',
+        limit: "8",
+        addressdetails: "1",
+        "accept-language": "fa",
+        namedetails: "1",
+        extratags: "1",
       });
 
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?${params.toString()}`,
         {
           signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        }
+          headers: { Accept: "application/json" },
+        },
       );
 
-      if (!response.ok) throw new Error('خطا در دریافت نتایج جستجو');
+      if (!response.ok) throw new Error("خطا در دریافت نتایج جستجو");
 
       const data = await response.json();
       const results = data
         .map(normalizeResult)
         .filter(
-          (item) =>
-            Number.isFinite(item.lat) && Number.isFinite(item.lon)
+          (item) => Number.isFinite(item.lat) && Number.isFinite(item.lon),
         );
 
-      // ✅ فقط اگر این controller هنوز فعّال است
       if (!controller.signal.aborted) {
         setSuggestions(results);
         setIsSearching(false);
       }
       return results;
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('خطای جستجوی مکان:', error);
+      if (error.name !== "AbortError") {
+        console.error("خطای جستجوی مکان:", error);
         if (!controller.signal.aborted) {
           setSuggestions([]);
           setIsSearching(false);
@@ -155,21 +162,26 @@ const LocationPicker = ({
   };
 
   // ============================================================
-  // Debounced search — کاهش به 400ms + رفع باگ
+  // Debounced search
   // ============================================================
   useEffect(() => {
     const cleanQuery = query.trim();
 
     if (onSearchChange) onSearchChange(false);
 
-    // ✅ اگر انتخاب قبلی بود، skip کن
+    // ✅ اگر انتخاب قبلی بود، skip کن (چه برنامه‌ای چه دستی)
     if (skipNextSearchRef.current) {
       skipNextSearchRef.current = false;
       return undefined;
     }
 
+    // ✅ اگر کاربر متن را دستی تغییر داد، cache انتخاب را پاک کن
+    if (userEditedRef.current) {
+      lastSelectedRef.current = null;
+      userEditedRef.current = false;
+    }
+
     if (cleanQuery.length < 2) {
-      // ✅ پاک کردن سریع
       const clearTimer = setTimeout(() => {
         setSuggestions([]);
         setIsSearching(false);
@@ -177,15 +189,12 @@ const LocationPicker = ({
       return () => clearTimeout(clearTimer);
     }
 
-    // ✅ debounce کاهش یافت به 400ms
     const searchTimer = setTimeout(() => {
       searchLocations(cleanQuery);
     }, 400);
 
     return () => {
       clearTimeout(searchTimer);
-      // ✅ در cleanup، اگر سرچ در حال اجرا بود، لغو کن
-      // (اما نه setState — فقط abort)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
@@ -197,22 +206,19 @@ const LocationPicker = ({
     if (suggestions.length === 0) return;
 
     const handleClickOutside = (e) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
         setSuggestions([]);
       }
     };
     const handleEscape = (e) => {
-      if (e.key === 'Escape') setSuggestions([]);
+      if (e.key === "Escape") setSuggestions([]);
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [suggestions.length]);
 
@@ -231,47 +237,82 @@ const LocationPicker = ({
   const handleSelect = (location) => {
     const finalLocation = { ...location, zoom: getSmartZoom(location) };
 
-    // ✅ جلوگیری از search مجدد
     skipNextSearchRef.current = true;
+    userEditedRef.current = false;
+    lastSelectedRef.current = finalLocation;
 
     setQuery(location.persianName || location.name);
     setSuggestions([]);
     setIsSearching(false);
     abortControllerRef.current?.abort();
 
-    // ✅ فراخوانی onLocationSelect — parent (Layout → TopBar) این را می‌نویسد
     onLocationSelect?.(finalLocation);
 
     if (onSearchChange) onSearchChange(false);
     inputRef.current?.blur();
   };
 
+  // ============================================================
+  // ✅ handleSubmit — اگر query متناظر با آخرین انتخاب است،
+  // دوباره Nominatim صدا نزن و همان انتخاب را apply کن
+  // ============================================================
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const results = await searchLocations(query);
-    if (results.length === 0) {
-      window.alert('مکانی با این نام یافت نشد.');
+
+    const cleanQuery = query.trim();
+
+    // ✅ چک: آیا query فعلی همان انتخاب قبلی است؟
+    const cached = lastSelectedRef.current;
+    if (cached) {
+      const cachedText = (cached.persianName || cached.name || "").trim();
+      const cachedDisplay = (cached.displayName || "").trim();
+
+      if (cleanQuery === cachedText || cleanQuery === cachedDisplay) {
+        // ✅ همان انتخاب را دوباره apply کن (بدون جستجوی دوباره)
+        handleSelect(cached);
+        return;
+      }
+    }
+
+    // ✅ اگر query کوتاه است، کاری نکن
+    if (cleanQuery.length < 2) {
       return;
     }
+
+    const results = await searchLocations(cleanQuery);
+
+    if (results.length === 0) {
+      window.alert("مکانی با این نام یافت نشد.");
+      return;
+    }
+
     const bestMatch = [...results].sort(
-      (first, second) => second.importance - first.importance
+      (first, second) => second.importance - first.importance,
     )[0];
     handleSelect(bestMatch);
   };
 
   const handleClear = () => {
     abortControllerRef.current?.abort();
-    setQuery('');
+    lastSelectedRef.current = null;
+    userEditedRef.current = false;
+    setQuery("");
     setSuggestions([]);
     setIsSearching(false);
     inputRef.current?.focus();
   };
 
+  // ✅ جدید: وقتی کاربر input را تغییر می‌دهد، flag بگذار
+  const handleInputChange = (e) => {
+    userEditedRef.current = true;
+    setQuery(e.target.value);
+  };
+
   const showSuggestions = suggestions.length > 0;
 
   const wrapperClass = embedded
-    ? 'relative w-full font-vazir'
-    : 'absolute top-4 left-1/2 -translate-x-1/2 z-[1200] w-[min(520px,calc(100%-24px))] font-vazir';
+    ? "relative w-full font-vazir"
+    : "absolute top-4 left-1/2 -translate-x-1/2 z-[1200] w-[min(520px,calc(100%-24px))] font-vazir";
 
   return (
     <div ref={containerRef} className={wrapperClass} dir="rtl">
@@ -285,8 +326,8 @@ const LocationPicker = ({
           transition-shadow duration-200
           ${
             focused
-              ? 'shadow-[0_8px_32px_rgba(31,38,135,0.18),inset_0_1px_0_rgba(255,255,255,0.95)]'
-              : 'shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.9)]'
+              ? "shadow-[0_8px_32px_rgba(31,38,135,0.18),inset_0_1px_0_rgba(255,255,255,0.95)]"
+              : "shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.9)]"
           }
         `}
       >
@@ -295,11 +336,11 @@ const LocationPicker = ({
             ref={inputRef}
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={handleInputChange}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 200)}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') {
+              if (e.key === "Escape") {
                 setSuggestions([]);
                 inputRef.current?.blur();
               }
@@ -370,7 +411,7 @@ const LocationPicker = ({
         >
           {suggestions.map((item, index) => {
             const displayName = item.persianName || item.name;
-            const [title, ...rest] = displayName.split(',');
+            const [title, ...rest] = displayName.split(",");
             return (
               <button
                 key={`${item.lat}-${item.lon}-${index}`}
@@ -396,7 +437,7 @@ const LocationPicker = ({
                 </div>
                 {rest.length > 0 && (
                   <span className="text-xs text-slate-500 truncate w-full pr-6">
-                    {rest.slice(0, 3).join('، ').trim()}
+                    {rest.slice(0, 3).join("، ").trim()}
                   </span>
                 )}
               </button>

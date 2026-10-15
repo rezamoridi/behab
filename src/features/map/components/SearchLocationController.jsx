@@ -17,14 +17,7 @@ L.Icon.Default.mergeOptions({
 });
 
 // ═══════════════════════════════════════════════════════════
-// ✅ قرارداد مختصات داخلی: { lat: number, lng: number, zoom: number }
-//
-// منابع ورودی:
-//   - LocationPicker: { lat: number, lon: number, zoom: number, name }
-//   - GeoJSON:        [lng, lat]
-//   - Leaflet:        [lat, lng]
-//
-// همیشه با normalizeLocation یکسان‌سازی می‌شود.
+// normalizeLocation
 // ═══════════════════════════════════════════════════════════
 const normalizeLocation = (loc) => {
   if (!loc) return null;
@@ -36,7 +29,6 @@ const normalizeLocation = (loc) => {
     return null;
   }
 
-  // محدوده‌ی معتبر جهانی
   if (lat < -90 || lat > 90) {
     console.warn('Invalid latitude:', lat);
     return null;
@@ -56,18 +48,13 @@ const normalizeLocation = (loc) => {
 
 // ═══════════════════════════════════════════════════════════
 // SearchLocationController
-//
-// فقط مسئول:
-//   ۱. اعمال setView روی selectedLocation (اولویت بر viewport)
-//   ۲. نمایش Marker در نقطهٔ انتخاب‌شده
-//
-// ⚠️ viewport ذخیره‌شده را نمی‌خواند — این کار MapComponent است.
-// ⚠️ هیچ overwrite روی موقعیت پیش‌فرض نمی‌کند.
 // ═══════════════════════════════════════════════════════════
 const SearchLocationController = ({ selectedLocation }) => {
   const map = useMap();
 
-  // ✅ آخرین target اعمال‌شده — برای جلوگیری از setView تکراری
+  // ✅ جدید: از reference identity استفاده می‌کنیم، نه مقادیر.
+  // این باعث می‌شود اگر والد یک object جدید بدهد (حتی با مقادیر یکسان)،
+  // setView دوباره اجرا شود.
   const lastAppliedRef = useRef(null);
 
   useEffect(() => {
@@ -78,13 +65,10 @@ const SearchLocationController = ({ selectedLocation }) => {
       return;
     }
 
-    // ✅ اگر همان target قبلی بود، دوباره setView نکن
-    const key = `${normalized.lat},${normalized.lng},${normalized.zoom}`;
-    if (lastAppliedRef.current === key) return;
+    // ✅ اگر همان reference قبلی است، skip کن
+    if (lastAppliedRef.current === selectedLocation) return;
+    lastAppliedRef.current = selectedLocation;
 
-    lastAppliedRef.current = key;
-
-    // ✅ اعمال setView — با requestAnimationFrame برای اطمینان از آماده‌بودن map
     const rafId = requestAnimationFrame(() => {
       try {
         map.setView(
@@ -103,7 +87,6 @@ const SearchLocationController = ({ selectedLocation }) => {
     return () => cancelAnimationFrame(rafId);
   }, [map, selectedLocation]);
 
-  // ✅ Marker — با نرمال‌سازی
   const normalized = normalizeLocation(selectedLocation);
   if (!normalized) return null;
 

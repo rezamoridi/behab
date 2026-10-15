@@ -4,7 +4,7 @@ import {
   fetchFarms,
   fetchAllFarms,
   fetchFarmById,
-  fetchReferenceLayer,   // ✅ جدید
+  fetchReferenceLayer,
 } from '../../../services/api/farmApi';
 import { farmerApi } from '../../../services/api/farmerApi';
 import {
@@ -18,9 +18,6 @@ export { farmKeys, farmerKeys } from './farmQueryKeys';
 
 // ═══════════════════════════════════════════════════════════
 // Farms — list (paginated)
-//
-// ⚠️ createdByUserId و regionFilter حذف شدند.
-// Backend خودش scope را تعیین می‌کند (مالکیت محض).
 // ═══════════════════════════════════════════════════════════
 export const useFarmsQuery = ({
   page = 1,
@@ -50,9 +47,7 @@ export const useFarmsQuery = ({
 // ═══════════════════════════════════════════════════════════
 // Farms — ALL (auto-paginated برای analytics)
 // ═══════════════════════════════════════════════════════════
-export const useAllFarmsQuery = ({
-  enabled = true,
-} = {}) => {
+export const useAllFarmsQuery = ({ enabled = true } = {}) => {
   return useQuery({
     queryKey: farmKeys.allFarms(),
     queryFn: () =>
@@ -79,9 +74,7 @@ export const useFarmQuery = (farmId, { enabled = true } = {}) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// ✅ جدید: Reference Layer — مزارع دیگران (کم‌اطلاعات)
-//
-// خروجی: { items: [{ farm_id, geojson, is_reference: true }, ...] }
+// Reference Layer — مزارع دیگران (کم‌اطلاعات)
 // ═══════════════════════════════════════════════════════════
 export const useReferenceLayerQuery = ({ enabled = true } = {}) => {
   return useQuery({
@@ -95,8 +88,6 @@ export const useReferenceLayerQuery = ({ enabled = true } = {}) => {
 
 // ═══════════════════════════════════════════════════════════
 // Farmers — list
-//
-// ⚠️ createdByUserId و regionFilter حذف شدند.
 // ═══════════════════════════════════════════════════════════
 export const useFarmersQuery = ({
   page = 1,
@@ -126,9 +117,7 @@ export const useFarmersQuery = ({
 // ═══════════════════════════════════════════════════════════
 // Farmers — ALL (auto-paginated)
 // ═══════════════════════════════════════════════════════════
-export const useAllFarmersQuery = ({
-  enabled = true,
-} = {}) => {
+export const useAllFarmersQuery = ({ enabled = true } = {}) => {
   return useQuery({
     queryKey: farmerKeys.allFarmers(),
     queryFn: () =>
@@ -158,7 +147,11 @@ export const useFarmerQuery = (
 };
 
 // ═══════════════════════════════════════════════════════════
-// Query Client Helpers
+// ✅ Query Client Helpers
+//
+// ⚠️ نکته: invalidateFarms از partial matching استفاده می‌کند،
+// پس همه‌ی queryهای ['farms', 'list', {...}] invalidate می‌شوند،
+// صرف‌نظر از پارامترها.
 // ═══════════════════════════════════════════════════════════
 export const useFarmQueryClient = () => {
   const queryClient = useQueryClient();
@@ -167,18 +160,25 @@ export const useFarmQueryClient = () => {
     invalidateFarms: () =>
       queryClient.invalidateQueries({
         queryKey: farmKeys.lists(),
+        refetchType: 'active',
       }),
+
     invalidateFarm: (id) =>
       queryClient.invalidateQueries({
         queryKey: farmKeys.detail(id),
+        refetchType: 'active',
       }),
+
     invalidateAll: () =>
       queryClient.invalidateQueries({
         queryKey: farmKeys.all,
+        refetchType: 'active',
       }),
+
     invalidateReferenceLayer: () =>
       queryClient.invalidateQueries({
         queryKey: ['farms', 'reference-layer'],
+        refetchType: 'active',
       }),
 
     setFarmData: (id, data) =>
@@ -187,10 +187,13 @@ export const useFarmQueryClient = () => {
     invalidateFarmers: () =>
       queryClient.invalidateQueries({
         queryKey: farmerKeys.lists(),
+        refetchType: 'active',
       }),
+
     invalidateFarmer: (id) =>
       queryClient.invalidateQueries({
         queryKey: farmerKeys.detail(id),
+        refetchType: 'active',
       }),
   };
 };

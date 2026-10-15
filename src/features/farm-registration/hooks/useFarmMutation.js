@@ -7,7 +7,7 @@ import {
   fetchFarmById,
 } from "../../../services/api/farmApi";
 import { farmerApi } from "../../../services/api/farmerApi";
-import { farmKeys, FARM_LIST_QUERY_PARAMS } from "./farmQueryKeys";
+import { farmKeys, farmerKeys } from "./farmQueryKeys";
 
 // ═══════════════════════════════════════════════════════════
 // کلید لایهٔ مرجع
@@ -23,7 +23,55 @@ const extractFarmFromResponse = (response) => {
 };
 
 // ═══════════════════════════════════════════════════════════
+// ✅ invalidateFarmsAndRelated
+//
+// این تابع تضمین می‌کند که:
+//   ۱. همه‌ی queryهای list مزرعه refetch شوند
+//      (صرف‌نظر از page/pageSize/search)
+//   ۲. queryهای allFarms (analytics) آپدیت شوند
+//   ۳. لایهٔ مرجع refetch شود
+//
+// چرا setQueryData دستی حذف شد؟
+//   چون:
+//   - با placeholderData تداخل می‌کند
+//   - با keyهای مختلفی که MapViewPage استفاده می‌کند
+//     هماهنگ نیست
+//   - منبع حقیقت باید سرور باشد، نه cache دستی
+// ═══════════════════════════════════════════════════════════
+const invalidateFarmsAndRelated = (queryClient) => {
+  // ✅ partial matching: همه‌ی queryهای زیر ['farms', 'list']
+  queryClient.invalidateQueries({
+    queryKey: farmKeys.lists(),
+    refetchType: "active",
+  });
+
+  // ✅ analytics
+  queryClient.invalidateQueries({
+    queryKey: farmKeys.allFarms(),
+    refetchType: "active",
+  });
+
+  // ✅ لایهٔ مرجع
+  queryClient.invalidateQueries({
+    queryKey: REFERENCE_LAYER_KEY,
+    refetchType: "active",
+  });
+};
+
+// ═══════════════════════════════════════════════════════════
+// ✅ invalidateFarmers
+// ═══════════════════════════════════════════════════════════
+const invalidateFarmers = (queryClient) => {
+  queryClient.invalidateQueries({
+    queryKey: farmerKeys.all,
+    refetchType: "active",
+  });
+};
+
+// ═══════════════════════════════════════════════════════════
 // mergeFarm: ادغام ایمن farm قدیمی + پاسخ سرور + payload
+//
+// ⚠️ فقط برای detail queryها استفاده می‌شود (نه list)
 // ═══════════════════════════════════════════════════════════
 const mergeFarm = (oldFarm, savedFarm, payload) => {
   const merged = { ...(oldFarm || {}) };
@@ -52,7 +100,6 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     "created_by_user_id",
   ];
 
-  // مرحله 1: اعمال فیلدهای savedFarm
   if (savedFarm) {
     for (const field of FARM_FIELDS) {
       const value = savedFarm[field];
@@ -62,7 +109,6 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     }
   }
 
-  // مرحله 2: اعمال payload برای فیلدهای خالی
   if (payload) {
     for (const field of FARM_FIELDS) {
       if (merged[field] === undefined || merged[field] === null) {
@@ -74,7 +120,6 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     }
   }
 
-  // مرحله 3: geojson — منطق ویژه
   if (
     savedFarm &&
     savedFarm.geojson !== undefined &&
@@ -89,12 +134,6 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     merged.geojson = payload.geojson;
   } else if (oldFarm && oldFarm.geojson !== undefined) {
     merged.geojson = oldFarm.geojson;
-  } else {
-    console.warn("mergeFarm: no valid geojson found", {
-      savedFarmHasGeo: !!savedFarm?.geojson,
-      payloadHasGeo: !!payload?.geojson,
-      oldFarmHasGeo: !!oldFarm?.geojson,
-    });
   }
 
   return merged;
@@ -108,40 +147,27 @@ export const useCreateFarmMutation = () => {
 
   return useMutation({
     mutationFn: (payload) => createFarm(payload),
+
     onSuccess: (response, payload) => {
       const savedFarm = extractFarmFromResponse(response);
-      const farmForList = mergeFarm(null, savedFarm, payload);
 
-      // درج در cache لیست
-      queryClient.setQueryData(
-        farmKeys.list(FARM_LIST_QUERY_PARAMS),
-        (oldData) => {
-          if (!oldData) return oldData;
-
-          const existingFarms = oldData.farms || [];
-          const exists = existingFarms.some(
-            (f) => String(f.farm_id) === String(farmForList.farm_id),
-          );
-          if (exists) return oldData;
-
-          return {
-            ...oldData,
-            farms: [farmForList, ...existingFarms],
-            total: (oldData.total || 0) + 1,
-          };
-        },
-      );
-
-      if (farmForList.farm_id) {
+      // ✅ detail را مستقیم set کن (اگر server پاسخ کامل داد)
+      if (savedFarm?.farm_id) {
         queryClient.setQueryData(
-          farmKeys.detail(farmForList.farm_id),
-          farmForList,
+          farmKeys.detail(savedFarm.farm_id),
+          savedFarm,
         );
       }
 
-      queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
-      // ✅ لایهٔ مرجع برای بقیه کاربران آپدیت می‌شود
-      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
+      // ✅ لیست‌ها + لایهٔ مرجع را invalidate کن
+      invalidateFarmsAndRelated(queryClient);
+
+      // ✅ کشاورزان (ممکن است کشاورز جدید ساخته شده باشد)
+      invalidateFarmers(queryClient);
+    },
+
+    onError: (error) => {
+      console.error("خطا در ایجاد مزرعه:", error);
     },
   });
 };
@@ -159,43 +185,19 @@ export const useRegisterWithFarmsMutation = () => {
     onSuccess: (response) => {
       const createdFarm = response?.farms?.[0];
 
-      if (createdFarm) {
+      // ✅ detail را مستقیم set کن
+      if (createdFarm?.farm_id) {
         queryClient.setQueryData(
-          farmKeys.list(FARM_LIST_QUERY_PARAMS),
-          (oldData) => {
-            if (!oldData) return oldData;
-
-            const existingFarms = oldData.farms || [];
-            const exists = existingFarms.some(
-              (f) =>
-                String(f.farm_id) === String(createdFarm.farm_id),
-            );
-            if (exists) return oldData;
-
-            return {
-              ...oldData,
-              farms: [createdFarm, ...existingFarms],
-              total: (oldData.total || 0) + 1,
-            };
-          },
+          farmKeys.detail(createdFarm.farm_id),
+          createdFarm,
         );
-
-        if (createdFarm.farm_id) {
-          queryClient.setQueryData(
-            farmKeys.detail(createdFarm.farm_id),
-            createdFarm,
-          );
-        }
       }
 
-      queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
-      // ✅ لایهٔ مرجع
-      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
+      // ✅ لیست‌ها + لایهٔ مرجع
+      invalidateFarmsAndRelated(queryClient);
 
-      // ✅ کشاورزان هم آپدیت می‌شوند (شاید کشاورز جدید ساخته شد)
-      queryClient.invalidateQueries({
-        queryKey: ["farmers"],
-      });
+      // ✅ کشاورزان (کشاورز جدید ساخته شده)
+      invalidateFarmers(queryClient);
     },
 
     onError: (error) => {
@@ -212,40 +214,25 @@ export const useUpdateFarmMutation = () => {
 
   return useMutation({
     mutationFn: ({ farmId, payload }) => updateFarm(farmId, payload),
+
     onSuccess: (response, variables) => {
       const savedFarm = extractFarmFromResponse(response);
 
-      queryClient.setQueryData(
-        farmKeys.list(FARM_LIST_QUERY_PARAMS),
-        (oldData) => {
-          if (!oldData) return oldData;
-
-          const updatedFarms = (oldData.farms || []).map((farm) => {
-            if (String(farm.farm_id) === String(variables.farmId)) {
-              return mergeFarm(farm, savedFarm, variables.payload);
-            }
-            return farm;
-          });
-
-          return {
-            ...oldData,
-            farms: updatedFarms,
-          };
-        },
-      );
-
+      // ✅ detail را با merge آپدیت کن (برای UI فوری)
       queryClient.setQueryData(
         farmKeys.detail(variables.farmId),
-        (oldData) =>
-          mergeFarm(oldData, savedFarm, variables.payload),
+        (oldData) => mergeFarm(oldData, savedFarm, variables.payload),
       );
 
-      queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
-      queryClient.invalidateQueries({
-        queryKey: farmKeys.detail(variables.farmId),
-      });
-      // ✅ لایهٔ مرجع (چون هندسه/رنگ ممکن است تغییر کرده باشد)
-      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
+      // ✅ لیست‌ها + لایهٔ مرجع را invalidate کن
+      invalidateFarmsAndRelated(queryClient);
+
+      // ✅ کشاورزان (شاید کشاورز تغییر کرده)
+      invalidateFarmers(queryClient);
+    },
+
+    onError: (error) => {
+      console.error("خطا در ویرایش مزرعه:", error);
     },
   });
 };
@@ -268,7 +255,6 @@ export const useUpdateFarmGeometryMutation = () => {
         throw new Error("اطلاعات مزرعه یافت نشد");
       }
 
-      // اگر لایهٔ مرجع برگشت (نه دادهٔ کامل) → خطا
       if (currentFarm.is_reference === true) {
         throw new Error("شما به این مزرعه دسترسی ندارید");
       }
@@ -303,65 +289,31 @@ export const useUpdateFarmGeometryMutation = () => {
     },
 
     onSuccess: async (response, variables) => {
+      // ✅ تلاش برای گرفتن canonical از سرور
       try {
         const canonical = await fetchFarmById(variables.farmId);
 
-        // اگر پاسخ مرجع بود، از payload استفاده کن
         if (canonical && canonical.is_reference !== true) {
           queryClient.setQueryData(
             farmKeys.detail(variables.farmId),
             canonical,
           );
-
-          queryClient.setQueryData(
-            farmKeys.list(FARM_LIST_QUERY_PARAMS),
-            (oldData) => {
-              if (!oldData) return oldData;
-
-              const updatedFarms = (oldData.farms || []).map((farm) =>
-                String(farm.farm_id) === String(variables.farmId)
-                  ? mergeFarm(farm, canonical, null)
-                  : farm,
-              );
-
-              return {
-                ...oldData,
-                farms: updatedFarms,
-              };
-            },
-          );
         }
       } catch (err) {
         console.warn(
-          "canonical refetch failed, falling back to payload:",
+          "canonical refetch failed, using payload:",
           err,
         );
 
+        // ✅ fallback: از payload استفاده کن
         queryClient.setQueryData(
           farmKeys.detail(variables.farmId),
           (oldData) => mergeFarm(oldData, null, variables.payload),
         );
-
-        queryClient.setQueryData(
-          farmKeys.list(FARM_LIST_QUERY_PARAMS),
-          (oldData) => {
-            if (!oldData) return oldData;
-            const updatedFarms = (oldData.farms || []).map((farm) =>
-              String(farm.farm_id) === String(variables.farmId)
-                ? mergeFarm(farm, null, variables.payload)
-                : farm,
-            );
-            return { ...oldData, farms: updatedFarms };
-          },
-        );
       }
 
-      queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
-      queryClient.invalidateQueries({
-        queryKey: farmKeys.detail(variables.farmId),
-      });
-      // ✅ لایهٔ مرجع (هندسه عوض شده)
-      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
+      // ✅ لیست‌ها + لایهٔ مرجع
+      invalidateFarmsAndRelated(queryClient);
     },
 
     onError: (error) => {
@@ -378,29 +330,17 @@ export const useDeleteFarmMutation = () => {
 
   return useMutation({
     mutationFn: (farmId) => deleteFarm(farmId),
-    onSuccess: (_, farmId) => {
-      queryClient.setQueryData(
-        farmKeys.list(FARM_LIST_QUERY_PARAMS),
-        (oldData) => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            farms: (oldData.farms || []).filter(
-              (f) => String(f.farm_id) !== String(farmId),
-            ),
-            total: Math.max(0, (oldData.total || 1) - 1),
-          };
-        },
-      );
 
+    onSuccess: (_, farmId) => {
+      // ✅ detail را حذف کن
       queryClient.removeQueries({
         queryKey: farmKeys.detail(farmId),
       });
 
-      queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
-      // ✅ لایهٔ مرجع (مزرعه حذف شده)
-      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
+      // ✅ لیست‌ها + لایهٔ مرجع
+      invalidateFarmsAndRelated(queryClient);
     },
+
     onError: (error) => {
       console.error("خطا در حذف مزرعه:", error);
     },
