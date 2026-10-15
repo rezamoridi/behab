@@ -13,12 +13,11 @@ import {
   useLayerStyle,
   getDashArray,
 } from "../../settings/hooks/useLayerStyle";
-import { useAuth } from "../../../context/useAuth";
 import { usePermissions } from "../../auth/hooks/usePermissions";
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // رنگ محصول
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const getFarmColor = (farm, colorByCrop) => {
   const direct = normalizeHex(farm?.crop_color);
   if (direct) return direct;
@@ -32,11 +31,7 @@ const getFarmColor = (farm, colorByCrop) => {
   return DEFAULT_FARM_COLOR;
 };
 
-// ============================================================
-// ✅ استایل یکسان برای همه مزارع
-// (چه خودی چه دیگران)
-// ============================================================
-const getFarmStyle = (farm, isSelected, colorByCrop, layerStyle) => {
+const getOwnFarmStyle = (farm, isSelected, colorByCrop, layerStyle) => {
   const cropColor = getFarmColor(farm, colorByCrop);
   const s = layerStyle;
 
@@ -65,9 +60,21 @@ const getFarmStyle = (farm, isSelected, colorByCrop, layerStyle) => {
   };
 };
 
-// ============================================================
-// getFeatures
-// ============================================================
+const getReferenceStyle = (referenceStyle) => {
+  const s = referenceStyle || {};
+
+  return {
+    color: s.color || "#9E9E9E",
+    weight: Number(s.stroke_weight ?? 2),
+    opacity: 0.9,
+    fillColor: s.color || "#9E9E9E",
+    fillOpacity: Number(s.fill_opacity ?? 0.08),
+    dashArray: getDashArray(s.stroke_style || "solid"),
+    className: "reference-polygon",
+    interactive: false,
+  };
+};
+
 const getFeatures = (geojson) => {
   if (!geojson) return [];
 
@@ -78,8 +85,13 @@ const getFeatures = (geojson) => {
     if (geojson.type === "Feature") {
       return [geojson];
     }
-    if (geojson.type === "Polygon" || geojson.type === "MultiPolygon") {
-      return [{ type: "Feature", properties: {}, geometry: geojson }];
+    if (
+      geojson.type === "Polygon" ||
+      geojson.type === "MultiPolygon"
+    ) {
+      return [
+        { type: "Feature", properties: {}, geometry: geojson },
+      ];
     }
     if (Array.isArray(geojson)) {
       return geojson;
@@ -91,9 +103,6 @@ const getFeatures = (geojson) => {
   }
 };
 
-// ============================================================
-// safeUnmount
-// ============================================================
 const safeUnmount = (root) => {
   if (!root) return;
   try {
@@ -109,53 +118,46 @@ const safeUnmount = (root) => {
   }
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // SavedFarmsLayer
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const SavedFarmsLayer = ({
-  farms,
+  farms = [],
+  referenceFarms = [],
+  referenceStyle = null,
   farmersById = {},
   colorByCrop = {},
   onFarmClick,
   onFarmEdit,
   onFarmEditGeometry,
   onFarmDelete,
+  onFarmHistory,
+  onFarmTransfer,
   selectedFarmId = null,
 }) => {
   const map = useMap();
   const { style: layerStyle } = useLayerStyle();
-  const { user } = useAuth();
-  const { isSuperAdmin, isManager } = usePermissions();
+  const { isSuperAdmin } = usePermissions();
 
-  const layerGroupRef = useRef(null);
-  // Map<farm_id, { polygons: L.Polygon[], isOwn: boolean, farm: Farm }>
-  const polygonsByFarmRef = useRef(new Map());
+  const ownLayerGroupRef = useRef(null);
+  const refLayerGroupRef = useRef(null);
+  const ownPolygonsRef = useRef(new Map());
   const popupRootsRef = useRef([]);
+  // ✅ نگه‌داشتن popup content در یک Map برای استفاده‌ی مجدد
+  const popupContentByFarmRef = useRef(new Map());
+
   const handlersRef = useRef({
     onFarmClick,
     onFarmEdit,
     onFarmEditGeometry,
     onFarmDelete,
+    onFarmHistory,
+    onFarmTransfer,
   });
   const layerStyleRef = useRef(layerStyle);
   const farmersByIdRef = useRef(farmersById);
-  const boundsFittedRef = useRef(false);
-  const isMountedRef = useRef(true);
-
-  // user / role refs
-  const currentUserIdRef = useRef(user?.id ?? null);
-  const userRoleRef = useRef(user?.role ?? null);
-  const userRegionIdsRef = useRef(user?.region_ids ?? []);
+  const referenceStyleRef = useRef(referenceStyle);
   const isSuperAdminRef = useRef(isSuperAdmin);
-  const isManagerRef = useRef(isManager);
-
-  useEffect(() => {
-    currentUserIdRef.current = user?.id ?? null;
-    userRoleRef.current = user?.role ?? null;
-    userRegionIdsRef.current = user?.region_ids ?? [];
-    isSuperAdminRef.current = isSuperAdmin;
-    isManagerRef.current = isManager;
-  }, [user, isSuperAdmin, isManager]);
 
   useEffect(() => {
     handlersRef.current = {
@@ -163,8 +165,17 @@ const SavedFarmsLayer = ({
       onFarmEdit,
       onFarmEditGeometry,
       onFarmDelete,
+      onFarmHistory,
+      onFarmTransfer,
     };
-  }, [onFarmClick, onFarmEdit, onFarmEditGeometry, onFarmDelete]);
+  }, [
+    onFarmClick,
+    onFarmEdit,
+    onFarmEditGeometry,
+    onFarmDelete,
+    onFarmHistory,
+    onFarmTransfer,
+  ]);
 
   useEffect(() => {
     layerStyleRef.current = layerStyle;
@@ -174,45 +185,17 @@ const SavedFarmsLayer = ({
     farmersByIdRef.current = farmersById;
   }, [farmersById]);
 
-  // ============================================================
-  // تعیین مالکیت
-  // ============================================================
-  const isOwnFarm = useCallback((farm) => {
-    const role = userRoleRef.current;
-    const userId = currentUserIdRef.current;
-    const userRegions = userRegionIdsRef.current;
+  useEffect(() => {
+    referenceStyleRef.current = referenceStyle;
+  }, [referenceStyle]);
 
-    if (role === "super_admin") return true;
+  useEffect(() => {
+    isSuperAdminRef.current = isSuperAdmin;
+  }, [isSuperAdmin]);
 
-    if (role === "manager") {
-      return (
-        farm.region_id != null &&
-        userRegions.includes(farm.region_id)
-      );
-    }
-
-    if (role === "dehyar") {
-      if (
-        farm.region_id != null &&
-        userRegions.includes(farm.region_id)
-      ) {
-        return true;
-      }
-      if (
-        farm.region_id == null &&
-        farm.created_by_user_id === userId
-      ) {
-        return true;
-      }
-      return false;
-    }
-
-    return false;
-  }, []);
-
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
   // cleanup
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
   const cleanupAll = useCallback(() => {
     try {
       map.closePopup();
@@ -220,12 +203,11 @@ const SavedFarmsLayer = ({
       /* ignore */
     }
 
-    popupRootsRef.current.forEach((root) => {
-      safeUnmount(root);
-    });
+    popupRootsRef.current.forEach((root) => safeUnmount(root));
     popupRootsRef.current = [];
+    popupContentByFarmRef.current.clear();
 
-    polygonsByFarmRef.current.forEach((entry) => {
+    ownPolygonsRef.current.forEach((entry) => {
       const polys = entry?.polygons || [];
       polys.forEach((polygon) => {
         try {
@@ -240,26 +222,44 @@ const SavedFarmsLayer = ({
         }
       });
     });
-    polygonsByFarmRef.current.clear();
+    ownPolygonsRef.current.clear();
 
-    if (layerGroupRef.current) {
+    if (ownLayerGroupRef.current) {
       try {
-        layerGroupRef.current.clearLayers();
-        if (map.hasLayer(layerGroupRef.current)) {
-          map.removeLayer(layerGroupRef.current);
+        ownLayerGroupRef.current.clearLayers();
+        if (map.hasLayer(ownLayerGroupRef.current)) {
+          map.removeLayer(ownLayerGroupRef.current);
         }
       } catch {
         /* ignore */
       }
-      layerGroupRef.current = null;
+      ownLayerGroupRef.current = null;
+    }
+
+    if (refLayerGroupRef.current) {
+      try {
+        refLayerGroupRef.current.clearLayers();
+        if (map.hasLayer(refLayerGroupRef.current)) {
+          map.removeLayer(refLayerGroupRef.current);
+        }
+      } catch {
+        /* ignore */
+      }
+      refLayerGroupRef.current = null;
     }
   }, [map]);
 
-  // ============================================================
-  // createPopupContent — فقط برای مزرعه خودی
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
+  // createPopupContent — یک‌بار برای هر مزرعه ساخته می‌شود
+  // ═════════════════════════════════════════════════════════
   const createPopupContent = useCallback(
     (farm) => {
+      const farmId = String(farm.farm_id);
+
+      // ✅ اگر قبلاً ساخته شده، همان را برگردان
+      const cached = popupContentByFarmRef.current.get(farmId);
+      if (cached) return cached;
+
       const container = document.createElement("div");
       container.className = "farm-popup-container";
 
@@ -284,7 +284,9 @@ const SavedFarmsLayer = ({
         } catch {
           /* ignore */
         }
-        if (typeof handlersRef.current.onFarmEditGeometry === "function") {
+        if (
+          typeof handlersRef.current.onFarmEditGeometry === "function"
+        ) {
           handlersRef.current.onFarmEditGeometry(farm);
         }
       };
@@ -308,6 +310,30 @@ const SavedFarmsLayer = ({
         }
       };
 
+      const handleHistory = (farmToShow) => {
+        try {
+          map.closePopup();
+        } catch {
+          /* ignore */
+        }
+        if (typeof handlersRef.current.onFarmHistory === "function") {
+          handlersRef.current.onFarmHistory(farmToShow);
+        }
+      };
+
+      const handleTransfer = (farmToTransfer) => {
+        try {
+          map.closePopup();
+        } catch {
+          /* ignore */
+        }
+        if (
+          typeof handlersRef.current.onFarmTransfer === "function"
+        ) {
+          handlersRef.current.onFarmTransfer(farmToTransfer);
+        }
+      };
+
       const root = createRoot(container);
       root.render(
         <FarmPopupContent
@@ -317,136 +343,149 @@ const SavedFarmsLayer = ({
           onEditGeometry={handleEditGeometry}
           onDelete={handleDelete}
           onClose={handleClose}
+          onHistory={handleHistory}
+          onTransfer={handleTransfer}
+          isSuperAdmin={isSuperAdminRef.current}
         />,
       );
 
       popupRootsRef.current.push(root);
+      popupContentByFarmRef.current.set(farmId, container);
       return container;
     },
     [map],
   );
 
-  // ============================================================
-  // Main Effect — ساخت لایه‌ها
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
+  // Main Effect — با پیش‌ساخت popup content و autoPan off
+  // ═════════════════════════════════════════════════════════
   useEffect(() => {
     if (!map) return;
 
     cleanupAll();
 
-    if (!farms || farms.length === 0) {
+    const hasOwnFarms = Array.isArray(farms) && farms.length > 0;
+    const hasRefFarms =
+      Array.isArray(referenceFarms) && referenceFarms.length > 0;
+
+    if (!hasOwnFarms && !hasRefFarms) {
       return;
     }
 
-    const layerGroup = L.layerGroup();
-    layerGroupRef.current = layerGroup;
+    // ─── ۱. مزارع خودی ───
+    if (hasOwnFarms) {
+      const ownGroup = L.layerGroup();
+      ownLayerGroupRef.current = ownGroup;
 
-    farms.forEach((farm) => {
-      if (!farm || !farm.geojson || !farm.farm_id) return;
+      farms.forEach((farm) => {
+        if (!farm || !farm.geojson || !farm.farm_id) return;
+        if (farm.is_reference === true) return;
 
-      const features = getFeatures(farm.geojson);
-      if (!features || features.length === 0) return;
+        const features = getFeatures(farm.geojson);
+        if (!features || features.length === 0) return;
 
-      const isOwn = isOwnFarm(farm);
+        const styleOptions = getOwnFarmStyle(
+          farm,
+          false,
+          colorByCrop,
+          layerStyleRef.current,
+        );
 
-      // ✅ استایل یکسان برای همه
-      const styleOptions = getFarmStyle(
-        farm,
-        false,
-        colorByCrop,
-        layerStyleRef.current,
-      );
+        // ✅ پیش‌ساخت popup content — یک‌بار برای هر مزرعه
+        const popupContent = createPopupContent(farm);
 
-      const farmPolygons = [];
+        const farmPolygons = [];
 
-      for (const feature of features) {
-        const geometry = feature.geometry || feature;
-        if (!geometry) continue;
+        for (const feature of features) {
+          const geometry = feature.geometry || feature;
+          if (!geometry) continue;
 
-        const polys = geometryToLeafletPolygons(geometry, styleOptions);
+          const polys = geometryToLeafletPolygons(
+            geometry,
+            styleOptions,
+          );
 
-        for (const polygon of polys) {
-          if (isOwn) {
-            // ✅ مزرعه خودی: کلیک + popup
-            polygon.on("click", (e) => {
-              L.DomEvent.stopPropagation(e);
-              const { onFarmClick: cb } = handlersRef.current;
-              if (typeof cb === "function") {
-                cb(farm, e);
-              }
-            });
-
-            const popupContent = createPopupContent(farm);
+          for (const polygon of polys) {
+            // ✅ popup را از قبل bind کن (بدون autoPan)
             polygon.bindPopup(popupContent, {
               className: "farm-popup",
               offset: L.point(0, -10),
               closeButton: false,
               minWidth: 260,
               maxWidth: 320,
-              autoPan: true,
-              autoPanPadding: L.point(20, 20),
-              keepInView: true,
+              autoPan: false,        // ✅ pan خودکار خاموش
+              keepInView: false,     // ✅ keepInView خاموش
+              closeOnClick: true,
+              autoClose: true,
             });
-          } else {
-            // ✅ مزرعه دیگران: ظاهر یکسان، ولی بدون popup
-            // هیچ اطلاعاتی لو نمی‌رود — فقط شکل دیده می‌شود
+
             polygon.on("click", (e) => {
               L.DomEvent.stopPropagation(e);
-              // ✅ فقط deselect — بدون popup، بدون onFarmClick
-              const { onFarmClick: cb } = handlersRef.current;
-              if (typeof cb === "function") {
-                cb(null);
+
+              if (
+                typeof handlersRef.current.onFarmClick === "function"
+              ) {
+                handlersRef.current.onFarmClick(farm, e);
               }
-            });
-          }
 
-          layerGroup.addLayer(polygon);
-          farmPolygons.push(polygon);
-        }
-      }
-
-      if (farmPolygons.length > 0) {
-        polygonsByFarmRef.current.set(String(farm.farm_id), {
-          polygons: farmPolygons,
-          isOwn,
-          farm,
-        });
-      }
-    });
-
-    layerGroup.addTo(map);
-
-    // ✅ fitBounds بر اساس همه مزارع (چون ظاهر یکسان است)
-    if (!boundsFittedRef.current && polygonsByFarmRef.current.size > 0) {
-      try {
-        const bounds = L.latLngBounds();
-
-        polygonsByFarmRef.current.forEach(({ polygons }) => {
-          polygons.forEach((polygon) => {
-            const latLngs = polygon.getLatLngs();
-            const processCoords = (coords) => {
-              if (Array.isArray(coords)) {
-                if (
-                  coords.length === 2 &&
-                  typeof coords[0] === "number" &&
-                  typeof coords[1] === "number"
-                ) {
-                  bounds.extend(coords);
-                } else {
-                  coords.forEach(processCoords);
+              // ✅ openPopup را در RAF صدا بزن تا DOM آماده باشد
+              requestAnimationFrame(() => {
+                try {
+                  polygon.openPopup();
+                } catch (err) {
+                  console.warn("Failed to open farm popup:", err);
                 }
-              }
-            };
-            processCoords(latLngs);
-          });
-        });
+              });
+            });
 
-        if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [50, 50] });
-          boundsFittedRef.current = true;
+            ownGroup.addLayer(polygon);
+            farmPolygons.push(polygon);
+          }
         }
-      } catch (error) {
-        console.error("Error fitting bounds:", error);
+
+        if (farmPolygons.length > 0) {
+          ownPolygonsRef.current.set(String(farm.farm_id), {
+            polygons: farmPolygons,
+            farm,
+          });
+        }
+      });
+
+      ownGroup.addTo(map);
+    }
+
+    // ─── ۲. مزارع مرجع ───
+    if (hasRefFarms) {
+      const refGroup = L.layerGroup();
+      refLayerGroupRef.current = refGroup;
+
+      const styleOpts = getReferenceStyle(referenceStyleRef.current);
+
+      referenceFarms.forEach((farm) => {
+        if (!farm || !farm.geojson || !farm.farm_id) return;
+
+        const features = getFeatures(farm.geojson);
+        if (!features || features.length === 0) return;
+
+        for (const feature of features) {
+          const geometry = feature.geometry || feature;
+          if (!geometry) continue;
+
+          const polys = geometryToLeafletPolygons(geometry, styleOpts);
+
+          for (const polygon of polys) {
+            polygon.options.interactive = false;
+            refGroup.addLayer(polygon);
+          }
+        }
+      });
+
+      refGroup.addTo(map);
+
+      try {
+        refGroup.bringToBack();
+      } catch {
+        /* ignore */
       }
     }
 
@@ -454,20 +493,27 @@ const SavedFarmsLayer = ({
       cleanupAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, farms, colorByCrop, cleanupAll, createPopupContent]);
+  }, [
+    map,
+    farms,
+    referenceFarms,
+    colorByCrop,
+    referenceStyle,
+    cleanupAll,
+    createPopupContent,
+  ]);
 
-  // ============================================================
-  // Style Effect — برای همه مزارع (انتخاب‌شده/غیرانتخاب‌شده)
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
+  // Style Effect
+  // ═════════════════════════════════════════════════════════
   useEffect(() => {
-    polygonsByFarmRef.current.forEach((entry, farmId) => {
+    ownPolygonsRef.current.forEach((entry, farmId) => {
       const polys = entry?.polygons || [];
       const farm = entry?.farm;
-
       if (!farm) return;
 
       const isSelected = String(farmId) === String(selectedFarmId);
-      const styleOptions = getFarmStyle(
+      const styleOptions = getOwnFarmStyle(
         farm,
         isSelected,
         colorByCrop,
@@ -484,16 +530,15 @@ const SavedFarmsLayer = ({
     });
   }, [layerStyle, selectedFarmId, farms, colorByCrop]);
 
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
   // Deselect روی کلیک نقشه
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
   useEffect(() => {
     if (!map) return;
 
     const handleMapClick = () => {
-      const { onFarmClick: cb } = handlersRef.current;
-      if (typeof cb === "function") {
-        cb(null);
+      if (typeof handlersRef.current.onFarmClick === "function") {
+        handlersRef.current.onFarmClick(null);
       }
     };
 
@@ -504,13 +549,11 @@ const SavedFarmsLayer = ({
     };
   }, [map]);
 
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
   // Cleanup روی unmount
-  // ============================================================
+  // ═════════════════════════════════════════════════════════
   useEffect(() => {
-    isMountedRef.current = true;
     return () => {
-      isMountedRef.current = false;
       popupRootsRef.current.forEach((root) => {
         try {
           root.unmount();
@@ -519,6 +562,7 @@ const SavedFarmsLayer = ({
         }
       });
       popupRootsRef.current = [];
+      popupContentByFarmRef.current.clear();
     };
   }, []);
 

@@ -6,19 +6,20 @@ import { DOCK_ITEMS } from './navigationConfig';
 import { useFarmPanel } from '../farm-registration/panel/FarmPanelContext';
 import { usePermissions } from '../auth/hooks/usePermissions';
 
+// ✅ shortcut نمایشی هر آیتم (id → حرف)
 const SHORTCUTS = {
   dashboard: 'D',
   map: 'M',
   conversations: 'C',
   'farm-panel': 'F',
-  farmers: 'K',
+  farmers: 'U',              // ✅ تغییر K → U (Users)
 };
 
 const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen: farmPanelOpen } = useFarmPanel();
-  const { role } = usePermissions(); // ✅
+  const { role } = usePermissions();
 
   const isRouteActive = (path) => {
     if (path === '/') return location.pathname === '/';

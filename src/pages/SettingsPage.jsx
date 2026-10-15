@@ -1,126 +1,151 @@
 // src/pages/SettingsPage.jsx
-import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Settings, X } from 'lucide-react';
+import { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ShieldAlert } from 'lucide-react';
 
+import { usePermissions } from '../features/auth/hooks/usePermissions';
 import SettingsTabs from '../features/settings/components/SettingsTabs';
+
 import ProfileSettings from '../features/settings/components/ProfileSettings';
 import AgricultureSettings from '../features/settings/components/AgricultureSettings';
-import CropSettingsManager from '../features/settings/components/CropSettingsManager';
-import UsersManagement from '../features/settings/components/UsersManagement';
 import LayerStyleSettings from '../features/settings/components/LayerStyleSettings';
-import SmsSettings from '../features/settings/components/SmsSettings';
+import CropSettingsManager from '../features/settings/components/CropSettingsManager';
 import RegionSettings from '../features/settings/components/RegionSettings';
+import VillageSettings from '../features/settings/components/VillageSettings';
+import RolePolicySettings from '../features/settings/components/RolePolicySettings';
+import UserGrantsManagement from '../features/settings/components/UserGrantsManagement';
+import SmsSettings from '../features/settings/components/SmsSettings';
 import OrphansManagement from '../features/settings/components/OrphansManagement';
 import RestoreManagement from '../features/settings/components/RestoreManagement';
-import ImportData from '../features/settings/components/ImportData';           // ✅ جدید
-import DuplicateMerge from '../features/settings/components/DuplicateMerge';   // ✅ جدید
+import DuplicateMerge from '../features/settings/components/DuplicateMerge';
+import ImportData from '../features/settings/components/ImportData';
 
-import { useProfileSettings } from '../features/settings/hooks/useProfileSettings';
-import { useAgricultureSettings } from '../features/settings/hooks/useAgricultureSettings';
+import {
+  useAgricultureSettings,
+} from '../features/settings/hooks/useAgricultureSettings';
 
 // ═══════════════════════════════════════════════════════════
-// Tabs definition — یک منبع واحد
+// Tab definitions
 // ═══════════════════════════════════════════════════════════
-const SETTINGS_TABS = [
+const VALID_TABS = [
+  'profile',
+  'agriculture',
+  'layer-style',
+  'crops',
+  'regions',
+  'villages',
+  'role-policies',
+  'user-grants',
+  'orphans',
+  'restore',
+  'duplicates',
+  'import',
+  'sms',
+];
+
+const tabs = [
   { id: 'profile', label: 'پروفایل کاربری' },
   { id: 'agriculture', label: 'تنظیمات کشاورزی' },
   { id: 'layer-style', label: 'ظاهر لایه‌ها' },
   { id: 'crops', label: 'تنظیمات محصولات' },
   { id: 'regions', label: 'مناطق' },
-  { id: 'users', label: 'مدیریت کاربران' },
-  { id: 'orphans', label: 'داده‌های بدون منطقه' },
+  { id: 'villages', label: 'روستاها' },
+  { id: 'role-policies', label: 'مجوزهای نقش‌ها' },
+  { id: 'user-grants', label: 'مجوزهای استثنایی' },
+  { id: 'orphans', label: 'داده‌های بی‌مالک' },
   { id: 'restore', label: 'سبد بازیابی' },
-  { id: 'import', label: 'Import از Excel' },
-  { id: 'duplicates', label: 'کشاورزان تکراری' },
+  { id: 'duplicates', label: 'ادغام تکراری‌ها' },
+  { id: 'import', label: 'ورود داده' },
   { id: 'sms', label: 'تنظیمات پیامک' },
 ];
 
-// ✅ استخراج به‌عنوان آرایه‌ی id
-const VALID_TABS = SETTINGS_TABS.map((t) => t.id);
+// ═══════════════════════════════════════════════════════════
+// AccessDenied
+// ═══════════════════════════════════════════════════════════
+const AccessDenied = () => (
+  <div
+    className="min-h-screen flex items-center justify-center p-6 pt-24"
+    dir="rtl"
+  >
+    <div className="max-w-sm w-full bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
+      <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+        <ShieldAlert size={24} strokeWidth={2.2} />
+      </div>
+      <h2 className="text-base font-bold text-gray-900 mb-2">
+        دسترسی محدود
+      </h2>
+      <p className="text-xs text-gray-500 leading-relaxed">
+        این بخش فقط برای مدیر ارشد در دسترس است.
+      </p>
+    </div>
+  </div>
+);
 
-
-const SettingsPage = ({ onNavigateHome }) => {
+// ═══════════════════════════════════════════════════════════
+// SettingsPage
+// ═══════════════════════════════════════════════════════════
+const SettingsPage = () => {
+  const navigate = useNavigate();
   const location = useLocation();
-
-  const initialTab = VALID_TABS.includes(location.state?.activeTab)
-    ? location.state.activeTab
-    : 'profile';
-
-  const [activeTab, setActiveTab] = useState(initialTab);
-
-  // اگر از داشبورد با tab جدید آمد
-  useEffect(() => {
-    const nextTab = location.state?.activeTab;
-    if (!nextTab || !VALID_TABS.includes(nextTab)) return;
-
-    const timer = setTimeout(() => {
-      setActiveTab(nextTab);
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, [location.state?.activeTab]);
-
-  const {
-    profile,
-    isLoading: profileLoading,
-    updateProfile,
-    changePassword,
-  } = useProfileSettings();
+  const { isSuperAdmin } = usePermissions();
 
   const {
     settings,
-    isLoading: agricultureLoading,
+    isLoading: isSettingsLoading,
     updateSettings,
   } = useAgricultureSettings();
 
+  const requestedTab = location.state?.activeTab;
+  const activeTab = VALID_TABS.includes(requestedTab)
+    ? requestedTab
+    : 'profile';
+
+  const handleTabChange = (tabId) => {
+    navigate('/settings', {
+      replace: true,
+      state: { activeTab: tabId },
+    });
+  };
+
+  useEffect(() => {
+    if (requestedTab === 'users') {
+      navigate('/settings', {
+        replace: true,
+        state: { activeTab: 'profile' },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedTab]);
+
+  if (!isSuperAdmin) {
+    return <AccessDenied />;
+  }
+
   return (
     <div
-      className="h-full flex flex-col bg-gray-50 font-vazir overflow-hidden"
+      className="
+        h-full flex flex-col bg-gray-50
+        pt-20 md:pt-24
+      "
       dir="rtl"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Settings size={20} className="text-primary-600" />
-          <h2 className="text-xl font-semibold text-gray-900">تنظیمات</h2>
-        </div>
-        {onNavigateHome && (
-          <button
-            type="button"
-            onClick={onNavigateHome}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-            aria-label="بستن"
-          >
-            <X size={20} />
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
+      {/* Tabs — sticky زیر TopBar */}
       <SettingsTabs
         activeTab={activeTab}
-        onTabChange={setActiveTab}
-        tabs={SETTINGS_TABS}
+        onTabChange={handleTabChange}
+        tabs={tabs}
       />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="max-w-5xl mx-auto">
-          {activeTab === 'profile' && (
-            <ProfileSettings
-              profile={profile}
-              onUpdateProfile={updateProfile}
-              onChangePassword={changePassword}
-              isLoading={profileLoading}
-            />
-          )}
+          {activeTab === 'profile' && <ProfileSettings />}
 
           {activeTab === 'agriculture' && (
             <AgricultureSettings
               settings={settings}
               onUpdateSettings={updateSettings}
-              isLoading={agricultureLoading}
+              isLoading={isSettingsLoading}
             />
           )}
 
@@ -130,15 +155,19 @@ const SettingsPage = ({ onNavigateHome }) => {
 
           {activeTab === 'regions' && <RegionSettings />}
 
-          {activeTab === 'users' && <UsersManagement />}
+          {activeTab === 'villages' && <VillageSettings />}
+
+          {activeTab === 'role-policies' && <RolePolicySettings />}
+
+          {activeTab === 'user-grants' && <UserGrantsManagement />}
 
           {activeTab === 'orphans' && <OrphansManagement />}
 
           {activeTab === 'restore' && <RestoreManagement />}
 
-          {activeTab === 'import' && <ImportData />}
-
           {activeTab === 'duplicates' && <DuplicateMerge />}
+
+          {activeTab === 'import' && <ImportData />}
 
           {activeTab === 'sms' && <SmsSettings />}
         </div>

@@ -1,5 +1,5 @@
 // src/features/farm-registration/forms/sections/LocationSection.jsx
-import { useMemo, useId } from 'react';
+import { useMemo, useId, useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   CheckCircle2,
@@ -16,6 +16,7 @@ import {
   getVillages,
 } from '../../constants/locations';
 import { useRegionsQuery, useMyRegionsQuery } from '../../../regions/hooks/useRegions';
+import { useVillagesQuery, useMyVillagesQuery } from '../../../villages/hooks/useVillages';  // ✅ فاز ۴
 import { usePermissions } from '../../../auth/hooks/usePermissions';
 
 // ============================================
@@ -142,7 +143,6 @@ const RegionSelector = ({ register, watch, isSubmitting }) => {
   const { isSuperAdmin } = usePermissions();
   const { data: allRegions = [] } = useRegionsQuery({});
 
-  // فقط super_admin می‌بیند
   if (!isSuperAdmin) return null;
 
   const activeRegions = allRegions.filter((r) => r.is_active);
@@ -173,7 +173,7 @@ const RegionSelector = ({ register, watch, isSubmitting }) => {
           text-slate-800 cursor-pointer
         "
       >
-        <option value="">— بدون منطقه (فقط خودم) —</option>
+        <option value="">— بدون منطقه —</option>
         {activeRegions.map((r) => (
           <option key={r.id} value={r.id}>
             {r.name}
@@ -182,6 +182,92 @@ const RegionSelector = ({ register, watch, isSubmitting }) => {
       </select>
       <p className="mt-1 text-[10px] text-slate-500">
         اگر منطقه انتخاب کنید، همه‌ی دهیاران آن منطقه می‌توانند این مزرعه را ویرایش کنند.
+      </p>
+    </div>
+  );
+};
+
+// ============================================
+// ✅ فاز ۴: Village Selector
+// ============================================
+const VillageSelector = ({ register, watch, setValue, isSubmitting }) => {
+  const { isSuperAdmin } = usePermissions();
+  const { data: allVillages = [] } = useVillagesQuery({
+    activeOnly: true,
+  });
+  const { data: myVillages = [] } = useMyVillagesQuery();
+
+  const selectedRegionId = watch('regionId');
+  const selectedVillageId = watch('villageId');
+
+  // ✅ فاز ۴: گزینه‌های موجود
+  // - super_admin: همه روستاها (فیلتر بر اساس region اگر انتخاب شده)
+  // - بقیه: فقط روستاهایی که مسئولشان هستند
+  const availableVillages = useMemo(() => {
+    const base = isSuperAdmin ? allVillages : myVillages;
+
+    if (!selectedRegionId) return base;
+
+    // فیلتر بر اساس منطقه انتخاب‌شده
+    return base.filter(
+      (v) =>
+        v.region_id == null ||
+        String(v.region_id) === String(selectedRegionId),
+    );
+  }, [isSuperAdmin, allVillages, myVillages, selectedRegionId]);
+
+  // اگر regionId عوض شد و villageId فعلی در لیست جدید نیست، پاکش کن
+  useEffect(() => {
+    if (!selectedVillageId) return;
+
+    const exists = availableVillages.some(
+      (v) => String(v.id) === String(selectedVillageId),
+    );
+    if (!exists) {
+      setValue('villageId', null, { shouldDirty: true });
+    }
+  }, [availableVillages, selectedVillageId, setValue]);
+
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+        <MapPin size={11} className="inline ml-1" />
+        روستا (از لیست)
+      </label>
+
+      <select
+        {...register('villageId', {
+          setValueAs: (v) =>
+            v === '' || v == null ? null : Number(v),
+        })}
+        disabled={isSubmitting}
+        className="
+          w-full px-3 py-2.5 rounded-xl text-sm font-medium
+          bg-white/40 backdrop-blur-md
+          ring-1 ring-white/50
+          focus:ring-primary-500 focus:bg-white/70
+          outline-none transition-all
+          text-slate-800 cursor-pointer
+        "
+      >
+        <option value="">— بدون روستا —</option>
+        {availableVillages.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+          </option>
+        ))}
+      </select>
+
+      {availableVillages.length === 0 && !isSuperAdmin && (
+        <p className="mt-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 leading-relaxed">
+          شما هنوز مسئول روستایی نیستید. با مدیر ارشد تماس بگیرید.
+        </p>
+      )}
+
+      <p className="mt-1 text-[10px] text-slate-500">
+        {isSuperAdmin
+          ? 'انتخاب روستا اختیاری است — برای فیلتر کردن و گزارش‌گیری.'
+          : 'فقط روستاهایی که مسئولشان هستید نمایش داده می‌شود.'}
       </p>
     </div>
   );
@@ -461,7 +547,7 @@ export const LocationSection = ({
       {/* گروه ۳: روستا / مساحت */}
       <div className="grid grid-cols-2 gap-3">
         <ComboBox
-          label="روستا"
+          label="روستا (متن آزاد)"
           name="village"
           register={register}
           errors={errors}
@@ -496,7 +582,15 @@ export const LocationSection = ({
         </div>
       </div>
 
-      {/* ✅ Region Selector — فقط super_admin */}
+      {/* ✅ فاز ۴: Village Selector */}
+      <VillageSelector
+        register={register}
+        watch={watch}
+        setValue={setValue}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Region Selector — فقط super_admin */}
       <RegionSelector
         register={register}
         watch={watch}

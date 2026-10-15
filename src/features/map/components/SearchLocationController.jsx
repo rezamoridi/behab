@@ -3,7 +3,9 @@ import React, { useEffect, useRef } from 'react';
 import { useMap, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
+// ═══════════════════════════════════════════════════════════
 // Fix default marker icons
+// ═══════════════════════════════════════════════════════════
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -14,93 +16,105 @@ L.Icon.Default.mergeOptions({
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const VIEWPORT_STORAGE_KEY = 'map_viewport_v1';
+// ═══════════════════════════════════════════════════════════
+// ✅ قرارداد مختصات داخلی: { lat: number, lng: number, zoom: number }
+//
+// منابع ورودی:
+//   - LocationPicker: { lat: number, lon: number, zoom: number, name }
+//   - GeoJSON:        [lng, lat]
+//   - Leaflet:        [lat, lng]
+//
+// همیشه با normalizeLocation یکسان‌سازی می‌شود.
+// ═══════════════════════════════════════════════════════════
+const normalizeLocation = (loc) => {
+  if (!loc) return null;
 
+  const lat = Number(loc.lat ?? loc.latitude);
+  const lng = Number(loc.lng ?? loc.lon ?? loc.longitude);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+
+  // محدوده‌ی معتبر جهانی
+  if (lat < -90 || lat > 90) {
+    console.warn('Invalid latitude:', lat);
+    return null;
+  }
+  if (lng < -180 || lng > 180) {
+    console.warn('Invalid longitude:', lng);
+    return null;
+  }
+
+  return {
+    lat,
+    lng,
+    zoom: Number(loc.zoom) || 15,
+    name: loc.name || loc.display_name || loc.persianName || '',
+  };
+};
+
+// ═══════════════════════════════════════════════════════════
+// SearchLocationController
+//
+// فقط مسئول:
+//   ۱. اعمال setView روی selectedLocation (اولویت بر viewport)
+//   ۲. نمایش Marker در نقطهٔ انتخاب‌شده
+//
+// ⚠️ viewport ذخیره‌شده را نمی‌خواند — این کار MapComponent است.
+// ⚠️ هیچ overwrite روی موقعیت پیش‌فرض نمی‌کند.
+// ═══════════════════════════════════════════════════════════
 const SearchLocationController = ({ selectedLocation }) => {
   const map = useMap();
-  const isFirstMountRef = useRef(true);
+
+  // ✅ آخرین target اعمال‌شده — برای جلوگیری از setView تکراری
+  const lastAppliedRef = useRef(null);
 
   useEffect(() => {
-    if (!selectedLocation) return;
+    const normalized = normalizeLocation(selectedLocation);
 
-    const lat = Number(selectedLocation.lat);
-    const lon = Number(selectedLocation.lon ?? selectedLocation.lng);
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      console.warn('مختصات معتبر نیست:', selectedLocation);
+    if (!normalized) {
+      lastAppliedRef.current = null;
       return;
     }
 
-    // ✅ چک: اگر این mount اول است و viewport ذخیره‌شده داریم،
-    // اجازه بده MapComponent از viewport استفاده کند.
-    if (isFirstMountRef.current) {
-      isFirstMountRef.current = false;
+    // ✅ اگر همان target قبلی بود، دوباره setView نکن
+    const key = `${normalized.lat},${normalized.lng},${normalized.zoom}`;
+    if (lastAppliedRef.current === key) return;
 
-      try {
-        const saved = localStorage.getItem(VIEWPORT_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (
-            parsed &&
-            Number.isFinite(parsed.lat) &&
-            Number.isFinite(parsed.lng) &&
-            Number.isFinite(parsed.zoom) &&
-            parsed.lat !== 0 &&
-            parsed.lng !== 0
-          ) {
-            // ✅ viewport ذخیره‌شده برنده می‌شود — ولی **فقط در mount اول**
-            return;
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-    }
+    lastAppliedRef.current = key;
 
-    // ✅ همیشه برای هر selectedLocation جدید → setView
-    const zoom = Number(selectedLocation.zoom) || 15;
-
-    // ✅ با requestAnimationFrame تا مطمئن شویم map آماده است
+    // ✅ اعمال setView — با requestAnimationFrame برای اطمینان از آماده‌بودن map
     const rafId = requestAnimationFrame(() => {
       try {
-        map.setView([lat, lon], zoom, {
-          animate: true,
-          duration: 0.5, // ✅ انیمیشن سریع ولی محسوس
-        });
-
-        // ✅ force redraw برای اطمینان
-        setTimeout(() => {
-          try {
-            map.invalidateSize();
-          } catch {
-            /* ignore */
-          }
-        }, 100);
+        map.setView(
+          [normalized.lat, normalized.lng],
+          normalized.zoom,
+          {
+            animate: true,
+            duration: 0.6,
+          },
+        );
       } catch (err) {
-        console.warn('setView failed:', err);
+        console.warn('SearchLocationController setView failed:', err);
       }
     });
 
     return () => cancelAnimationFrame(rafId);
   }, [map, selectedLocation]);
 
-  if (!selectedLocation) return null;
-
-  const lat = Number(selectedLocation.lat);
-  const lon = Number(selectedLocation.lon ?? selectedLocation.lng);
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  // ✅ Marker — با نرمال‌سازی
+  const normalized = normalizeLocation(selectedLocation);
+  if (!normalized) return null;
 
   return (
-    <Marker position={[lat, lon]}>
+    <Marker position={[normalized.lat, normalized.lng]}>
       <Popup>
         <div className="font-vazir" dir="rtl">
           <strong className="text-sm">مکان انتخاب‌شده</strong>
           <br />
           <span className="text-xs text-gray-600">
-            {selectedLocation.name ||
-              selectedLocation.display_name ||
-              'بدون نام'}
+            {normalized.name || 'بدون نام'}
           </span>
         </div>
       </Popup>

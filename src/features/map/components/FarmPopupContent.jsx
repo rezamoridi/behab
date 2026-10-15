@@ -10,6 +10,8 @@ import {
   Pencil,
   Trash2,
   CreditCard,
+  History,
+  UserCog,
 } from "lucide-react";
 import {
   DEFAULT_FARM_COLOR,
@@ -31,6 +33,10 @@ const InfoRow = ({ icon: Icon, label, value, valueClass = "" }) => (
 
 // ============================================================
 // FarmPopupContent
+//
+// ⚠️ این کامپوننت داخل یک React root جداگانه (Leaflet popup)
+// render می‌شود → نمی‌تواند از useAuth/usePermissions استفاده کند.
+// پس isSuperAdmin از props گرفته می‌شود.
 // ============================================================
 const FarmPopupContent = ({
   farm,
@@ -39,6 +45,9 @@ const FarmPopupContent = ({
   onEditGeometry,
   onClose,
   onDelete,
+  onHistory,
+  onTransfer,
+  isSuperAdmin = false,   // ✅ از props
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -58,7 +67,6 @@ const FarmPopupContent = ({
   const village = farm.village || "نامشخص";
   const dehestan = farm.dehestan || "نامشخص";
 
-  // ✅ نام و فامیل کشاورز
   const fullName =
     farmer && (farmer.fname || farmer.lname)
       ? `${farmer.fname || ""} ${farmer.lname || ""}`.trim()
@@ -69,6 +77,7 @@ const FarmPopupContent = ({
 
   const cropColor = normalizeHex(farm.crop_color) || DEFAULT_FARM_COLOR;
 
+  // ── handlers ──
   const handleEditClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -106,6 +115,22 @@ const FarmPopupContent = ({
     }
   };
 
+  const handleHistoryClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (typeof onHistory === "function") onHistory(farm);
+  };
+
+  const handleTransferClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (typeof onTransfer === "function") onTransfer(farm);
+  };
+
+  const hasHistory = typeof onHistory === "function";
+  const hasTransfer =
+    isSuperAdmin && typeof onTransfer === "function";
+
   return (
     <div
       className="
@@ -117,7 +142,6 @@ const FarmPopupContent = ({
       "
       dir="rtl"
     >
-      {/* گرادیانت نامحسوس شیشه‌ای */}
       <div
         className="pointer-events-none absolute inset-0 rounded-2xl"
         style={{
@@ -127,13 +151,11 @@ const FarmPopupContent = ({
         aria-hidden="true"
       />
 
-      {/* درخشش بالا */}
       <div
         className="pointer-events-none absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent"
         aria-hidden="true"
       />
 
-      {/* محتوا */}
       <div className="relative z-10">
         {/* دکمه‌های گوشه */}
         <div className="absolute top-0 left-0 flex items-center gap-0.5">
@@ -167,7 +189,7 @@ const FarmPopupContent = ({
           </button>
         </div>
 
-        {/* هدر: نام و فامیل */}
+        {/* هدر */}
         <div className="flex items-center gap-2 mb-2.5 pr-1">
           <div className="w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm border border-white/80 flex items-center justify-center flex-shrink-0 shadow-sm">
             <User size={14} className="text-primary-700" />
@@ -242,7 +264,7 @@ const FarmPopupContent = ({
           />
         </div>
 
-        {/* دکمه‌ها */}
+        {/* دکمه‌های اصلی */}
         <div className="flex gap-2 mt-3">
           <button
             type="button"
@@ -276,6 +298,49 @@ const FarmPopupContent = ({
             ویرایش لایه
           </button>
         </div>
+
+        {/* تاریخچه و انتقال */}
+        {(hasHistory || hasTransfer) && (
+          <div className="flex gap-2 mt-2">
+            {hasHistory && (
+              <button
+                type="button"
+                onClick={handleHistoryClick}
+                className="
+                  flex-1 px-2.5 py-1.5
+                  bg-white/50 backdrop-blur-sm
+                  text-gray-700 rounded-lg text-[11px] font-semibold
+                  border border-white/70 shadow-sm
+                  hover:bg-white/70 transition-colors
+                  flex items-center justify-center gap-1.5
+                "
+                title="تاریخچهٔ انتقال مسئولیت"
+              >
+                <History size={11} />
+                تاریخچه
+              </button>
+            )}
+
+            {hasTransfer && (
+              <button
+                type="button"
+                onClick={handleTransferClick}
+                className="
+                  flex-1 px-2.5 py-1.5
+                  bg-amber-500/20 backdrop-blur-sm
+                  text-amber-800 rounded-lg text-[11px] font-semibold
+                  border border-amber-400/50 shadow-sm
+                  hover:bg-amber-500/30 transition-colors
+                  flex items-center justify-center gap-1.5
+                "
+                title="انتقال مسئولیت به کاربر دیگر"
+              >
+                <UserCog size={11} />
+                انتقال
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wheat,
   Users,
+  UserCog,
   Ruler,
   Droplets,
   TrendingUp,
@@ -14,6 +15,7 @@ import {
   Calendar,
   Sparkles,
   Map as MapIcon,
+  MapPin,
   Settings2,
   Sprout,
 } from 'lucide-react';
@@ -28,15 +30,12 @@ import AreaByCropChart from './components/charts/AreaByCropChart';
 import WaterByCropChart from './components/charts/WaterByCropChart';
 import RecentFarmsTable from './components/RecentFarmsTable';
 import RecentFarmersTable from './components/RecentFarmersTable';
-import RegionFilterBar from './components/RegionFilterBar';
-import ManagerRegionsBar from './components/ManagerRegionsBar';  // ✅ جدید
 import { getUserData } from '../../services/api/authApi';
 import { usePermissions } from '../auth/hooks/usePermissions';
-import useSessionState from '../../shared/hooks/useSessionState';
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Skeleton
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const FirstLoadSkeleton = () => (
   <div
     className="h-full overflow-y-auto pt-20 md:pt-24 pb-28 px-4 md:px-5"
@@ -50,7 +49,10 @@ const FirstLoadSkeleton = () => (
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-64 rounded-2xl bg-white/40 animate-pulse" />
+          <div
+            key={i}
+            className="h-64 rounded-2xl bg-white/40 animate-pulse"
+          />
         ))}
       </div>
     </div>
@@ -66,7 +68,11 @@ const RefreshIndicator = ({ visible }) => (
       bg-white/90 backdrop-blur-md shadow-lg border border-white/70
       text-xs font-medium text-slate-600
       transition-all duration-300
-      ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}
+      ${
+        visible
+          ? "opacity-100 translate-y-0"
+          : "opacity-0 -translate-y-2 pointer-events-none"
+      }
     `}
     dir="rtl"
   >
@@ -75,10 +81,10 @@ const RefreshIndicator = ({ visible }) => (
   </div>
 );
 
-// ============================================================
-// CompactHero
-// ============================================================
-const CompactHero = ({ userName, onNavigate }) => {
+// ═══════════════════════════════════════════════════════════
+// CompactHero — با نمایش روستاهای مسئول کاربر
+// ═══════════════════════════════════════════════════════════
+const CompactHero = ({ userName, onNavigate, villages = [] }) => {
   const today = useMemo(() => {
     try {
       return new Date().toLocaleDateString("fa-IR", {
@@ -110,6 +116,14 @@ const CompactHero = ({ userName, onNavigate }) => {
         "text-blue-700 bg-blue-500/15 border-blue-400/30 hover:bg-blue-500/25",
     },
     {
+      id: "users",
+      label: "کاربران",
+      icon: UserCog,
+      onClick: () => onNavigate("/farmers?tab=users"),
+      color:
+        "text-rose-700 bg-rose-500/15 border-rose-400/30 hover:bg-rose-500/25",
+    },
+    {
       id: "map",
       label: "نقشه",
       icon: MapIcon,
@@ -121,7 +135,8 @@ const CompactHero = ({ userName, onNavigate }) => {
       id: "crops",
       label: "محصولات",
       icon: Sprout,
-      onClick: () => onNavigate("/settings", { state: { activeTab: "crops" } }),
+      onClick: () =>
+        onNavigate("/settings", { state: { activeTab: "crops" } }),
       color:
         "text-amber-700 bg-amber-500/15 border-amber-400/30 hover:bg-amber-500/25",
     },
@@ -135,11 +150,13 @@ const CompactHero = ({ userName, onNavigate }) => {
     },
   ];
 
+  const visibleVillages = villages.slice(0, 4);
+  const extraVillagesCount = villages.length - visibleVillages.length;
+
   return (
     <div
       className="
         relative overflow-hidden
-        flex items-center justify-between gap-4 flex-wrap
         px-5 py-4 rounded-3xl
         bg-gradient-to-l from-primary-500/15 via-white/50 to-blue-500/10
         backdrop-blur-xl border border-white/70
@@ -149,74 +166,107 @@ const CompactHero = ({ userName, onNavigate }) => {
     >
       <div className="pointer-events-none absolute -top-16 -left-16 w-56 h-56 rounded-full bg-primary-500/20 blur-3xl" />
 
-      <div className="relative z-10 flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-2xl bg-primary-500/20 border border-primary-300/40 flex items-center justify-center flex-shrink-0">
-          <Sparkles size={16} className="text-primary-600" />
+      {/* ─── ردیف ۱: خوش‌آمد + دسترسی سریع + تاریخ/وضعیت ─── */}
+      <div className="relative z-10 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-2xl bg-primary-500/20 border border-primary-300/40 flex items-center justify-center flex-shrink-0">
+            <Sparkles size={16} className="text-primary-600" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-base md:text-lg font-bold text-slate-900 truncate">
+              {greeting}، {userName} 👋
+            </h1>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              خلاصه وضعیت سیستم در یک نگاه
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h1 className="text-base md:text-lg font-bold text-slate-900 truncate">
-            {greeting}، {userName} 👋
-          </h1>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            خلاصه وضعیت سیستم در یک نگاه
-          </p>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {quickAccess.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={item.onClick}
+                className={`
+                  group flex items-center gap-1.5
+                  px-3 py-1.5 rounded-xl
+                  border backdrop-blur-sm
+                  text-[11px] font-bold
+                  transition-all duration-200
+                  hover:scale-105 hover:shadow-sm
+                  cursor-pointer
+                  ${item.color}
+                `}
+                title={`رفتن به ${item.label}`}
+              >
+                <Icon size={13} strokeWidth={2.4} />
+                <span>{item.label}</span>
+                <ArrowUpRight
+                  size={11}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-white/70">
+            <Calendar size={11} className="text-slate-500" />
+            <span className="text-[11px] text-slate-700 font-medium">
+              {today}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-white/70">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <Activity size={11} className="text-slate-500" />
+            <span className="text-[11px] text-slate-800 font-bold">فعال</span>
+          </div>
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center gap-2 flex-wrap">
-        {quickAccess.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={item.onClick}
-              className={`
-                group flex items-center gap-1.5
-                px-3 py-1.5 rounded-xl
-                border backdrop-blur-sm
-                text-[11px] font-bold
-                transition-all duration-200
-                hover:scale-105 hover:shadow-sm
-                cursor-pointer
-                ${item.color}
-              `}
-              title={`رفتن به ${item.label}`}
+      {/* ─── ردیف ۲: روستاهای مسئول ─── */}
+      {villages.length > 0 && (
+        <div className="relative z-10 mt-3 pt-3 border-t border-white/50 flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+            <MapPin size={11} className="text-emerald-600" />
+            مسئول روستاهای:
+          </span>
+          {visibleVillages.map((v) => (
+            <span
+              key={v.id}
+              className="
+                inline-flex items-center gap-1
+                px-2 py-0.5 rounded-lg
+                bg-emerald-50 text-emerald-800
+                border border-emerald-200
+                text-[10px] font-bold
+              "
+              title={v.name}
             >
-              <Icon size={13} strokeWidth={2.4} />
-              <span>{item.label}</span>
-              <ArrowUpRight
-                size={11}
-                className="opacity-0 group-hover:opacity-100 transition-opacity"
-              />
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="relative z-10 flex items-center gap-2 flex-shrink-0">
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-white/70">
-          <Calendar size={11} className="text-slate-500" />
-          <span className="text-[11px] text-slate-700 font-medium">
-            {today}
-          </span>
+              {v.name}
+            </span>
+          ))}
+          {extraVillagesCount > 0 && (
+            <span className="text-[10px] text-slate-500">
+              و {extraVillagesCount.toLocaleString('fa-IR')} روستای دیگر
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-white/70">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
-          <Activity size={11} className="text-slate-500" />
-          <span className="text-[11px] text-slate-800 font-bold">فعال</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Panel
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const Panel = ({
   title,
   subtitle,
@@ -240,7 +290,11 @@ const Panel = ({
         <div className="flex items-center gap-2 min-w-0">
           {Icon && (
             <div className="w-7 h-7 rounded-lg bg-white/70 border border-white/80 flex items-center justify-center flex-shrink-0">
-              <Icon size={13} className="text-slate-600" strokeWidth={2.2} />
+              <Icon
+                size={13}
+                className="text-slate-600"
+                strokeWidth={2.2}
+              />
             </div>
           )}
           <div className="min-w-0">
@@ -263,9 +317,9 @@ const Panel = ({
   </div>
 );
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Top Crops List
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const TopCropsList = ({ crops = [], colorByCrop = {} }) => {
   const maxArea = Math.max(...crops.map((c) => c.area), 1);
 
@@ -318,30 +372,23 @@ const TopCropsList = ({ crops = [], colorByCrop = {} }) => {
   );
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // DashboardContainer
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const DashboardContainer = () => {
   const navigate = useNavigate();
-  const { isSuperAdmin, isManager } = usePermissions();  // ✅ isManager
-
-  // ✅ Region filter state (sessionStorage)
-  const [regionFilter, setRegionFilter] = useSessionState(
-    'dashboard_region_filter',
-    null,
-  );
+  const { isSuperAdmin, isManager } = usePermissions();
 
   const {
     kpis,
     chartData,
     recent,
     farmersById,
+    myVillages,
     isLoading,
     isFetching,
     hasData,
-  } = useDashboardData({
-    regionFilter: regionFilter ?? null,
-  });
+  } = useDashboardData();
 
   const userName = useMemo(() => {
     const user = getUserData();
@@ -355,12 +402,15 @@ const DashboardContainer = () => {
   const goToFarmers = () => navigate("/farmers");
   const goToMap = () => navigate("/map");
   const goToSettings = (tab) =>
-    navigate("/settings", tab ? { state: { activeTab: tab } } : undefined);
+    navigate(
+      "/settings",
+      tab ? { state: { activeTab: tab } } : undefined,
+    );
   const goToDashboard = () => navigate("/");
 
   const colorByCrop = chartData.colorByCrop || {};
 
-  // ✅ آیا کاربر دسترسی به کشاورزان دارد؟
+  // آیا کاربر دسترسی به کشاورزان دارد؟
   const canSeeFarmers = isSuperAdmin || isManager;
 
   return (
@@ -371,21 +421,12 @@ const DashboardContainer = () => {
       <RefreshIndicator visible={isFetching && hasData} />
 
       <div className="max-w-[1600px] mx-auto space-y-3">
-        {/* 1. Hero */}
-        <CompactHero userName={userName} onNavigate={navigate} />
-
-        {/* ✅ Region Filter Bar — فقط super_admin */}
-        {isSuperAdmin && (
-          <RegionFilterBar
-            selectedRegionId={regionFilter}
-            onRegionChange={setRegionFilter}
-            onClear={() => setRegionFilter(null)}
-            isLoading={isLoading}
-          />
-        )}
-
-        {/* ✅ Manager Regions Bar — فقط manager */}
-        {isManager && <ManagerRegionsBar />}
+        {/* 1. Hero — با روستاها */}
+        <CompactHero
+          userName={userName}
+          onNavigate={navigate}
+          villages={myVillages}
+        />
 
         {/* 2. Row 1: KPI Stack + Trend Chart */}
         <div className="grid grid-cols-12 gap-3">
@@ -397,7 +438,6 @@ const DashboardContainer = () => {
               className="h-[340px]"
             >
               <div className="grid grid-cols-2 gap-1.5 h-full content-start">
-                {/* کل مزارع */}
                 <KpiMini
                   icon={Wheat}
                   label="کل مزارع"
@@ -410,7 +450,6 @@ const DashboardContainer = () => {
                   compact
                 />
 
-                {/* ✅ کل کشاورزان — super_admin و manager */}
                 {canSeeFarmers && (
                   <KpiMini
                     icon={Users}
@@ -458,7 +497,6 @@ const DashboardContainer = () => {
                   compact
                 />
 
-                {/* ✅ کشاورزان فعال — super_admin و manager */}
                 {canSeeFarmers && (
                   <KpiMini
                     icon={UserCheck}
@@ -572,12 +610,17 @@ const DashboardContainer = () => {
           </Panel>
 
           <div className="lg:col-span-2">
-            <RecentFarmsTable farms={recent.farms} farmersById={farmersById} />
+            <RecentFarmsTable
+              farms={recent.farms}
+              farmersById={farmersById}
+            />
           </div>
         </div>
 
-        {/* 5. Row 4: Recent Farmers — ✅ super_admin و manager */}
-        {canSeeFarmers && <RecentFarmersTable farmers={recent.farmers} />}
+        {/* 5. Row 4: Recent Farmers */}
+        {canSeeFarmers && (
+          <RecentFarmersTable farmers={recent.farmers} />
+        )}
       </div>
     </div>
   );

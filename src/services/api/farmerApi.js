@@ -1,26 +1,40 @@
 // src/services/api/farmerApi.js
 import apiClient from "./apiClient";
 
+// ═══════════════════════════════════════════════════════════
+// farmerApi — Admin operations
+//
+// ⚠️ scope توسط backend تعیین می‌شود (مالکیت محض).
+// createdByUserId و regionFilter از این API حذف شدند.
+// ═══════════════════════════════════════════════════════════
 export const farmerApi = {
   checkDuplicate: async ({ nationalId, phoneNumber }) => {
     if (!nationalId || !phoneNumber) {
       throw new Error("کد ملی و شماره تلفن الزامی است");
     }
-    const response = await apiClient.post("/farmers/check-duplicate", {
-      national_id: nationalId,
-      phone_number: phoneNumber,
-    });
+    const response = await apiClient.post(
+      "/farmers/check-duplicate",
+      {
+        national_id: nationalId,
+        phone_number: phoneNumber,
+      },
+    );
     return response.data;
   },
 
   registerWithFarms: async ({ farmer, farms }) => {
     if (!farmer || !farms || farms.length === 0) {
-      throw new Error("اطلاعات کشاورز و حداقل یک مزرعه الزامی است");
+      throw new Error(
+        "اطلاعات کشاورز و حداقل یک مزرعه الزامی است",
+      );
     }
-    const response = await apiClient.post("/farmers/register-with-farms", {
-      farmer,
-      farms,
-    });
+    const response = await apiClient.post(
+      "/farmers/register-with-farms",
+      {
+        farmer,
+        farms,
+      },
+    );
     return response.data;
   },
 
@@ -32,12 +46,10 @@ export const farmerApi = {
     return response.data;
   },
 
-  list: async ({
-    page = 1,
-    pageSize = 20,
-    search = null,
-    createdByUserId = null, // ✅ جدید
-  } = {}) => {
+  // ═══════════════════════════════════════════════════════════
+  // List — بدون پارامترهای scope (backend تعیین می‌کند)
+  // ═══════════════════════════════════════════════════════════
+  list: async ({ page = 1, pageSize = 20, search = null } = {}) => {
     const safePageSize = Math.min(Math.max(1, pageSize), 100);
     const params = new URLSearchParams({
       page: String(page),
@@ -45,15 +57,13 @@ export const farmerApi = {
     });
     if (search) params.append("search", search);
 
-    const response = await apiClient.get(`/farmers/list?${params.toString()}`);
+    const response = await apiClient.get(
+      `/farmers/list?${params.toString()}`,
+    );
     return response.data;
   },
 
-  listAll: async ({
-    maxItems = 2000,
-    search = null,
-    createdByUserId = null, // ✅ جدید
-  } = {}) => {
+  listAll: async ({ maxItems = 2000, search = null } = {}) => {
     const allFarmers = [];
     let page = 1;
     const pageSize = 100;
@@ -63,7 +73,6 @@ export const farmerApi = {
         page,
         pageSize,
         search,
-        createdByUserId,
       });
       const items = data?.items || [];
       if (items.length === 0) break;
@@ -92,7 +101,10 @@ export const farmerApi = {
 
   update: async (farmerId, payload) => {
     if (!farmerId) throw new Error("شناسه کشاورز معتبر نیست");
-    const response = await apiClient.put(`/farmers/${farmerId}`, payload);
+    const response = await apiClient.put(
+      `/farmers/${farmerId}`,
+      payload,
+    );
     return response.data;
   },
 
@@ -101,8 +113,24 @@ export const farmerApi = {
     const response = await apiClient.delete(`/farmers/${farmerId}`);
     return response.data;
   },
+
+  exportExcel: async ({ search = null } = {}) => {
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+
+    const response = await apiClient.get(
+      `/farmers/export/excel${
+        params.toString() ? `?${params}` : ""
+      }`,
+      { responseType: "blob" },
+    );
+    return response;
+  },
 };
 
+// ═══════════════════════════════════════════════════════════
+// farmerAuthApi — برای خود کشاورز
+// ═══════════════════════════════════════════════════════════
 export const farmerAuthApi = {
   login: async (phoneNumber, password) => {
     const formData = new URLSearchParams();
@@ -114,36 +142,35 @@ export const farmerAuthApi = {
       "/farmers/login/access-token",
       formData,
       {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
       },
     );
     return response.data;
   },
 
-  changePassword: async (newPassword, currentPassword = null) => {
+  changePassword: async (
+    newPassword,
+    currentPassword = null,
+  ) => {
     const body = currentPassword
-      ? { current_password: currentPassword, new_password: newPassword }
+      ? {
+          current_password: currentPassword,
+          new_password: newPassword,
+        }
       : { new_password: newPassword };
 
-    const response = await apiClient.post("/farmers/change-password", body);
+    const response = await apiClient.post(
+      "/farmers/change-password",
+      body,
+    );
     return response.data;
   },
 
   me: async () => {
     const response = await apiClient.get("/farmers/me");
     return response.data;
-  },
-  // در farmerApi:
-
-  exportExcel: async ({ search = null } = {}) => {
-    const params = new URLSearchParams();
-    if (search) params.append("search", search);
-
-    const response = await apiClient.get(
-      `/farmers/export/excel${params.toString() ? `?${params}` : ""}`,
-      { responseType: "blob" },
-    );
-    return response;
   },
 };
 

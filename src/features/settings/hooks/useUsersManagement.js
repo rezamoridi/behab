@@ -1,6 +1,7 @@
 // src/features/settings/hooks/useUsersManagement.js
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../../../services/api/settingsApi';
+import { villageApi } from '../../../services/api/villageApi';  // ✅ فاز ۴
 
 // ═══════════════════════════════════════════════════════
 // Keys
@@ -107,6 +108,24 @@ export const useUpdateRegionsMutation = () => {
     mutationFn: ({ id, region_ids }) =>
       settingsApi.updateUserRegions(id, region_ids),
     onSuccess: () => invalidateAll(qc),
+  });
+};
+
+// ✅ فاز ۴: اختصاص روستاها به کاربر
+export const useUpdateVillagesMutation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, village_ids }) =>
+      villageApi.assignVillagesToUser(id, village_ids),
+    onSuccess: (_, variables) => {
+      invalidateAll(qc);
+      qc.invalidateQueries({
+        queryKey: ['villages'],
+      });
+      qc.invalidateQueries({
+        queryKey: userKeys.details(variables.id),
+      });
+    },
   });
 };
 

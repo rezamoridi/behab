@@ -120,11 +120,10 @@ const RecentFarmersTable = ({ farmers = [] }) => {
           </div>
         </div>
 
+        {/* ✅ تغییر: navigate به /farmers (نه /settings) */}
         <button
           type="button"
-          onClick={() =>
-            navigate('/settings', { state: { activeTab: 'farmers' } })
-          }
+          onClick={() => navigate('/farmers')}
           className="
             flex items-center gap-1.5
             text-[11px] font-semibold

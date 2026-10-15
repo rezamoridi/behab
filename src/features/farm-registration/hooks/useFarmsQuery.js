@@ -4,6 +4,7 @@ import {
   fetchFarms,
   fetchAllFarms,
   fetchFarmById,
+  fetchReferenceLayer,   // ✅ جدید
 } from '../../../services/api/farmApi';
 import { farmerApi } from '../../../services/api/farmerApi';
 import {
@@ -17,13 +18,14 @@ export { farmKeys, farmerKeys } from './farmQueryKeys';
 
 // ═══════════════════════════════════════════════════════════
 // Farms — list (paginated)
+//
+// ⚠️ createdByUserId و regionFilter حذف شدند.
+// Backend خودش scope را تعیین می‌کند (مالکیت محض).
 // ═══════════════════════════════════════════════════════════
 export const useFarmsQuery = ({
   page = 1,
   pageSize = 20,
   search = null,
-  createdByUserId = null,
-  regionFilter = null,   // ✅ جدید
   enabled = true,
 } = {}) => {
   return useQuery({
@@ -31,16 +33,12 @@ export const useFarmsQuery = ({
       page,
       pageSize,
       search,
-      createdByUserId,
-      regionFilter,
     }),
     queryFn: () =>
       fetchFarms({
         page,
         pageSize,
         search,
-        createdByUserId,
-        regionFilter,
       }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
@@ -53,20 +51,13 @@ export const useFarmsQuery = ({
 // Farms — ALL (auto-paginated برای analytics)
 // ═══════════════════════════════════════════════════════════
 export const useAllFarmsQuery = ({
-  createdByUserId = null,
-  regionFilter = null,   // ✅ جدید
   enabled = true,
 } = {}) => {
   return useQuery({
-    queryKey: [
-      ...farmKeys.allFarms(),
-      { createdByUserId, regionFilter },
-    ],
+    queryKey: farmKeys.allFarms(),
     queryFn: () =>
       fetchAllFarms({
         maxItems: 2000,
-        createdByUserId,
-        regionFilter,
       }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
@@ -74,6 +65,9 @@ export const useAllFarmsQuery = ({
   });
 };
 
+// ═══════════════════════════════════════════════════════════
+// Farm — detail
+// ═══════════════════════════════════════════════════════════
 export const useFarmQuery = (farmId, { enabled = true } = {}) => {
   return useQuery({
     queryKey: farmKeys.detail(farmId),
@@ -85,14 +79,29 @@ export const useFarmQuery = (farmId, { enabled = true } = {}) => {
 };
 
 // ═══════════════════════════════════════════════════════════
+// ✅ جدید: Reference Layer — مزارع دیگران (کم‌اطلاعات)
+//
+// خروجی: { items: [{ farm_id, geojson, is_reference: true }, ...] }
+// ═══════════════════════════════════════════════════════════
+export const useReferenceLayerQuery = ({ enabled = true } = {}) => {
+  return useQuery({
+    queryKey: ['farms', 'reference-layer'],
+    queryFn: () => fetchReferenceLayer(),
+    enabled,
+    staleTime: QUERY_STALE_TIME.analytics,
+    gcTime: QUERY_GC_TIME.default,
+  });
+};
+
+// ═══════════════════════════════════════════════════════════
 // Farmers — list
+//
+// ⚠️ createdByUserId و regionFilter حذف شدند.
 // ═══════════════════════════════════════════════════════════
 export const useFarmersQuery = ({
   page = 1,
   pageSize = 100,
   search = null,
-  createdByUserId = null,
-  regionFilter = null,   // ✅ جدید
   enabled = true,
 } = {}) => {
   return useQuery({
@@ -100,16 +109,12 @@ export const useFarmersQuery = ({
       page,
       pageSize,
       search,
-      createdByUserId,
-      regionFilter,
     }),
     queryFn: () =>
       farmerApi.list({
         page,
         pageSize,
         search,
-        createdByUserId,
-        regionFilter,
       }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
@@ -122,20 +127,13 @@ export const useFarmersQuery = ({
 // Farmers — ALL (auto-paginated)
 // ═══════════════════════════════════════════════════════════
 export const useAllFarmersQuery = ({
-  createdByUserId = null,
-  regionFilter = null,   // ✅ جدید
   enabled = true,
 } = {}) => {
   return useQuery({
-    queryKey: [
-      ...farmerKeys.allFarmers(),
-      { createdByUserId, regionFilter },
-    ],
+    queryKey: farmerKeys.allFarmers(),
     queryFn: () =>
       farmerApi.listAll({
         maxItems: 2000,
-        createdByUserId,
-        regionFilter,
       }),
     enabled,
     staleTime: QUERY_STALE_TIME.analytics,
@@ -143,7 +141,13 @@ export const useAllFarmersQuery = ({
   });
 };
 
-export const useFarmerQuery = (farmerId, { enabled = true } = {}) => {
+// ═══════════════════════════════════════════════════════════
+// Farmer — detail
+// ═══════════════════════════════════════════════════════════
+export const useFarmerQuery = (
+  farmerId,
+  { enabled = true } = {},
+) => {
   return useQuery({
     queryKey: farmerKeys.detail(farmerId),
     queryFn: () => farmerApi.get(farmerId),
@@ -158,19 +162,35 @@ export const useFarmerQuery = (farmerId, { enabled = true } = {}) => {
 // ═══════════════════════════════════════════════════════════
 export const useFarmQueryClient = () => {
   const queryClient = useQueryClient();
+
   return {
     invalidateFarms: () =>
-      queryClient.invalidateQueries({ queryKey: farmKeys.lists() }),
+      queryClient.invalidateQueries({
+        queryKey: farmKeys.lists(),
+      }),
     invalidateFarm: (id) =>
-      queryClient.invalidateQueries({ queryKey: farmKeys.detail(id) }),
+      queryClient.invalidateQueries({
+        queryKey: farmKeys.detail(id),
+      }),
     invalidateAll: () =>
-      queryClient.invalidateQueries({ queryKey: farmKeys.all }),
+      queryClient.invalidateQueries({
+        queryKey: farmKeys.all,
+      }),
+    invalidateReferenceLayer: () =>
+      queryClient.invalidateQueries({
+        queryKey: ['farms', 'reference-layer'],
+      }),
+
     setFarmData: (id, data) =>
       queryClient.setQueryData(farmKeys.detail(id), data),
 
     invalidateFarmers: () =>
-      queryClient.invalidateQueries({ queryKey: farmerKeys.lists() }),
+      queryClient.invalidateQueries({
+        queryKey: farmerKeys.lists(),
+      }),
     invalidateFarmer: (id) =>
-      queryClient.invalidateQueries({ queryKey: farmerKeys.detail(id) }),
+      queryClient.invalidateQueries({
+        queryKey: farmerKeys.detail(id),
+      }),
   };
 };

@@ -2,7 +2,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus,
   Edit2,
   Trash2,
   X,
@@ -19,27 +18,24 @@ import {
   SendHorizontal,
   FileDown,
   Loader2,
-  Layers,
 } from 'lucide-react';
+
 import { farmerApi } from '../../../services/api/farmerApi';
 import { useToast } from '../../../shared/components/Toast/ToastProvider';
 import { useConfirm } from '../../../shared/components/ConfirmDialog/ConfirmDialogProvider';
-import { usePermissions } from '../../auth/hooks/usePermissions';
-import { useRegionsQuery } from '../../regions/hooks/useRegions';
-import useSessionState from '../../../shared/hooks/useSessionState';
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Query Keys
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const farmerKeys = {
   all: ['farmers'],
   lists: () => [...farmerKeys.all, 'list'],
   list: (params) => [...farmerKeys.lists(), params],
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Status Badge
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const StatusBadge = ({ farmer }) => {
   if (farmer.password_changed_at) {
     return (
@@ -65,9 +61,9 @@ const StatusBadge = ({ farmer }) => {
   );
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Bulk Actions Bar
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const BulkActionsBar = ({
   selectedCount,
   onClear,
@@ -90,13 +86,16 @@ const BulkActionsBar = ({
         border border-primary-300/50
         rounded-xl
         shadow-[0_4px_16px_rgba(46,125,50,0.12)]
-        animate-fadeInUp
       "
       dir="rtl"
     >
       <div className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-primary-500/20 border border-primary-300/50 flex items-center justify-center">
-          <CheckSquare size={13} className="text-primary-700" strokeWidth={2.4} />
+          <CheckSquare
+            size={13}
+            className="text-primary-700"
+            strokeWidth={2.4}
+          />
         </div>
         <div className="flex flex-col leading-tight">
           <span className="text-[10px] text-slate-500 font-medium">
@@ -145,7 +144,7 @@ const BulkActionsBar = ({
             transition-colors cursor-pointer
             disabled:opacity-50 disabled:cursor-not-allowed
           "
-          title="خروجی Excel از انتخاب‌شده‌ها"
+          title="خروجی Excel"
         >
           {isExporting ? (
             <Loader2 size={12} className="animate-spin" />
@@ -200,9 +199,9 @@ const BulkActionsBar = ({
   );
 };
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Row Checkbox
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
   <button
     type="button"
@@ -212,13 +211,14 @@ const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
     }}
     className="
       w-5 h-5 rounded flex items-center justify-center flex-shrink-0
-      border-2 transition-colors
-      cursor-pointer
+      border-2 transition-colors cursor-pointer
       focus:outline-none focus:ring-2 focus:ring-primary-500/30
     "
     style={{
-      backgroundColor: checked || indeterminate ? '#2e7d32' : '#ffffff',
-      borderColor: checked || indeterminate ? '#2e7d32' : '#cbd5e1',
+      backgroundColor:
+        checked || indeterminate ? '#2e7d32' : '#ffffff',
+      borderColor:
+        checked || indeterminate ? '#2e7d32' : '#cbd5e1',
     }}
     role="checkbox"
     aria-checked={checked}
@@ -245,68 +245,13 @@ const RowCheckbox = ({ checked, indeterminate = false, onChange }) => (
   </button>
 );
 
-// ============================================================
-// Region Filter (فقط super_admin)
-// ============================================================
-const RegionFilterSelect = ({ value, onChange }) => {
-  const { data: regions = [] } = useRegionsQuery({ activeOnly: true });
-
-  return (
-    <div className="relative">
-      <Layers
-        size={13}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-500 pointer-events-none z-10"
-      />
-      <select
-        value={value ?? ''}
-        onChange={(e) =>
-          onChange(e.target.value === '' ? null : Number(e.target.value))
-        }
-        className={`
-          w-full md:w-44 pr-8 pl-7 py-2 rounded-lg border text-sm
-          outline-none transition-all cursor-pointer appearance-none
-          ${
-            value != null
-              ? 'bg-purple-50 border-purple-300 text-purple-900 font-semibold'
-              : 'bg-white border-gray-300 text-gray-700'
-          }
-          focus:border-purple-500 focus:ring-2 focus:ring-purple-200
-        `}
-      >
-        <option value="">همه مناطق</option>
-        {regions.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
-      <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={value != null ? 'text-purple-600' : 'text-gray-400'}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // Main Component
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const FarmersManagement = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const { isSuperAdmin } = usePermissions();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingFarmer, setEditingFarmer] = useState(null);
@@ -318,31 +263,19 @@ const FarmersManagement = () => {
   });
   const [formErrors, setFormErrors] = useState({});
 
-  // ✅ Bulk selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isBulkResending, setIsBulkResending] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // ✅ Region filter (فقط super_admin از آن استفاده می‌کند)
-  const [regionFilter, setRegionFilter] = useSessionState(
-    'farmers_region_filter',
-    null,
-  );
-
   // ── Query ──
+  // scope توسط backend تعیین می‌شود (مالکیت محض)
   const { data, isLoading, refetch } = useQuery({
-    queryKey: farmerKeys.list({
-      page: 1,
-      pageSize: 200,
-      search: null,
-      regionFilter: isSuperAdmin ? regionFilter : null,
-    }),
+    queryKey: farmerKeys.list({ page: 1, pageSize: 200 }),
     queryFn: () =>
       farmerApi.list({
         page: 1,
         pageSize: 200,
-        regionFilter: isSuperAdmin ? regionFilter : null,
       }),
     staleTime: 60 * 1000,
   });
@@ -354,7 +287,8 @@ const FarmersManagement = () => {
     if (!searchTerm.trim()) return farmers;
     const term = searchTerm.trim().toLowerCase();
     return farmers.filter((f) => {
-      const fullName = `${f.fname || ''} ${f.lname || ''}`.toLowerCase();
+      const fullName =
+        `${f.fname || ''} ${f.lname || ''}`.toLowerCase();
       return (
         (f.national_id || '').includes(term) ||
         (f.phone_number || '').includes(term) ||
@@ -415,7 +349,10 @@ const FarmersManagement = () => {
         err?.response?.data?.detail ||
         err?.message ||
         'خطا در ارسال پیامک';
-      toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg), 'خطا');
+      toast.error(
+        typeof msg === 'string' ? msg : JSON.stringify(msg),
+        'خطا',
+      );
     },
   });
 
@@ -444,7 +381,10 @@ const FarmersManagement = () => {
 
   const validateForm = () => {
     const errors = {};
-    if (!formData.national_id || formData.national_id.length < 10) {
+    if (
+      !formData.national_id ||
+      formData.national_id.length < 10
+    ) {
       errors.national_id = 'کد ملی باید ۱۰ رقم باشد';
     }
     if (!formData.fname || formData.fname.length < 2) {
@@ -477,16 +417,22 @@ const FarmersManagement = () => {
         err?.response?.data?.detail ||
         err?.message ||
         'خطا در ذخیره اطلاعات';
-      toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg), 'خطا');
+      toast.error(
+        typeof msg === 'string' ? msg : JSON.stringify(msg),
+        'خطا',
+      );
     }
   };
 
   const handleDelete = useCallback(
     async (farmer) => {
-      const fullName = `${farmer.fname || ''} ${farmer.lname || ''}`.trim();
+      const fullName =
+        `${farmer.fname || ''} ${farmer.lname || ''}`.trim();
       const ok = await confirm({
         title: 'حذف کشاورز',
-        message: `آیا از حذف کشاورز «${fullName || farmer.national_id}» اطمینان دارید؟\nمزارع مرتبط حفظ می‌شوند ولی farmer_id آن‌ها NULL می‌شود.`,
+        message: `آیا از حذف کشاورز «${
+          fullName || farmer.national_id
+        }» اطمینان دارید؟\nمزارع مرتبط حفظ می‌شوند ولی farmer_id آن‌ها NULL می‌شود.`,
         confirmText: 'حذف کن',
         cancelText: 'انصراف',
         variant: 'danger',
@@ -506,7 +452,10 @@ const FarmersManagement = () => {
           err?.response?.data?.detail ||
           err?.message ||
           'خطا در حذف';
-        toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg), 'خطا');
+        toast.error(
+          typeof msg === 'string' ? msg : JSON.stringify(msg),
+          'خطا',
+        );
       }
     },
     [confirm, deleteMutation, toast],
@@ -524,7 +473,7 @@ const FarmersManagement = () => {
   );
 
   // ══════════════════════════════════════════════════════════
-  // ✅ Bulk actions
+  // Bulk actions
   // ══════════════════════════════════════════════════════════
 
   const handleBulkResend = useCallback(async () => {
@@ -544,7 +493,9 @@ const FarmersManagement = () => {
 
     const ok = await confirm({
       title: 'ارسال دعوت مجدد',
-      message: `آیا می‌خواهید برای ${pendingFarmers.length.toLocaleString('fa-IR')} کشاورز انتخاب‌شده پیامک دعوت ارسال کنید؟\n(فقط کشاورزان در انتظار دعوت)`,
+      message: `آیا می‌خواهید برای ${pendingFarmers.length.toLocaleString(
+        'fa-IR',
+      )} کشاورز انتخاب‌شده پیامک دعوت ارسال کنید؟\n(فقط کشاورزان در انتظار دعوت)`,
       confirmText: 'ارسال کن',
       cancelText: 'انصراف',
       variant: 'danger',
@@ -569,7 +520,11 @@ const FarmersManagement = () => {
 
     if (successCount > 0) {
       toast.success(
-        `${successCount.toLocaleString('fa-IR')} دعوت ارسال شد${failCount > 0 ? ` (${failCount.toLocaleString('fa-IR')} ناموفق)` : ''}`,
+        `${successCount.toLocaleString('fa-IR')} دعوت ارسال شد${
+          failCount > 0
+            ? ` (${failCount.toLocaleString('fa-IR')} ناموفق)`
+            : ''
+        }`,
         'ارسال گروهی',
       );
     } else {
@@ -584,7 +539,9 @@ const FarmersManagement = () => {
 
     const ok = await confirm({
       title: 'حذف گروهی',
-      message: `آیا از حذف ${selectedIds.size.toLocaleString('fa-IR')} کشاورز انتخاب‌شده اطمینان دارید؟\nمزارع مرتبط حفظ می‌شوند ولی farmer_id آن‌ها NULL می‌شود.`,
+      message: `آیا از حذف ${selectedIds.size.toLocaleString(
+        'fa-IR',
+      )} کشاورز انتخاب‌شده اطمینان دارید؟\nمزارع مرتبط حفظ می‌شوند ولی farmer_id آن‌ها NULL می‌شود.`,
       confirmText: 'حذف کن',
       cancelText: 'انصراف',
       variant: 'danger',
@@ -609,7 +566,11 @@ const FarmersManagement = () => {
 
     if (successCount > 0) {
       toast.success(
-        `${successCount.toLocaleString('fa-IR')} کشاورز حذف شد${failCount > 0 ? ` (${failCount.toLocaleString('fa-IR')} ناموفق)` : ''}`,
+        `${successCount.toLocaleString('fa-IR')} کشاورز حذف شد${
+          failCount > 0
+            ? ` (${failCount.toLocaleString('fa-IR')} ناموفق)`
+            : ''
+        }`,
         'حذف گروهی',
       );
     } else {
@@ -619,7 +580,6 @@ const FarmersManagement = () => {
     setSelectedIds(new Set());
   }, [selectedIds, confirm, queryClient, toast]);
 
-  // ✅ خروجی Excel — از endpoint جدید backend
   const handleBulkExport = useCallback(async () => {
     setIsExporting(true);
     try {
@@ -633,7 +593,9 @@ const FarmersManagement = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `farmers-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.download = `farmers-${new Date()
+        .toISOString()
+        .slice(0, 10)}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -653,15 +615,6 @@ const FarmersManagement = () => {
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
-
-  // ── تغییر فیلتر منطقه: ریست انتخاب‌ها ──
-  const handleRegionFilterChange = useCallback(
-    (val) => {
-      setRegionFilter(val);
-      setSelectedIds(new Set());
-    },
-    [setRegionFilter],
-  );
 
   // ── Loading ──
   if (isLoading) {
@@ -691,15 +644,6 @@ const FarmersManagement = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* ✅ فیلتر منطقه — فقط super_admin */}
-          {isSuperAdmin && (
-            <RegionFilterSelect
-              value={regionFilter}
-              onChange={handleRegionFilterChange}
-            />
-          )}
-
-          {/* جستجو */}
           <div className="relative">
             <Search
               size={14}
@@ -764,7 +708,9 @@ const FarmersManagement = () => {
             {filteredFarmers.length > 0 ? (
               filteredFarmers.map((farmer, index) => {
                 const fullName =
-                  `${farmer.fname || ''} ${farmer.lname || ''}`.trim();
+                  `${farmer.fname || ''} ${
+                    farmer.lname || ''
+                  }`.trim();
                 const isPending = !farmer.password_changed_at;
                 const isSelected = selectedIds.has(farmer.id);
 
@@ -774,7 +720,11 @@ const FarmersManagement = () => {
                     className={`
                       border-b border-gray-100 last:border-0
                       transition-colors
-                      ${isSelected ? 'bg-primary-50/40' : 'hover:bg-gray-50'}
+                      ${
+                        isSelected
+                          ? 'bg-primary-50/40'
+                          : 'hover:bg-gray-50'
+                      }
                     `}
                   >
                     <td className="w-10 px-3 py-3">
@@ -784,7 +734,9 @@ const FarmersManagement = () => {
                       />
                     </td>
 
-                    <td className="px-3 py-3 text-gray-500">{index + 1}</td>
+                    <td className="px-3 py-3 text-gray-500">
+                      {index + 1}
+                    </td>
 
                     <td className="px-4 py-3 font-medium text-gray-800">
                       {fullName || '—'}
@@ -861,9 +813,14 @@ const FarmersManagement = () => {
 
       {/* ─── Stats ─── */}
       <div className="pt-3 border-t border-gray-100 text-xs text-gray-600 flex flex-wrap gap-4">
-        <span>تعداد کل: {farmers.length.toLocaleString('fa-IR')}</span>
+        <span>
+          تعداد کل: {farmers.length.toLocaleString('fa-IR')}
+        </span>
         {searchTerm && (
-          <span>| نتایج: {filteredFarmers.length.toLocaleString('fa-IR')}</span>
+          <span>
+            | نتایج:{' '}
+            {filteredFarmers.length.toLocaleString('fa-IR')}
+          </span>
         )}
         <span className="text-emerald-600">
           | فعال:{' '}
@@ -967,7 +924,8 @@ const FarmersManagement = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      نام خانوادگی <span className="text-red-500">*</span>
+                      نام خانوادگی{' '}
+                      <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1004,7 +962,9 @@ const FarmersManagement = () => {
                   disabled={updateMutation.isPending}
                   className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >
-                  {updateMutation.isPending ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+                  {updateMutation.isPending
+                    ? 'در حال ذخیره...'
+                    : 'ذخیره تغییرات'}
                 </button>
               </div>
             </form>

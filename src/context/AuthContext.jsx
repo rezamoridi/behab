@@ -10,9 +10,9 @@ import {
 // ✅ AuthContext را export می‌کنیم (نه default)
 export const AuthContext = createContext(null);
 
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 // تابع اولیه‌سازی state از localStorage
-// ============================================================
+// ═══════════════════════════════════════════════════════════
 const getInitialAuthState = () => {
   try {
     const token = getAuthToken();
@@ -82,5 +82,9 @@ export const AuthProvider = ({ children }) => {
     refreshRole,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

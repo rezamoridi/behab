@@ -46,7 +46,6 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
   const { isOpen: isPanelOpen } = useFarmPanel();
 
   const isMapPage = location.pathname.startsWith('/map');
-  const isDashboard = location.pathname === '/';
 
   const [userData, setUserData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,44 +158,46 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
           px-3 md:px-4 py-2.5
         "
       >
-        {/* ─── راست: لوگو ─── */}
-        {!isDashboard && (
-          <div className="pointer-events-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              title="آب خوان - داشبورد"
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* راست: لوگو — در همه‌جا (شامل /map) */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="pointer-events-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            title="آب خوان — داشبورد"
+            className="
+              flex items-center gap-2
+              px-2.5 py-2 rounded-2xl
+              bg-white/70 backdrop-blur-xl
+              border border-white/70
+              shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]
+              hover:bg-white/90 transition-colors
+              cursor-pointer
+            "
+          >
+            <div
               className="
-                flex items-center gap-2
-                px-2.5 py-2 rounded-2xl
-                bg-white/70 backdrop-blur-xl
-                border border-white/70
-                shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]
-                hover:bg-white/90 transition-colors
-                cursor-pointer
+                w-8 h-8 rounded-xl
+                bg-gradient-to-br from-green-400 to-green-700
+                flex items-center justify-center
+                shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_2px_6px_rgba(46,125,50,0.3)]
               "
             >
-              <div
-                className="
-                  w-8 h-8 rounded-xl
-                  bg-gradient-to-br from-green-400 to-green-700
-                  flex items-center justify-center
-                  shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_2px_6px_rgba(46,125,50,0.3)]
-                "
-              >
-                <span className="text-white text-sm font-bold drop-shadow">
-                  آ
-                </span>
-              </div>
-              <span className="text-slate-800 text-sm font-bold">
-                آب خوان
+              <span className="text-white text-sm font-bold drop-shadow">
+                آ
               </span>
-            </button>
-          </div>
-        )}
+            </div>
+            <span className="text-slate-800 text-sm font-bold">
+              آب خوان
+            </span>
+          </button>
+        </div>
 
-        {/* ─── وسط: Search (فقط در /map) ─── */}
-        {isMapPage && (
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* وسط: LocationPicker — فقط در /map */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {isMapPage ? (
           <div
             className={`
               flex-1 pointer-events-auto flex px-1
@@ -213,27 +214,25 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
               />
             </div>
           </div>
+        ) : (
+          <div className="flex-1" />
         )}
 
-        {!isMapPage && <div className="flex-1" />}
-
-        {/* ─── چپ: کاربر + آیکون‌ها ─── */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* چپ: آیکون‌ها + کاربر — یکسان در همه‌جا */}
+        {/* ═══════════════════════════════════════════════════════ */}
         <div className="pointer-events-auto shrink-0">
           <div
-            className={`
-              flex items-center
+            className="
+              flex items-center gap-0.5 md:gap-1
+              px-1.5 py-1.5
               rounded-2xl
               bg-white/70 backdrop-blur-xl
               border border-white/70
               shadow-[0_4px_20px_rgba(31,38,135,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]
-              ${
-                isDashboard
-                  ? 'gap-0.5 px-1 py-1'
-                  : 'gap-0.5 md:gap-1 px-1.5 py-1.5'
-              }
-            `}
+            "
           >
-            {/* Notifications */}
+            {/* ─── Notifications ─── */}
             <button
               type="button"
               title="اعلان‌ها"
@@ -247,20 +246,18 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
               "
             >
               <Bell size={17} strokeWidth={2.2} />
-              {!isDashboard && (
-                <span
-                  className="
-                    absolute top-1.5 left-1.5
-                    w-2 h-2 rounded-full
-                    bg-rose-500 ring-2 ring-white/80
-                  "
-                  aria-hidden="true"
-                />
-              )}
+              <span
+                className="
+                  absolute top-1.5 left-1.5
+                  w-2 h-2 rounded-full
+                  bg-rose-500 ring-2 ring-white/80
+                "
+                aria-hidden="true"
+              />
             </button>
 
-            {/* ✅ Settings — فقط super_admin */}
-            {isSuperAdmin && !isDashboard && (
+            {/* ─── Settings — فقط super_admin ─── */}
+            {isSuperAdmin && (
               <button
                 type="button"
                 onClick={() => navigate('/settings')}
@@ -281,7 +278,7 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
             {/* جداکننده */}
             <div className="block w-px h-6 bg-slate-300/60" />
 
-            {/* کاربر */}
+            {/* ─── کاربر ─── */}
             <div className="relative" ref={menuRef}>
               <button
                 type="button"
@@ -310,16 +307,16 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
                     {isLoading ? '...' : getInitials(getFullName())}
                   </span>
                 </div>
-                {!isDashboard && (
-                  <div className="hidden md:flex flex-col items-start pr-0.5 max-w-[130px]">
-                    <span className="text-slate-800 text-xs font-semibold leading-tight truncate w-full">
-                      {isLoading ? '...' : getFullName()}
-                    </span>
-                    <span className="text-slate-500 text-[10px] leading-tight truncate w-full">
-                      {isLoading ? '' : getUserRole()}
-                    </span>
-                  </div>
-                )}
+
+                {/* نام + نقش — در همه‌جا */}
+                <div className="hidden md:flex flex-col items-start pr-0.5 max-w-[130px]">
+                  <span className="text-slate-800 text-xs font-semibold leading-tight truncate w-full">
+                    {isLoading ? '...' : getFullName()}
+                  </span>
+                  <span className="text-slate-500 text-[10px] leading-tight truncate w-full">
+                    {isLoading ? '' : getUserRole()}
+                  </span>
+                </div>
               </button>
 
               {menuOpen && (
@@ -345,7 +342,6 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
                     </div>
                   </div>
 
-                  {/* ✅ پروفایل — برای همه */}
                   {isSuperAdmin && (
                     <button
                       type="button"
@@ -369,7 +365,6 @@ const TopBar = ({ onLocationSelect, selectedLocation }) => {
                     </button>
                   )}
 
-                  {/* ✅ تنظیمات — فقط super_admin */}
                   {isSuperAdmin && (
                     <button
                       type="button"

@@ -26,7 +26,9 @@ const apiClient = axios.create({
   },
 });
 
-// افزودن توکن
+// ═══════════════════════════════════════════════════════════
+// Request interceptor — افزودن توکن
+// ═══════════════════════════════════════════════════════════
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
@@ -38,7 +40,14 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// مدیریت خطاها
+// ═══════════════════════════════════════════════════════════
+// Response interceptor — مدیریت خطاها
+//
+// ✅ تفکیک دقیق:
+//   - 401 Unauthorized → توکن باطل یا منقضی → logout
+//   - 403 Forbidden → کاربر توکن معتبر دارد ولی دسترسی ندارد
+//                     → فقط error، بدون logout
+// ═══════════════════════════════════════════════════════════
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -59,8 +68,10 @@ apiClient.interceptors.response.use(
       url.includes('/logout') ||
       url.includes('/me');
 
-    if ((status === 401 || status === 403) && !isAuthEndpoint) {
-      console.warn(`🔒 Auth error on ${url}`);
+    // ✅ فقط 401 → logout
+    //    (403 = دسترسی نداری ولی توکن معتبر است → بدون logout)
+    if (status === 401 && !isAuthEndpoint) {
+      console.warn(`🔒 Unauthorized on ${url} — logging out`);
       localStorage.removeItem('access_token');
       localStorage.removeItem('user_data');
 

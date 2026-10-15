@@ -14,7 +14,7 @@ export const DOCK_ITEMS = [
     icon: LayoutDashboard,
     path: '/',
     type: 'route',
-    roles: ['super_admin', 'manager', 'dehyar', 'operator'],   // ✅
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],
   },
   {
     id: 'map',
@@ -22,7 +22,7 @@ export const DOCK_ITEMS = [
     icon: MapIcon,
     path: '/map',
     type: 'route',
-    roles: ['super_admin', 'manager', 'dehyar', 'operator'],   // ✅
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],
   },
   {
     id: 'farm-panel',
@@ -30,15 +30,15 @@ export const DOCK_ITEMS = [
     icon: PlusCircle,
     type: 'action',
     actionKey: 'toggleFarmPanel',
-    roles: ['super_admin', 'manager', 'dehyar', 'operator'],   // ✅
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],
   },
   {
     id: 'farmers',
-    label: 'کشاورزان',
+    label: 'کاربران',              // ✅ تغییر از «کشاورزان» به «کاربران»
     icon: Users,
-    path: '/farmers',
+    path: '/farmers',              // همان مسیر
     type: 'route',
-    roles: ['super_admin', 'manager', 'operator'],   // ✅
+    roles: ['super_admin', 'manager', 'operator'],
   },
   {
     id: 'conversations',

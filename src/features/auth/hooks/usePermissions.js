@@ -1,160 +1,205 @@
 // src/features/auth/hooks/usePermissions.js
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../../context/useAuth';
+import apiClient from '../../../services/api/apiClient';
 
 // ═══════════════════════════════════════════════════════════
-// Permission map per role
+// Query Key
 // ═══════════════════════════════════════════════════════════
-const ROLE_PERMISSIONS = {
-  super_admin: new Set(['*']),
-
-  manager: new Set([
-    // Dashboard
-    'dashboard:view_region',
-
-    // Map
-    'map:view',
-    'map:draw',
-    'map:snap',
-    'map:regions_view',
-
-    // Farm — region-scoped
-    'farm:create',
-    'farm:view',
-    'farm:edit_region',
-    'farm:delete_region',
-
-    // Farmer — region-scoped
-    'farmer:create',
-    'farmer:view_region',
-    'farmer:edit_region',
-    'farmer:delete_region',
-    'farmer:resend_invitation',
-
-    // Crop — read-only
-    'crop:view',
-
-    // Region — view own
-    'region:view_own',
-
-    // Profile
-    'profile:view',
-    'profile:edit',
-  ]),
-
-  dehyar: new Set([
-    'dashboard:view_own',
-    'map:view',
-    'map:draw',
-    'map:snap',
-    'farm:create',
-    'farm:view',
-    'farm:edit_own',
-    'farm:delete_own',
-    'farmer:create',
-    'farmer:view_own',
-    'farmer:edit_own',
-    'farmer:delete_own',
-    'farmer:resend_invitation',
-    'crop:view',
-    'region:view_own',
-    'profile:view',
-    'profile:edit',
-  ]),
-
-  // ✅ جدید: اپراتور میدانی — فقط ثبت، بدون ویرایش/حذف
-  operator: new Set([
-    'dashboard:view_region',
-    'map:view',
-    'map:draw',
-    'map:snap',
-
-    // فقط ثبت مزرعه/کشاورز
-    'farm:create',
-    'farm:view',
-    // ❌ بدون farm:edit_*
-    // ❌ بدون farm:delete_*
-
-    'farmer:create',
-    'farmer:view_region',
-    // ❌ بدون farmer:edit_*
-    // ❌ بدون farmer:delete_*
-    // ❌ بدون farmer:resend_invitation
-
-    'crop:view',
-    'region:view_own',
-    'profile:view',
-    'profile:edit',
-  ]),
+export const permissionKeys = {
+  all: ['permissions'],
+  me: () => [...permissionKeys.all, 'me'],
 };
 
 // ═══════════════════════════════════════════════════════════
-// Hook
+// Query — GET /users/me/permissions
+//
+// backend permissions نقش را برمی‌گرداند.
+// با هر تغییر role از پنل، این query باید invalidate شود.
+// ═══════════════════════════════════════════════════════════
+export const useMyPermissionsQuery = ({ enabled = true } = {}) => {
+  return useQuery({
+    queryKey: permissionKeys.me(),
+    queryFn: async () => {
+      const response = await apiClient.get('/users/me/permissions');
+      return response.data;
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000, // 5 min
+    gcTime: 30 * 60 * 1000,
+  });
+};
+
+// ═══════════════════════════════════════════════════════════
+// Hook اصلی
 // ═══════════════════════════════════════════════════════════
 export const usePermissions = () => {
   const { user } = useAuth();
+  const { data: permsData, isLoading: isLoadingPerms } =
+    useMyPermissionsQuery({ enabled: !!user });
 
-  const role = user?.role || 'dehyar';
-
-  const permissionSet = useMemo(
-    () => ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.dehyar,
-    [role],
-  );
-
+  const role = user?.role || permsData?.role || 'dehyar';
   const isSuperAdmin = role === 'super_admin';
   const isManager = role === 'manager';
   const isDehyar = role === 'dehyar';
-  const isOperator = role === 'operator';   // ✅
+  const isOperator = role === 'operator';
 
-  const can = (permission) => {
-    if (!permission) return false;
-    if (permissionSet.has('*')) return true;
-    if (permissionSet.has(permission)) return true;
+  // ── permissions از backend ──
+  const permissionsMap = useMemo(() => {
+    if (!permsData?.permissions) return {};
+    return permsData.permissions;
+  }, [permsData]);
 
-    const [resource] = permission.split(':');
-    if (permissionSet.has(`${resource}:*`)) return true;
+  // ═══════════════════════════════════════════════════════════
+  // can(resource, action) — بررسی مجوز پایه
+  //
+  // مثال:
+  //   can('farm', 'create')
+  //   can('farm', 'edit_own')
+  //   can('farmer', 'view_own')
+  // ═══════════════════════════════════════════════════════════
+  const can = useCallback(
+    (resource, action) => {
+      if (!resource || !action) return false;
 
-    return false;
-  };
+      // super_admin → همه چیز
+      if (isSuperAdmin) return true;
 
-  const canAll = (permissions = []) =>
-    permissions.every((p) => can(p));
+      // wildcard بررسی
+      if (
+        permissionsMap['*'] &&
+        Array.isArray(permissionsMap['*']) &&
+        (permissionsMap['*'].includes('*') ||
+          permissionsMap['*'].includes(action))
+      ) {
+        return true;
+      }
 
-  const canAny = (permissions = []) =>
-    permissions.some((p) => can(p));
+      const resourcePerms = permissionsMap[resource];
+      if (!Array.isArray(resourcePerms)) return false;
 
-  /**
-   * بررسی مالکیت — آیا این resource در scope کاربر است؟
-   * - super_admin: همیشه true
-   * - manager/operator: بر اساس region_ids
-   * - dehyar: بر اساس region_ids یا created_by_user_id
-   */
-  const isOwner = (resource) => {
-    if (isSuperAdmin) return true;
-    if (!resource || !user?.id) return false;
+      if (resourcePerms.includes('*')) return true;
+      return resourcePerms.includes(action);
+    },
+    [isSuperAdmin, permissionsMap],
+  );
 
-    // اگر resource region دارد
-    if (resource.region_id != null) {
-      const userRegionIds = user?.region_ids || [];
-      return userRegionIds.includes(resource.region_id);
-    }
+  // ═══════════════════════════════════════════════════════════
+  // canMany — هر دو شکل را پشتیبانی می‌کند:
+  //   canMany([['farm', 'create'], ['farmer', 'create']])
+  //   canMany(['farm:create', 'farmer:create'])
+  // ═══════════════════════════════════════════════════════════
+  const canMany = useCallback(
+    (items = []) =>
+      items.every((item) => {
+        if (Array.isArray(item)) {
+          return can(item[0], item[1]);
+        }
+        if (typeof item === 'string') {
+          const [resource, action] = item.split(':');
+          return can(resource, action);
+        }
+        return false;
+      }),
+    [can],
+  );
 
-    // fallback: مالکیت
-    return resource.created_by_user_id === user.id;
-  };
+  const canAny = useCallback(
+    (items = []) =>
+      items.some((item) => {
+        if (Array.isArray(item)) {
+          return can(item[0], item[1]);
+        }
+        if (typeof item === 'string') {
+          const [resource, action] = item.split(':');
+          return can(resource, action);
+        }
+        return false;
+      }),
+    [can],
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // isOwnerOf(resource)
+  //
+  // مالکیت محض — بر اساس created_by_user_id
+  //   - super_admin → همیشه true
+  //   - بقیه → created_by_user_id === user.id
+  // ═══════════════════════════════════════════════════════════
+  const isOwnerOf = useCallback(
+    (resource) => {
+      if (!resource) return false;
+      if (isSuperAdmin) return true;
+      if (!user?.id) return false;
+
+      return (
+        resource.created_by_user_id != null &&
+        resource.created_by_user_id === user.id
+      );
+    },
+    [isSuperAdmin, user?.id],
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // canViewFullData(resource)
+  //
+  // آیا کاربر دادهٔ کامل را می‌بیند؟
+  //   - super_admin: بله
+  //   - صاحب: بله
+  //   - بقیه: بستگی به grant دارد — که فرانت نمی‌داند
+  //     (بک‌اند تصمیم می‌گیرد و دادهٔ کامل یا لایه برمی‌گرداند)
+  //
+  // ⚠️ این تابع صرفاً یک hint UI است. تصمیم نهایی در backend.
+  // ═══════════════════════════════════════════════════════════
+  const canViewFullData = useCallback(
+    (resource) => isOwnerOf(resource),
+    [isOwnerOf],
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // canViewReferenceLayer()
+  // ═══════════════════════════════════════════════════════════
+  const canViewReferenceLayer = useCallback(
+    () => can('farm', 'view_reference_layer'),
+    [can],
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // نام قدیمی — backward compatibility
+  // ═══════════════════════════════════════════════════════════
+  const isOwner = isOwnerOf;
 
   return {
     role,
     user,
+
+    // ✅ جدید: can(resource, action)
     can,
-    canAll,
+    canMany,
     canAny,
+
+    // مالکیت
+    isOwnerOf,
+    canViewFullData,
+    canViewReferenceLayer,
+
+    // backward compatibility
     isOwner,
+
+    // نقش‌ها
     isSuperAdmin,
     isManager,
     isDehyar,
-    isOperator,   // ✅
-    // برای استفاده در UI
+    isOperator,
+
+    // Loading
+    isLoadingPermissions: isLoadingPerms,
+
+    // Permissions خام (برای دیباگ)
+    permissionsMap,
+
+    // نشانهٔ سازگاری
     isRegionScoped: isManager || isDehyar || isOperator,
   };
 };

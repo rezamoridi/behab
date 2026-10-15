@@ -8,18 +8,16 @@ import {
   FarmPanelProvider,
   useFarmPanel,
 } from '../features/farm-registration/panel/FarmPanelContext';
-import { usePermissions } from '../features/auth/hooks/usePermissions'; // ✅
+import { usePermissions } from '../features/auth/hooks/usePermissions';
 import useSessionState from '../shared/hooks/useSessionState';
 
 const InnerLayout = () => {
   const { togglePanel, closePanel } = useFarmPanel();
-  const { isSuperAdmin } = usePermissions(); // ✅
+  const { isSuperAdmin } = usePermissions();
   const location = useLocation();
   const navigate = useNavigate();
 
   const isMapPage = location.pathname.startsWith('/map');
-  const isSettingsPage = location.pathname.startsWith('/settings');
-  const isConversationsPage = location.pathname.startsWith('/conversations');
 
   const [selectedLocation, setSelectedLocation] = useSessionState(
     'map_selected_location',
@@ -59,11 +57,9 @@ const InnerLayout = () => {
         e.preventDefault();
         navigate('/map');
       } else if (key === 'c' && isSuperAdmin) {
-        // ✅ فقط super_admin
         e.preventDefault();
         navigate('/conversations');
       } else if (key === 'd' && isSuperAdmin) {
-        // ✅ فقط super_admin
         e.preventDefault();
         navigate('/');
       } else if (e.key === 'Escape') {
@@ -73,16 +69,15 @@ const InnerLayout = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePanel, closePanel, navigate, isMapPage, isSuperAdmin]); // ✅
+  }, [togglePanel, closePanel, navigate, isMapPage, isSuperAdmin]);
 
   return (
     <div className="app-layout-new" dir="rtl">
-      {!isSettingsPage && (
-        <TopBar
-          selectedLocation={selectedLocation}
-          onLocationSelect={setSelectedLocation}
-        />
-      )}
+      {/* ✅ TopBar — در همه‌جا (شامل /settings) */}
+      <TopBar
+        selectedLocation={selectedLocation}
+        onLocationSelect={setSelectedLocation}
+      />
 
       <main className={`app-main ${isMapPage ? 'map-mode' : ''}`}>
         <Outlet />

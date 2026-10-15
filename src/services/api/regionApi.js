@@ -1,6 +1,12 @@
 // src/services/api/regionApi.js
 import apiClient from "./apiClient";
 
+// ═══════════════════════════════════════════════════════════
+// regionApi
+//
+// توجه: GET /regions فقط برای super_admin است.
+// بقیه کاربران فقط /regions/my را می‌بینند.
+// ═══════════════════════════════════════════════════════════
 export const regionApi = {
   // ═══════════════════════════════════════════════════════
   // Regions — CRUD
@@ -33,13 +39,18 @@ export const regionApi = {
 
   update: async (regionId, data) => {
     if (!regionId) throw new Error("شناسه منطقه معتبر نیست");
-    const response = await apiClient.put(`/regions/${regionId}`, data);
+    const response = await apiClient.put(
+      `/regions/${regionId}`,
+      data,
+    );
     return response.data;
   },
 
   delete: async (regionId) => {
     if (!regionId) throw new Error("شناسه منطقه معتبر نیست");
-    const response = await apiClient.delete(`/regions/${regionId}`);
+    const response = await apiClient.delete(
+      `/regions/${regionId}`,
+    );
     return response.data;
   },
 
@@ -48,44 +59,51 @@ export const regionApi = {
   // ═══════════════════════════════════════════════════════
   assignRegionsToUser: async (userId, regionIds) => {
     if (!userId) throw new Error("شناسه کاربر معتبر نیست");
-    const response = await apiClient.put(`/regions/users/${userId}/regions`, {
-      region_ids: regionIds,
-    });
+    const response = await apiClient.put(
+      `/regions/users/${userId}/regions`,
+      { region_ids: regionIds },
+    );
     return response.data;
   },
 
   assignUsersToRegion: async (regionId, userIds) => {
     if (!regionId) throw new Error("شناسه منطقه معتبر نیست");
-    const response = await apiClient.put(`/regions/${regionId}/users`, {
-      user_ids: userIds,
-    });
+    const response = await apiClient.put(
+      `/regions/${regionId}/users`,
+      { user_ids: userIds },
+    );
     return response.data;
   },
-  // در regionApi:
 
+  // ═══════════════════════════════════════════════════════
+  // Export Excel
+  // ═══════════════════════════════════════════════════════
   exportExcel: async ({ activeOnly = false } = {}) => {
     const params = new URLSearchParams();
     if (activeOnly) params.append("active_only", "true");
 
     const response = await apiClient.get(
-      `/regions/export/excel${params.toString() ? `?${params}` : ""}`,
+      `/regions/export/excel${
+        params.toString() ? `?${params}` : ""
+      }`,
       { responseType: "blob" },
     );
     return response;
   },
-  // در regionApi:
 
   // ═══════════════════════════════════════════════════════
-  // ✅ Stats
+  // Stats
   // ═══════════════════════════════════════════════════════
   getStats: async (regionId) => {
     if (!regionId) throw new Error("شناسه منطقه معتبر نیست");
-    const response = await apiClient.get(`/regions/${regionId}/stats`);
+    const response = await apiClient.get(
+      `/regions/${regionId}/stats`,
+    );
     return response.data;
   },
 
   // ═══════════════════════════════════════════════════════
-  // ✅ Compare
+  // Compare
   // ═══════════════════════════════════════════════════════
   compare: async ({ regionIds = null, activeOnly = false } = {}) => {
     const params = new URLSearchParams();

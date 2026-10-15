@@ -5,6 +5,7 @@ import {
   useAllFarmersQuery,
 } from '../../farm-registration/hooks/useFarmsQuery';
 import { useCropsQuery } from '../../settings/hooks/useAgricultureSettings';
+import { useMyVillagesQuery } from '../../villages/hooks/useVillages';  // ✅ فاز ۴
 import { usePermissions } from '../../auth/hooks/usePermissions';
 
 import {
@@ -28,35 +29,13 @@ import {
   getRecentFarmers,
 } from '../utils/analytics';
 
-export const useDashboardData = ({
-  regionFilter = null,
-} = {}) => {
-  const { isSuperAdmin, isManager, user } = usePermissions();
+export const useDashboardData = () => {
+  const { isSuperAdmin, isManager } = usePermissions();
 
-  // ✅ scope برای Query (فقط برای cache key)
-  // backend خودش بر اساس role فیلتر می‌کند.
-  //
-  // - super_admin: createdBy = null
-  // - manager: createdBy = null (region_ids از backend)
-  // - dehyar: createdBy = user.id
-  const createdByFilter =
-    isSuperAdmin || isManager ? null : user?.id ?? null;
-
-  // ✅ regionFilter فقط برای super_admin معتبر است
-  const effectiveRegionFilter =
-    isSuperAdmin && regionFilter ? regionFilter : null;
-
-  const farmsQuery = useAllFarmsQuery({
-    createdByUserId: createdByFilter,
-    regionFilter: effectiveRegionFilter,
-  });
-
-  const farmersQuery = useAllFarmersQuery({
-    createdByUserId: createdByFilter,
-    regionFilter: effectiveRegionFilter,
-  });
-
+  const farmsQuery = useAllFarmsQuery();
+  const farmersQuery = useAllFarmersQuery();
   const cropsQuery = useCropsQuery({ activeOnly: false });
+  const villagesQuery = useMyVillagesQuery();  // ✅ فاز ۴
 
   const farms = useMemo(
     () => farmsQuery.data?.farms || [],
@@ -69,6 +48,12 @@ export const useDashboardData = ({
   const crops = useMemo(
     () => cropsQuery.data || [],
     [cropsQuery.data],
+  );
+
+  // ✅ فاز ۴: روستاهای مسئول کاربر (برای نمایش در hero)
+  const myVillages = useMemo(
+    () => villagesQuery.data || [],
+    [villagesQuery.data],
   );
 
   const farmersById = useMemo(() => {
@@ -99,8 +84,10 @@ export const useDashboardData = ({
       activeFarmers: getActiveFarmersCount(farmers),
       farmsTrend: getFarmTrend(farms),
       farmersTrend: getFarmerTrend(farmers),
+      // ✅ فاز ۴
+      myVillagesCount: myVillages.length,
     }),
-    [farms, farmers, crops],
+    [farms, farmers, crops, myVillages],
   );
 
   // ── Chart Data ──
@@ -145,6 +132,7 @@ export const useDashboardData = ({
     farms,
     farmers,
     crops,
+    myVillages,     // ✅ فاز ۴
     farmersById,
     colorByCrop,
     kpis,

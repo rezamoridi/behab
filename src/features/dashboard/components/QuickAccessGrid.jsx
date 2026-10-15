@@ -4,6 +4,7 @@ import {
   Settings2,
   Sprout,
   Users,
+  UserCog,          // ✅ جدید
   Layers,
   UserCircle2,
   Map as MapIcon,
@@ -30,13 +31,21 @@ const ITEMS = [
     tab: 'crops',
   },
   {
-    id: 'users',
+    id: 'farmers',                                 // ✅ تغییر id
     icon: Users,
-    title: 'مدیریت کاربران',
-    description: 'افزودن، ویرایش و حذف کاربران سیستم',
+    title: 'کشاورزان',                             // ✅ عنوان
+    description: 'مدیریت کشاورزان ثبت‌شده',           // ✅ توضیح
     color: 'blue',
-    path: '/settings',
-    tab: 'users',
+    path: '/farmers',                              // ✅ لینک به ساب‌پیج کشاورزان
+  },
+  {
+    id: 'users',                                   // ✅ جدید
+    icon: UserCog,
+    title: 'کاربران',                              // ✅
+    description: 'مدیریت کاربران و مسئولان سیستم',  // ✅
+    color: 'rose',                                 // ✅
+    path: '/farmers',                              // ✅
+    tab: 'users',                                  // ✅ با tab=users
   },
   {
     id: 'layer-style',
@@ -68,14 +77,20 @@ const ITEMS = [
 
 /**
  * QuickAccessGrid
- * شبکه کارت‌های دسترسی سریع در داشبورد.
  */
 const QuickAccessGrid = () => {
   const navigate = useNavigate();
 
   const handleClick = (item) => {
+    // ✅ اگر tab دارد:
+    //   - path = /settings → state.activeTab
+    //   - path = /farmers  → ?tab=... (searchParam)
     if (item.tab) {
-      navigate(item.path, { state: { activeTab: item.tab } });
+      if (item.path === '/settings') {
+        navigate(item.path, { state: { activeTab: item.tab } });
+      } else {
+        navigate(`${item.path}?tab=${item.tab}`);
+      }
     } else {
       navigate(item.path);
     }

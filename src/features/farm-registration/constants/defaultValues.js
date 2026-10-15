@@ -8,7 +8,8 @@ export const DEFAULT_FARM_FORM_VALUES = {
   county: '',
   bakhsh: '',
   dehestan: '',
-  village: '',
+  village: '',           // متن آزاد
+  villageId: null,       // ✅ فاز ۴: روستای مستقل (FK)
   firstName: '',
   lastName: '',
   nationalId: '',
@@ -21,7 +22,7 @@ export const DEFAULT_FARM_FORM_VALUES = {
   irrigationSystems: [],
   studyArea: '',
   coverageStatus: 'تحت پوشش شبکه آب رسانی',
-  regionId: null,   // ✅ جدید
+  regionId: null,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -50,6 +51,7 @@ export const apiToForm = (apiData) => {
     bakhsh: apiData.bakhsh || '',
     dehestan: apiData.dehestan || '',
     village: apiData.village || '',
+    villageId: apiData.village_id ?? null,   // ✅ فاز ۴
     firstName: apiData.fname || '',
     lastName: apiData.lname || '',
     nationalId: apiData.national_id || '',
@@ -63,7 +65,7 @@ export const apiToForm = (apiData) => {
     studyArea: apiData.project_name || '',
     coverageStatus:
       apiData.coverage_status || 'تحت پوشش شبکه آب رسانی',
-    regionId: apiData.region_id ?? null,   // ✅
+    regionId: apiData.region_id ?? null,
   };
 };
 
@@ -76,7 +78,9 @@ export const formToFarmerPayload = (formData) => {
     phone_number: String(formData.phone || '').trim(),
     fname: formData.firstName ? String(formData.firstName).trim() : null,
     lname: formData.lastName ? String(formData.lastName).trim() : null,
-    region_id: formData.regionId ?? null,   // ✅
+    region_id: formData.regionId ?? null,
+    village_id: formData.villageId ?? null,   // ✅ فاز ۴
+    village: formData.village ? String(formData.village).trim() : null,
   };
 };
 
@@ -97,6 +101,7 @@ export const formToFarmPayload = ({
     bakhsh: formData.bakhsh || null,
     dehestan: formData.dehestan || null,
     village: formData.village || null,
+    village_id: formData.villageId ?? null,   // ✅ فاز ۴
 
     farmer_id: farmerId ?? null,
 
@@ -105,7 +110,6 @@ export const formToFarmPayload = ({
     crop_id: cropId ?? null,
     irrigation_type: formData.irrigationType || null,
 
-    // ✅ منطقه
     region_id: formData.regionId ?? null,
 
     geojson: geometry,

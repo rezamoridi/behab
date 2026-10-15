@@ -1,9 +1,9 @@
 // src/services/api/authApi.js
 import apiClient from './apiClient';
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Token Management
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const setAuthToken = (token) => {
   localStorage.setItem('access_token', token);
 };
@@ -17,9 +17,9 @@ export const removeAuthToken = () => {
   localStorage.removeItem('user_data');
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // User Data
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const setUserData = (userData) => {
   localStorage.setItem('user_data', JSON.stringify(userData));
 };
@@ -37,49 +37,9 @@ export const hasUserData = () => {
   return localStorage.getItem('user_data') !== null;
 };
 
-// ============================================
-// ✅ Permissions
-// ============================================
-export const fetchMyPermissions = async () => {
-  try {
-    const response = await apiClient.get('/users/me/permissions');
-    return response.data;
-  } catch (error) {
-    console.error('خطا در fetchMyPermissions:', error);
-    return null;
-  }
-};
-
-/**
- * ✅ گرفتن region_ids و اضافه کردن به userData
- * @param {object} userData - شیء کاربر (از /me)
- * @returns {object} userData با region_ids
- */
-const enrichUserWithPermissions = async (userData) => {
-  if (!userData) return userData;
-
-  try {
-    const perms = await fetchMyPermissions();
-    if (perms) {
-      return {
-        ...userData,
-        region_ids: perms.region_ids || [],
-      };
-    }
-  } catch (err) {
-    console.warn('Could not enrich user with permissions:', err);
-  }
-
-  // fallback
-  return {
-    ...userData,
-    region_ids: userData.region_ids || [],
-  };
-};
-
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Current user
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const getCurrentUser = async () => {
   try {
     const token = getAuthToken();
@@ -89,11 +49,7 @@ export const getCurrentUser = async () => {
     }
 
     const response = await apiClient.get('/me');
-    let userData = response.data;
-
-    // ✅ اضافه کردن region_ids
-    userData = await enrichUserWithPermissions(userData);
-
+    const userData = response.data;
     setUserData(userData);
     return userData;
   } catch (error) {
@@ -122,23 +78,9 @@ export const validateToken = async () => {
 
 export const getCachedUser = () => getUserData();
 
-/**
- * ✅ بازخوانی کامل کاربر + permissions
- * (برای استفاده بعد از تغییر نقش/مناطق از پنل تنظیمات)
- */
-export const refreshUserWithPermissions = async () => {
-  try {
-    const userData = await getCurrentUser();
-    return userData;
-  } catch (error) {
-    console.error('خطا در refreshUserWithPermissions:', error);
-    return null;
-  }
-};
-
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Login — Phase 1
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const loginWithCredentials = async (username, password) => {
   try {
     const formData = new URLSearchParams();
@@ -170,13 +112,7 @@ export const loginWithCredentials = async (username, password) => {
       setAuthToken(data.access_token);
     }
 
-    let userData = data.user || (await getCurrentUser());
-
-    // ✅ اگر region_ids نداریم، از permissions بگیر
-    if (userData && !userData.region_ids) {
-      userData = await enrichUserWithPermissions(userData);
-    }
-
+    const userData = data.user || (await getCurrentUser());
     if (userData) setUserData(userData);
 
     return {
@@ -190,9 +126,9 @@ export const loginWithCredentials = async (username, password) => {
   }
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Login — Phase 2: Verify OTP
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const verifyOtp = async (tempToken, code) => {
   try {
     const response = await apiClient.post('/login/verify-otp', {
@@ -206,13 +142,7 @@ export const verifyOtp = async (tempToken, code) => {
       setAuthToken(data.access_token);
     }
 
-    let userData = data.user || (await getCurrentUser());
-
-    // ✅ اگر region_ids نداریم، از permissions بگیر
-    if (userData && !userData.region_ids) {
-      userData = await enrichUserWithPermissions(userData);
-    }
-
+    const userData = data.user || (await getCurrentUser());
     if (userData) setUserData(userData);
 
     return {
@@ -225,9 +155,9 @@ export const verifyOtp = async (tempToken, code) => {
   }
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Login — Resend OTP
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const resendOtp = async (tempToken) => {
   try {
     const response = await apiClient.post('/login/resend-otp', {
@@ -240,9 +170,9 @@ export const resendOtp = async (tempToken) => {
   }
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Forgot Password — Request
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const requestPasswordReset = async (username) => {
   try {
     const response = await apiClient.post('/password-reset/request', {
@@ -255,9 +185,9 @@ export const requestPasswordReset = async (username) => {
   }
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Forgot Password — Verify
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const verifyPasswordResetOtp = async (username, code) => {
   try {
     const response = await apiClient.post('/password-reset/verify', {
@@ -271,9 +201,9 @@ export const verifyPasswordResetOtp = async (username, code) => {
   }
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Forgot Password — Confirm
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const confirmPasswordReset = async (resetToken, newPassword) => {
   try {
     const response = await apiClient.post('/password-reset/confirm', {
@@ -287,9 +217,9 @@ export const confirmPasswordReset = async (resetToken, newPassword) => {
   }
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // Logout
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const logout = async () => {
   try {
     const token = getAuthToken();

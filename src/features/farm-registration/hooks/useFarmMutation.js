@@ -9,21 +9,22 @@ import {
 import { farmerApi } from "../../../services/api/farmerApi";
 import { farmKeys, FARM_LIST_QUERY_PARAMS } from "./farmQueryKeys";
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
+// کلید لایهٔ مرجع
+// ═══════════════════════════════════════════════════════════
+const REFERENCE_LAYER_KEY = ["farms", "reference-layer"];
+
+// ═══════════════════════════════════════════════════════════
 // استخراج farm از پاسخ سرور
-// پشتیبانی از ساختارهای مختلف:
-// - response.data
-// - response.farm
-// - response (خودشیء)
-// ============================================
+// ═══════════════════════════════════════════════════════════
 const extractFarmFromResponse = (response) => {
   if (!response) return null;
   return response.data || response.farm || response;
 };
 
-// ============================================
-// ✅ mergeFarm: ادغام ایمن farm قدیمی + پاسخ سرور + payload
-// ============================================
+// ═══════════════════════════════════════════════════════════
+// mergeFarm: ادغام ایمن farm قدیمی + پاسخ سرور + payload
+// ═══════════════════════════════════════════════════════════
 const mergeFarm = (oldFarm, savedFarm, payload) => {
   const merged = { ...(oldFarm || {}) };
 
@@ -47,6 +48,8 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
     "irrigation_system",
     "area_ha",
     "polygon_count",
+    "region_id",
+    "created_by_user_id",
   ];
 
   // مرحله 1: اعمال فیلدهای savedFarm
@@ -97,9 +100,9 @@ const mergeFarm = (oldFarm, savedFarm, payload) => {
   return merged;
 };
 
-// ============================================
-// ایجاد مزرعه (مستقل — با farmer_id اختیاری)
-// ============================================
+// ═══════════════════════════════════════════════════════════
+// ایجاد مزرعه (مستقل)
+// ═══════════════════════════════════════════════════════════
 export const useCreateFarmMutation = () => {
   const queryClient = useQueryClient();
 
@@ -137,17 +140,15 @@ export const useCreateFarmMutation = () => {
       }
 
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
+      // ✅ لایهٔ مرجع برای بقیه کاربران آپدیت می‌شود
+      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
     },
   });
 };
 
-// ============================================
-// ✅ ثبت کشاورز + مزرعه (اتمیک)
-//
-//   POST /farmers/register-with-farms
-//
-// پاسخ: { action: "created" | "updated", message, farmer, farms, sms_sent }
-// ============================================
+// ═══════════════════════════════════════════════════════════
+// ثبت کشاورز + مزرعه (اتمیک)
+// ═══════════════════════════════════════════════════════════
 export const useRegisterWithFarmsMutation = () => {
   const queryClient = useQueryClient();
 
@@ -159,7 +160,6 @@ export const useRegisterWithFarmsMutation = () => {
       const createdFarm = response?.farms?.[0];
 
       if (createdFarm) {
-        // درج در cache لیست
         queryClient.setQueryData(
           farmKeys.list(FARM_LIST_QUERY_PARAMS),
           (oldData) => {
@@ -167,7 +167,8 @@ export const useRegisterWithFarmsMutation = () => {
 
             const existingFarms = oldData.farms || [];
             const exists = existingFarms.some(
-              (f) => String(f.farm_id) === String(createdFarm.farm_id),
+              (f) =>
+                String(f.farm_id) === String(createdFarm.farm_id),
             );
             if (exists) return oldData;
 
@@ -187,8 +188,14 @@ export const useRegisterWithFarmsMutation = () => {
         }
       }
 
-      // invalidate برای همگام‌سازی نهایی
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
+      // ✅ لایهٔ مرجع
+      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
+
+      // ✅ کشاورزان هم آپدیت می‌شوند (شاید کشاورز جدید ساخته شد)
+      queryClient.invalidateQueries({
+        queryKey: ["farmers"],
+      });
     },
 
     onError: (error) => {
@@ -197,9 +204,9 @@ export const useRegisterWithFarmsMutation = () => {
   });
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // به‌روزرسانی کامل مزرعه (فرم Edit)
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const useUpdateFarmMutation = () => {
   const queryClient = useQueryClient();
 
@@ -227,21 +234,25 @@ export const useUpdateFarmMutation = () => {
         },
       );
 
-      queryClient.setQueryData(farmKeys.detail(variables.farmId), (oldData) =>
-        mergeFarm(oldData, savedFarm, variables.payload),
+      queryClient.setQueryData(
+        farmKeys.detail(variables.farmId),
+        (oldData) =>
+          mergeFarm(oldData, savedFarm, variables.payload),
       );
 
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: farmKeys.detail(variables.farmId),
       });
+      // ✅ لایهٔ مرجع (چون هندسه/رنگ ممکن است تغییر کرده باشد)
+      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
     },
   });
 };
 
-// ============================================================
-// ✅ ویرایش فقط هندسه مزرعه (لایه)
-// ============================================================
+// ═══════════════════════════════════════════════════════════
+// ویرایش فقط هندسه مزرعه (لایه)
+// ═══════════════════════════════════════════════════════════
 export const useUpdateFarmGeometryMutation = () => {
   const queryClient = useQueryClient();
 
@@ -255,6 +266,11 @@ export const useUpdateFarmGeometryMutation = () => {
       const currentFarm = await fetchFarmById(farmId);
       if (!currentFarm) {
         throw new Error("اطلاعات مزرعه یافت نشد");
+      }
+
+      // اگر لایهٔ مرجع برگشت (نه دادهٔ کامل) → خطا
+      if (currentFarm.is_reference === true) {
+        throw new Error("شما به این مزرعه دسترسی ندارید");
       }
 
       // 2. ادغام: همه فیلدهای موجود + هندسه جدید
@@ -290,7 +306,8 @@ export const useUpdateFarmGeometryMutation = () => {
       try {
         const canonical = await fetchFarmById(variables.farmId);
 
-        if (canonical) {
+        // اگر پاسخ مرجع بود، از payload استفاده کن
+        if (canonical && canonical.is_reference !== true) {
           queryClient.setQueryData(
             farmKeys.detail(variables.farmId),
             canonical,
@@ -315,10 +332,14 @@ export const useUpdateFarmGeometryMutation = () => {
           );
         }
       } catch (err) {
-        console.warn("canonical refetch failed, falling back to payload:", err);
+        console.warn(
+          "canonical refetch failed, falling back to payload:",
+          err,
+        );
 
-        queryClient.setQueryData(farmKeys.detail(variables.farmId), (oldData) =>
-          mergeFarm(oldData, null, variables.payload),
+        queryClient.setQueryData(
+          farmKeys.detail(variables.farmId),
+          (oldData) => mergeFarm(oldData, null, variables.payload),
         );
 
         queryClient.setQueryData(
@@ -339,6 +360,8 @@ export const useUpdateFarmGeometryMutation = () => {
       queryClient.invalidateQueries({
         queryKey: farmKeys.detail(variables.farmId),
       });
+      // ✅ لایهٔ مرجع (هندسه عوض شده)
+      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
     },
 
     onError: (error) => {
@@ -347,9 +370,9 @@ export const useUpdateFarmGeometryMutation = () => {
   });
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // حذف مزرعه
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const useDeleteFarmMutation = () => {
   const queryClient = useQueryClient();
 
@@ -375,6 +398,8 @@ export const useDeleteFarmMutation = () => {
       });
 
       queryClient.invalidateQueries({ queryKey: farmKeys.lists() });
+      // ✅ لایهٔ مرجع (مزرعه حذف شده)
+      queryClient.invalidateQueries({ queryKey: REFERENCE_LAYER_KEY });
     },
     onError: (error) => {
       console.error("خطا در حذف مزرعه:", error);
@@ -382,9 +407,9 @@ export const useDeleteFarmMutation = () => {
   });
 };
 
-// ============================================
+// ═══════════════════════════════════════════════════════════
 // هوک ترکیبی
-// ============================================
+// ═══════════════════════════════════════════════════════════
 export const useFarmMutation = () => {
   const createMutation = useCreateFarmMutation();
   const updateMutation = useUpdateFarmMutation();
@@ -392,13 +417,11 @@ export const useFarmMutation = () => {
   const updateGeometryMutation = useUpdateFarmGeometryMutation();
 
   return {
-    // Actions
     createFarm: createMutation.mutateAsync,
     updateFarm: updateMutation.mutateAsync,
     deleteFarm: deleteMutation.mutateAsync,
     updateFarmGeometry: updateGeometryMutation.mutateAsync,
 
-    // Loading
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
@@ -409,14 +432,12 @@ export const useFarmMutation = () => {
       deleteMutation.isPending ||
       updateGeometryMutation.isPending,
 
-    // Errors
     error:
       createMutation.error ||
       updateMutation.error ||
       deleteMutation.error ||
       updateGeometryMutation.error,
 
-    // Reset
     reset: () => {
       createMutation.reset();
       updateMutation.reset();

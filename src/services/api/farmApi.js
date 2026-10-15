@@ -74,7 +74,7 @@ export const createFarm = async (payload) => {
         1,
       farm_id: farm?.farm_id || payload.farm_id,
       farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
-      region_id: farm?.region_id ?? payload.region_id ?? null, // ✅
+      region_id: farm?.region_id ?? payload.region_id ?? null,
       province: farm?.province ?? payload.province,
       county: farm?.county ?? payload.county,
       bakhsh: farm?.bakhsh ?? payload.bakhsh,
@@ -88,12 +88,19 @@ export const createFarm = async (payload) => {
       project_name: farm?.project_name ?? payload.project_name,
       coverage_status: farm?.coverage_status ?? payload.coverage_status,
       water_source: farm?.water_source ?? payload.water_source,
-      irrigation_system: farm?.irrigation_system ?? payload.irrigation_system,
-      created_by_user_id: farm?.created_by_user_id ?? null, // ✅
+      irrigation_system:
+        farm?.irrigation_system ?? payload.irrigation_system,
+      created_by_user_id: farm?.created_by_user_id ?? null,
+      current_owner_id: farm?.current_owner_id ?? null, // ✅ فاز ۳
     };
   } catch (error) {
     if (error.response?.status === 409) {
-      throw new Error('زمینی با این شناسه قبلاً ثبت شده است.');
+      const detail = error.response?.data?.detail;
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : detail?.message || 'زمینی با این مشخصات قبلاً ثبت شده است.';
+      throw new Error(msg);
     }
     throw error;
   }
@@ -106,8 +113,6 @@ export const fetchFarms = async ({
   page = 1,
   pageSize = 20,
   search = null,
-  createdByUserId = null,
-  regionFilter = null, // ✅ جدید
 } = {}) => {
   const safePageSize = Math.min(Math.max(1, pageSize), 100);
 
@@ -117,14 +122,6 @@ export const fetchFarms = async ({
   });
 
   if (search) params.append('search', search);
-
-  if (regionFilter !== null && regionFilter !== undefined) {
-    params.append('region_filter', String(regionFilter)); // ✅
-  }
-
-  // ⚠️ نکته: createdByUserId را به backend نمی‌فرستیم.
-  // backend خودش از روی current_user.role فیلتر می‌کند.
-  // ولی برای cache key از آن استفاده می‌شود.
 
   try {
     const response = await apiClient.get(
@@ -147,20 +144,16 @@ export const fetchFarms = async ({
 export const fetchAllFarms = async ({
   maxItems = 2000,
   search = null,
-  createdByUserId = null,
-  regionFilter = null, // ✅ جدید
 } = {}) => {
   const allFarms = [];
   let page = 1;
-  const pageSize = 100; // API max
+  const pageSize = 100;
 
   while (allFarms.length < maxItems) {
     const result = await fetchFarms({
       page,
       pageSize,
       search,
-      createdByUserId,
-      regionFilter, // ✅
     });
 
     const items = result.farms || [];
@@ -168,13 +161,10 @@ export const fetchAllFarms = async ({
 
     allFarms.push(...items);
 
-    // اگر آخرین صفحه بود، تمام
     if (page >= result.totalPages) break;
-    // اگر تعداد کمتر از pageSize برگشت، تمام
     if (items.length < pageSize) break;
 
     page++;
-    // سقف ایمنی
     if (page > 50) break;
   }
 
@@ -213,10 +203,11 @@ export const updateFarm = async (farmId, payload) => {
     polygon_count:
       Number(farm?.polygon_count ?? payload.polygon_count) || 1,
     farmer_id: farm?.farmer_id ?? payload.farmer_id ?? null,
-    region_id: farm?.region_id ?? payload.region_id ?? null, // ✅
+    region_id: farm?.region_id ?? payload.region_id ?? null,
     crop_id: farm?.crop_id ?? payload.crop_id ?? null,
     crop_color: farm?.crop_color ?? payload.crop_color ?? null,
-    created_by_user_id: farm?.created_by_user_id ?? null, // ✅
+    created_by_user_id: farm?.created_by_user_id ?? null,
+    current_owner_id: farm?.current_owner_id ?? null, // ✅ فاز ۳
   };
 };
 
@@ -227,11 +218,106 @@ export const deleteFarm = async (farmId) => {
   if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
 
   try {
-    const response = await apiClient.delete(`/farms/delete/${farmId}`);
+    const response = await apiClient.delete(
+      `/farms/delete/${farmId}`,
+    );
     return response.data ?? { success: true };
   } catch (error) {
     if (error.response?.status === 404) {
       throw new Error('مزرعه یافت نشد یا قبلاً حذف شده است.');
+    }
+    if (error.response?.status === 403) {
+      throw new Error('شما به این مزرعه دسترسی ندارید.');
+    }
+    throw error;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// لایهٔ مرجع
+// ═══════════════════════════════════════════════════════════
+export const fetchReferenceLayer = async () => {
+  try {
+    const response = await apiClient.get(
+      '/farms/map-reference-layer',
+    );
+    const body = response?.data ?? response;
+    const items = Array.isArray(body?.items) ? body.items : [];
+
+    return { items };
+  } catch (error) {
+    console.error('❌ fetchReferenceLayer error:', {
+      status: error.response?.status,
+      url: error.config?.url,
+      data: error.response?.data,
+    });
+    return { items: [] };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// ✅ جدید فاز ۳: تاریخچهٔ انتقال مسئولیت
+//
+// GET /api/v1/farms/{farm_id}/history
+// ═══════════════════════════════════════════════════════════
+export const fetchFarmHistory = async (farmId) => {
+  if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
+
+  try {
+    const response = await apiClient.get(
+      `/farms/${farmId}/history`,
+    );
+    const body = response?.data ?? response;
+
+    return {
+      farm_id: body?.farm_id || farmId,
+      items: Array.isArray(body?.items) ? body.items : [],
+      total: body?.total ?? 0,
+    };
+  } catch (error) {
+    console.error('❌ fetchFarmHistory error:', {
+      status: error.response?.status,
+      url: error.config?.url,
+      data: error.response?.data,
+    });
+    throw error;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// ✅ جدید فاز ۳: انتقال مسئولیت
+//
+// POST /api/v1/farms/{farm_id}/transfer-ownership
+// ═══════════════════════════════════════════════════════════
+export const transferFarmOwnership = async (
+  farmId,
+  { newOwnerId, reason = null },
+) => {
+  if (!farmId) throw new Error('شناسه مزرعه معتبر نیست');
+  if (!newOwnerId) throw new Error('مسئول جدید الزامی است');
+
+  try {
+    const response = await apiClient.post(
+      `/farms/${farmId}/transfer-ownership`,
+      {
+        new_owner_id: newOwnerId,
+        reason,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 403) {
+      throw new Error(
+        'فقط مدیر ارشد می‌تواند مسئولیت را منتقل کند.',
+      );
+    }
+    if (error.response?.status === 400) {
+      const detail = error.response?.data?.detail;
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : detail?.message || 'خطا در انتقال مسئولیت';
+      throw new Error(msg);
     }
     throw error;
   }
