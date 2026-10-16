@@ -1,121 +1,178 @@
 // src/features/settings/hooks/useCropSettings.js
-import { useState, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useAgricultureSettings, cropKeys } from './useAgricultureSettings';
-import { DEFAULT_FARM_COLOR, normalizeHex } from '../constants/cropColors';
+import { useCallback, useMemo, useState } from "react";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
+import { cropApi } from "@/services/api/settingsApi";
+
+// ============================================================
+// Query Keys
+// ============================================================
+const CROPS_KEY = ["crops"];
+const CROPS_ACTIVE_KEY = ["crops", "active"];
+
+// ============================================================
+// API helpers — استفاده از cropApi موجود
+// ============================================================
+const fetchCrops = async (activeOnly = false) => {
+  const { data } = await cropApi.list(activeOnly);
+  return data;
+};
+
+const createCropApi = async (payload) => {
+  const { data } = await cropApi.create(payload);
+  return data;
+};
+
+const updateCropApi = async ({ id, payload }) => {
+  const { data } = await cropApi.update(id, payload);
+  return data;
+};
+
+const deleteCropApi = async (id) => {
+  const { data } = await cropApi.delete(id);
+  return data;
+};
+
+// ============================================================
+// main hook
+// ============================================================
 export const useCropSettings = () => {
-  const {
-    crops,
-    isLoading,
-    addCrop,
-    updateCrop,
-    deleteCrop,
-  } = useAgricultureSettings();
-
   const queryClient = useQueryClient();
-
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [editModalCrop, setEditModalCrop] = useState(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
-  // ============================================
-  // داده‌ها
-  // ============================================
-  const cropsWithRate = useMemo(() => {
-    return crops.map((c) => {
-      const hasRate =
-        (c.requirement ?? 0) > 0 ||
-        (c.price ?? 0) > 0 ||
-        (c.fertilizer ?? 0) > 0 ||
-        (c.pesticide ?? 0) > 0;
+  const {
+    data: crops = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: CROPS_KEY,
+    queryFn: () => fetchCrops(false),
+  });
 
-      return {
-        id: c.id,
-        name: c.name,
-        isActive: c.is_active,
-        color: normalizeHex(c.color) || DEFAULT_FARM_COLOR,
-        requirement: c.requirement,
-        price: c.price,
-        fertilizer: c.fertilizer,
-        pesticide: c.pesticide,
-        hasRate,
-        rate: {
-          requirement: c.requirement,
-          price: c.price,
-          fertilizer: c.fertilizer,
-          pesticide: c.pesticide,
-        },
-      };
-    });
-  }, [crops]);
-
-  const filteredCrops = useMemo(() => {
-    if (!searchTerm.trim()) return cropsWithRate;
-    return cropsWithRate.filter((c) => c.name.includes(searchTerm.trim()));
-  }, [cropsWithRate, searchTerm]);
-
+  // ── آمار ──
   const stats = useMemo(() => {
-    const total = cropsWithRate.length;
-    const active = cropsWithRate.filter((c) => c.isActive).length;
-    const withoutRate = cropsWithRate.filter(
-      (c) => c.isActive && !c.hasRate,
+    const total = crops.length;
+    const active = crops.filter((c) => c.is_active).length;
+    const withoutRate = crops.filter(
+      (c) => c.is_active && !hasAnyRate(c)
     ).length;
     return { total, active, withoutRate };
-  }, [cropsWithRate]);
+  }, [crops]);
 
-  // ============================================
-  // Handlers
-  // ============================================
+  // ── فیلتر ──
+  const filteredCrops = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return crops;
+    return crops.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.irrigation_type || "").toLowerCase().includes(q)
+    );
+  }, [crops, searchTerm]);
 
-  const handleAddCrop = async (payload) => {
-    const data =
-      typeof payload === 'string' ? { name: payload } : payload;
+  // ── Mutations ──
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: CROPS_KEY });
+    queryClient.invalidateQueries({ queryKey: CROPS_ACTIVE_KEY });
+  }, [queryClient]);
 
-    await addCrop({
-      name: data.name,
-      color: data.color || DEFAULT_FARM_COLOR,
-      is_active: true,
-    });
+  const addMutation = useMutation({
+    mutationFn: createCropApi,
+    onSuccess: invalidate,
+  });
 
-    setAddModalOpen(false);
+  const updateMutation = useMutation({
+    mutationFn: updateCropApi,
+    onSuccess: invalidate,
+  });
 
-    // ✅ اطمینان نهایی: force refresh
-    queryClient.refetchQueries({ queryKey: cropKeys.lists() });
-  };
+  const deleteMutation = useMutation({
+    mutationFn: deleteCropApi,
+    onSuccess: invalidate,
+  });
 
-  const handleToggleActive = async (crop) => {
-    await updateCrop(crop.id, { is_active: !crop.isActive });
-    queryClient.refetchQueries({ queryKey: cropKeys.lists() });
-  };
+  // ── Handlers ──
+  const handleAddCrop = useCallback(
+    async ({ name, color, irrigation_type = "آبی" }) => {
+      await addMutation.mutateAsync({
+        name,
+        color,
+        irrigation_type,
+        is_active: true,
+        requirement: 0,
+        price: 0,
+        fertilizer: 0,
+        pesticide: 0,
+        seed_rate: null,
+        crop_yield: null,
+        nitrogen: null,
+        phosphate: null,
+        potassium: null,
+        machinery_primary_tillage: null,
+        machinery_secondary_tillage: null,
+        machinery_planting: null,
+        machinery_spraying: null,
+        machinery_fertilizing: null,
+        machinery_harvesting: null,
+      });
+      setAddModalOpen(false);
+    },
+    [addMutation]
+  );
 
-  const handleDeleteCrop = async (crop) => {
-    if (window.confirm(`حذف محصول «${crop.name}»؟`)) {
-      await deleteCrop(crop.id);
-      queryClient.refetchQueries({ queryKey: cropKeys.lists() });
-    }
-  };
+  const handleToggleActive = useCallback(
+    async (crop) => {
+      await updateMutation.mutateAsync({
+        id: crop.id,
+        payload: { is_active: !crop.is_active },
+      });
+    },
+    [updateMutation]
+  );
 
-  const handleSubmitEdit = async (payload) => {
-    if (!editModalCrop) return;
-    await updateCrop(editModalCrop.id, payload);
-    setEditModalCrop(null);
-    queryClient.refetchQueries({ queryKey: cropKeys.lists() });
-  };
+  const handleDeleteCrop = useCallback(
+    async (crop) => {
+      if (
+        !window.confirm(
+          `حذف محصول «${crop.name}» (${crop.irrigation_type || "آبی"})؟`
+        )
+      )
+        return;
+      await deleteMutation.mutateAsync(crop.id);
+    },
+    [deleteMutation]
+  );
+
+  const handleSubmitEdit = useCallback(
+    async (payload) => {
+      if (!editModalCrop) return;
+      await updateMutation.mutateAsync({
+        id: editModalCrop.id,
+        payload,
+      });
+      setEditModalCrop(null);
+    },
+    [editModalCrop, updateMutation]
+  );
 
   return {
-    crops: cropsWithRate,
+    crops,
     filteredCrops,
     stats,
     isLoading,
-
+    isError,
     searchTerm,
     setSearchTerm,
     editModalCrop,
     setEditModalCrop,
     addModalOpen,
     setAddModalOpen,
-
     handleAddCrop,
     handleToggleActive,
     handleDeleteCrop,
@@ -123,4 +180,25 @@ export const useCropSettings = () => {
   };
 };
 
-export default useCropSettings;
+// ── helper ──
+const hasAnyRate = (crop) =>
+  [
+    "requirement",
+    "fertilizer",
+    "pesticide",
+    "price",
+    "seed_rate",
+    "crop_yield",
+    "nitrogen",
+    "phosphate",
+    "potassium",
+    "machinery_primary_tillage",
+    "machinery_secondary_tillage",
+    "machinery_planting",
+    "machinery_spraying",
+    "machinery_fertilizing",
+    "machinery_harvesting",
+  ].some((k) => {
+    const v = crop[k];
+    return v !== null && v !== undefined && Number(v) > 0;
+  });

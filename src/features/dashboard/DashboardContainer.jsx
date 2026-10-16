@@ -1,6 +1,6 @@
 // src/features/dashboard/DashboardContainer.jsx
-import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Wheat,
   Users,
@@ -18,20 +18,20 @@ import {
   MapPin,
   Settings2,
   Sprout,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { useDashboardData } from './hooks/useDashboardData';
-import { formatNumber } from './utils/analytics';
-import { getCropColor } from './components/charts/chartDefaults';
-import KpiMini from './components/KpiMini';
-import CropDistributionChart from './components/charts/CropDistributionChart';
-import FarmsTrendChart from './components/charts/FarmsTrendChart';
-import AreaByCropChart from './components/charts/AreaByCropChart';
-import WaterByCropChart from './components/charts/WaterByCropChart';
-import RecentFarmsTable from './components/RecentFarmsTable';
-import RecentFarmersTable from './components/RecentFarmersTable';
-import { getUserData } from '../../services/api/authApi';
-import { usePermissions } from '../auth/hooks/usePermissions';
+import { useDashboardData } from "./hooks/useDashboardData";
+import { formatNumber } from "./utils/analytics";
+import { getCropColor } from "./components/charts/chartDefaults";
+import KpiMini from "./components/KpiMini";
+import CropDistributionChart from "./components/charts/CropDistributionChart";
+import FarmsTrendChart from "./components/charts/FarmsTrendChart";
+import AreaByCropChart from "./components/charts/AreaByCropChart";
+import WaterByCropChart from "./components/charts/WaterByCropChart";
+import RecentFarmsTable from "./components/RecentFarmsTable";
+import RecentFarmersTable from "./components/RecentFarmersTable";
+import { getUserData } from "../../services/api/authApi";
+import { usePermissions } from "../auth/hooks/usePermissions";
 
 // ═══════════════════════════════════════════════════════════
 // Skeleton
@@ -49,10 +49,7 @@ const FirstLoadSkeleton = () => (
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-64 rounded-2xl bg-white/40 animate-pulse"
-          />
+          <div key={i} className="h-64 rounded-2xl bg-white/40 animate-pulse" />
         ))}
       </div>
     </div>
@@ -135,8 +132,7 @@ const CompactHero = ({ userName, onNavigate, villages = [] }) => {
       id: "crops",
       label: "محصولات",
       icon: Sprout,
-      onClick: () =>
-        onNavigate("/settings", { state: { activeTab: "crops" } }),
+      onClick: () => onNavigate("/agri"), // ✅ جدید
       color:
         "text-amber-700 bg-amber-500/15 border-amber-400/30 hover:bg-amber-500/25",
     },
@@ -255,7 +251,7 @@ const CompactHero = ({ userName, onNavigate, villages = [] }) => {
           ))}
           {extraVillagesCount > 0 && (
             <span className="text-[10px] text-slate-500">
-              و {extraVillagesCount.toLocaleString('fa-IR')} روستای دیگر
+              و {extraVillagesCount.toLocaleString("fa-IR")} روستای دیگر
             </span>
           )}
         </div>
@@ -290,11 +286,7 @@ const Panel = ({
         <div className="flex items-center gap-2 min-w-0">
           {Icon && (
             <div className="w-7 h-7 rounded-lg bg-white/70 border border-white/80 flex items-center justify-center flex-shrink-0">
-              <Icon
-                size={13}
-                className="text-slate-600"
-                strokeWidth={2.2}
-              />
+              <Icon size={13} className="text-slate-600" strokeWidth={2.2} />
             </div>
           )}
           <div className="min-w-0">
@@ -402,10 +394,7 @@ const DashboardContainer = () => {
   const goToFarmers = () => navigate("/farmers");
   const goToMap = () => navigate("/map");
   const goToSettings = (tab) =>
-    navigate(
-      "/settings",
-      tab ? { state: { activeTab: tab } } : undefined,
-    );
+    navigate("/settings", tab ? { state: { activeTab: tab } } : undefined);
   const goToDashboard = () => navigate("/");
 
   const colorByCrop = chartData.colorByCrop || {};
@@ -548,15 +537,15 @@ const DashboardContainer = () => {
             icon={Wheat}
             className="h-[320px]"
             action={
-              isSuperAdmin ? (
+              isSuperAdmin || isManager ? ( // ✅ مدیر منطقه هم بتواند
                 <button
                   type="button"
-                  onClick={() => goToSettings("crops")}
+                  onClick={() => navigate("/agri")} // ✅ تغییر
                   className="
-                    flex items-center gap-1 text-[10px] font-bold
-                    text-amber-700 bg-amber-500/10 hover:bg-amber-500/20
-                    px-2 py-1 rounded-lg transition-colors cursor-pointer
-                  "
+        flex items-center gap-1 text-[10px] font-bold
+        text-amber-700 bg-amber-500/10 hover:bg-amber-500/20
+        px-2 py-1 rounded-lg transition-colors cursor-pointer
+      "
                 >
                   <span>مدیریت</span>
                   <ArrowLeft size={10} />
@@ -610,17 +599,12 @@ const DashboardContainer = () => {
           </Panel>
 
           <div className="lg:col-span-2">
-            <RecentFarmsTable
-              farms={recent.farms}
-              farmersById={farmersById}
-            />
+            <RecentFarmsTable farms={recent.farms} farmersById={farmersById} />
           </div>
         </div>
 
         {/* 5. Row 4: Recent Farmers */}
-        {canSeeFarmers && (
-          <RecentFarmersTable farmers={recent.farmers} />
-        )}
+        {canSeeFarmers && <RecentFarmersTable farmers={recent.farmers} />}
       </div>
     </div>
   );

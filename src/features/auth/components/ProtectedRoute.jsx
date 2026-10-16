@@ -1,26 +1,57 @@
-// src/features/auth/components/ProtectedRoute.jsx
+// src/features/auth/components/ProtectedRoute.jsx — بازنویسی کامل
 import { Navigate, Outlet } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
+import LoadingSpinner from '../../../shared/components/LoadingSpinner/LoadingSpinner';
 
 /**
- * ProtectedRoute — محافظت از routeها بر اساس نقش.
+ * ProtectedRoute — با fallback هوشمند
  *
- * استفاده در App.jsx:
- *   <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
- *     <Route path="/settings" element={<SettingsPage />} />
- *   </Route>
+ * اگر کاربر به permission اصلی دسترسی نداشت:
+ *   ۱. اگر به داشبورد دسترسی دارد → `/`
+ *   ۲. اگر نه → `/no-access`
+ *
+ * props:
+ *   permission: [resource, action] | null
+ *   redirectTo: مسیر دلخواه (اختیاری). اگر null باشد،
+ *               از fallback هوشمند استفاده می‌شود.
  */
 const ProtectedRoute = ({
-  allowedRoles = [],
-  redirectTo = '/map',
+  permission = null,
+  redirectTo = null,
 }) => {
-  const { role } = usePermissions();
+  const { can, isLoadingPermissions } = usePermissions();
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+  // ⏳ منتظر fetch permissions
+  if (isLoadingPermissions) {
+    return <LoadingSpinner fullScreen />;
+  }
+
+  // بدون permission → دسترسی آزاد
+  if (!permission) {
+    return <Outlet />;
+  }
+
+  const [resource, action] = permission;
+
+  // ✅ دسترسی دارد
+  if (can(resource, action)) {
+    return <Outlet />;
+  }
+
+  // ❌ دسترسی ندارد → fallback
+  if (redirectTo) {
     return <Navigate to={redirectTo} replace />;
   }
 
-  return <Outlet />;
+  // Fallback هوشمند:
+  // اگر به داشبورد دسترسی دارد → داشبورد
+  // وگرنه → no-access
+  const hasDashboard = can('dashboard', 'view');
+  if (hasDashboard) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Navigate to="/no-access" replace />;
 };
 
 export default ProtectedRoute;

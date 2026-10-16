@@ -19,15 +19,36 @@ import { ConfirmDialogProvider } from '../shared/components/ConfirmDialog/Confir
 import { ROUTE_DEFINITIONS, ROUTES } from './routes';
 
 // ═══════════════════════════════════════════════════════════
-// ساخت route های محافظت‌شده بر اساس roles
+// NoAccessPage — وقتی کاربر به هیچ صفحه‌ای دسترسی ندارد
+// ═══════════════════════════════════════════════════════════
+const NoAccessPage = () => (
+  <div
+    className="min-h-screen flex items-center justify-center p-6 pt-24"
+    dir="rtl"
+  >
+    <div className="max-w-sm w-full bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
+      <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 text-xl">
+        🚫
+      </div>
+      <h2 className="text-base font-bold text-gray-900 mb-2">
+        دسترسی محدود
+      </h2>
+      <p className="text-xs text-gray-500 leading-relaxed">
+        شما به هیچ بخشی از سیستم دسترسی ندارید. لطفاً با مدیر
+        ارشد تماس بگیرید.
+      </p>
+    </div>
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════════
+// Group routes by permission
 //
-// هر گروه از route ها که roles یکسان دارند → یک ProtectedRoute
-// والد مشترک می‌گیرند (تا کد تکراری نباشد).
+// routes با permission یکسان → یک ProtectedRoute مشترک
 // ═══════════════════════════════════════════════════════════
 const useGroupedRoutes = () => {
   return useMemo(() => {
     const publicRoutes = [];
-    // Map از roles-serialized → { roles, redirectTo, routes }
     const groupedProtected = new Map();
 
     for (const def of ROUTE_DEFINITIONS) {
@@ -36,15 +57,15 @@ const useGroupedRoutes = () => {
         continue;
       }
 
-      // ساخت کلید یکتا بر اساس roles + redirectTo
+      // کلید یکتا بر اساس permission + redirectTo
       const key = JSON.stringify({
-        roles: def.roles || null,
+        permission: def.permission || null,
         redirectTo: def.redirectTo || null,
       });
 
       if (!groupedProtected.has(key)) {
         groupedProtected.set(key, {
-          roles: def.roles || null,
+          permission: def.permission || null,
           redirectTo: def.redirectTo || ROUTES.MAP,
           routes: [],
         });
@@ -60,6 +81,9 @@ const useGroupedRoutes = () => {
   }, []);
 };
 
+// ═══════════════════════════════════════════════════════════
+// App
+// ═══════════════════════════════════════════════════════════
 const App = () => {
   const { publicRoutes, protectedGroups } = useGroupedRoutes();
 
@@ -84,46 +108,62 @@ const App = () => {
                     {/* ─── محافظت‌شده ─── */}
                     <Route element={<ProtectedLayout />}>
                       {protectedGroups.map((group, idx) => {
-                        const { roles, redirectTo, routes } = group;
+                        const {
+                          permission,
+                          redirectTo,
+                          routes,
+                        } = group;
 
-                        // گروه بدون محدودیت نقش → همه لاگین‌شده‌ها
-                        if (!roles || roles.length === 0) {
-                          return routes.map(({ path, Component }) => (
-                            <Route
-                              key={`${idx}-${path}`}
-                              path={path}
-                              element={<Component />}
-                            />
-                          ));
-                        }
-
-                        // گروه با محدودیت نقش → ProtectedRoute
-                        return (
-                          <Route
-                            key={`group-${idx}`}
-                            element={
-                              <ProtectedRoute
-                                allowedRoles={roles}
-                                redirectTo={redirectTo}
-                              />
-                            }
-                          >
-                            {routes.map(({ path, Component }) => (
+                        // بدون permission → همه
+                        if (!permission) {
+                          return routes.map(
+                            ({ path, Component }) => (
                               <Route
                                 key={`${idx}-${path}`}
                                 path={path}
                                 element={<Component />}
                               />
-                            ))}
+                            )
+                          );
+                        }
+
+                        // با permission → ProtectedRoute
+                        return (
+                          <Route
+                            key={`group-${idx}`}
+                            element={
+                              <ProtectedRoute
+                                permission={permission}
+                                redirectTo={redirectTo}
+                              />
+                            }
+                          >
+                            {routes.map(
+                              ({ path, Component }) => (
+                                <Route
+                                  key={`${idx}-${path}`}
+                                  path={path}
+                                  element={<Component />}
+                                />
+                              )
+                            )}
                           </Route>
                         );
                       })}
                     </Route>
 
-                    {/* ─── fallback ─── */}
+                    {/* ─── No Access ─── */}
+                    <Route
+                      path="/no-access"
+                      element={<NoAccessPage />}
+                    />
+
+                    {/* ─── Fallback ─── */}
                     <Route
                       path="*"
-                      element={<Navigate to={ROUTES.HOME} replace />}
+                      element={
+                        <Navigate to={ROUTES.HOME} replace />
+                      }
                     />
                   </Routes>
                 </Suspense>

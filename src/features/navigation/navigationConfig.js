@@ -5,6 +5,7 @@ import {
   PlusCircle,
   MessageSquare,
   Users,
+  Sprout,        // ✅ جدید
 } from 'lucide-react';
 
 export const DOCK_ITEMS = [
@@ -24,6 +25,17 @@ export const DOCK_ITEMS = [
     type: 'route',
     roles: ['super_admin', 'manager', 'dehyar', 'operator'],
   },
+
+  // ✅ جدید: مدیریت کشاورزی — بین map و farmers
+  {
+    id: 'agri',
+    label: 'کشاورزی',
+    icon: Sprout,
+    path: '/agri',
+    type: 'route',
+    roles: ['super_admin', 'manager'],
+  },
+
   {
     id: 'farm-panel',
     label: 'ثبت زمین',
@@ -34,9 +46,9 @@ export const DOCK_ITEMS = [
   },
   {
     id: 'farmers',
-    label: 'کاربران',              // ✅ تغییر از «کشاورزان» به «کاربران»
+    label: 'کاربران',
     icon: Users,
-    path: '/farmers',              // همان مسیر
+    path: '/farmers',
     type: 'route',
     roles: ['super_admin', 'manager', 'operator'],
   },

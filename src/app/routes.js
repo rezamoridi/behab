@@ -9,107 +9,123 @@ export const ROUTES = {
   HOME: '/',
   MAP: '/map',
   FARMERS: '/farmers',
+  AGRI: '/agri',
   CONVERSATIONS: '/conversations',
   SETTINGS: '/settings',
+  NO_ACCESS: '/no-access',      // ✅ جدید
 };
 
 // ═══════════════════════════════════════════════════════════
-// نقش‌های مجاز برای هر route
-//
-// ⚠️ قاعده:
-//   - HOME و MAP: همه نقش‌ها
-//   - FARMERS: super_admin + manager + operator
-//     (dehyar از داک پنهان است ولی دسترسی مستقیم محدود به scope خودش)
-//   - SETTINGS و CONVERSATIONS: فقط super_admin
-// ═══════════════════════════════════════════════════════════
-export const ROUTE_ROLES = {
-  [ROUTES.HOME]: ['super_admin', 'manager', 'dehyar', 'operator'],
-  [ROUTES.MAP]: ['super_admin', 'manager', 'dehyar', 'operator'],
-  [ROUTES.FARMERS]: ['super_admin', 'manager', 'operator'],
-  [ROUTES.CONVERSATIONS]: ['super_admin'],
-  [ROUTES.SETTINGS]: ['super_admin'],
-};
-
-// ═══════════════════════════════════════════════════════════
-// Lazy-loaded page components
-//
-// هر route → کامپوننت آن
+// Lazy components
 // ═══════════════════════════════════════════════════════════
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const MapViewPage = lazy(() => import('../pages/MapViewPage'));
 const FarmersPage = lazy(() => import('../pages/FarmersPage'));
-const ConversationsPage = lazy(() => import('../pages/ConversationsPage'));
+const AgriPage = lazy(() => import('../pages/AgriPage'));
+const ConversationsPage = lazy(
+  () => import('../pages/ConversationsPage'),
+);
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
+const NoAccessPage = lazy(() => import('../pages/NoAccessPage'));   // ✅ جدید
 
 export const ROUTE_COMPONENTS = {
   [ROUTES.LOGIN]: LoginPage,
   [ROUTES.HOME]: DashboardPage,
   [ROUTES.MAP]: MapViewPage,
   [ROUTES.FARMERS]: FarmersPage,
+  [ROUTES.AGRI]: AgriPage,
   [ROUTES.CONVERSATIONS]: ConversationsPage,
   [ROUTES.SETTINGS]: SettingsPage,
+  [ROUTES.NO_ACCESS]: NoAccessPage,    // ✅ جدید
 };
 
 // ═══════════════════════════════════════════════════════════
-// Route definitions
+// Route definitions — با permission داینامیک
 //
 // ساختار هر ردیف:
-//   {
-//     path: string,           ← مسیر
-//     Component: React.lazy,  ← کامپوننت
-//     roles: string[] | null, ← نقش‌های مجاز (null = همه لاگین‌شده‌ها)
-//     isPublic: boolean,      ← بدون احراز هویت
-//     redirectTo: string,     ← مسیر fallback اگر نقش مجاز نبود
-//   }
-//
-// ⚠️ این تنها منبع حقیقت برای مسیرهاست.
+//   path: string
+//   Component: React.lazy
+//   permission: [resource, action] | null
+//     - null → همه کاربران لاگین‌شده
+//   isPublic: boolean
+//   redirectTo: string | null
+//     - null → fallback هوشمند (داشبورد یا no-access)
+//     - string → مسیر مشخص
 // ═══════════════════════════════════════════════════════════
 export const ROUTE_DEFINITIONS = [
   // ─── عمومی (بدون احراز هویت) ───
   {
     path: ROUTES.LOGIN,
     Component: ROUTE_COMPONENTS[ROUTES.LOGIN],
-    roles: null,
+    permission: null,
     isPublic: true,
   },
 
-  // ─── محافظت‌شده (همه نقش‌ها) ───
+  // ─── No Access (همه لاگین‌شده‌ها) ───
+  {
+    path: ROUTES.NO_ACCESS,
+    Component: ROUTE_COMPONENTS[ROUTES.NO_ACCESS],
+    permission: null,
+    isPublic: false,
+  },
+
+  // ─── داشبورد ───
   {
     path: ROUTES.HOME,
     Component: ROUTE_COMPONENTS[ROUTES.HOME],
-    roles: ROUTE_ROLES[ROUTES.HOME],
+    permission: ['dashboard', 'view'],
     isPublic: false,
+    // اگر dashboard.view نداشت → مستقیم به no-access
+    // (چون fallback هوشمند به داشبورد برمی‌گردد و loop می‌شود)
+    redirectTo: ROUTES.NO_ACCESS,
   },
+
+  // ─── نقشه ───
   {
     path: ROUTES.MAP,
     Component: ROUTE_COMPONENTS[ROUTES.MAP],
-    roles: ROUTE_ROLES[ROUTES.MAP],
+    permission: ['map', 'view'],
     isPublic: false,
+    // ✅ fallback هوشمند:
+    //   اگر داشبورد دارد → /
+    //   اگر نه → /no-access
+    redirectTo: null,
   },
 
-  // ─── محافظت‌شده (super_admin + manager + operator) ───
+  // ─── کشاورزان ───
   {
     path: ROUTES.FARMERS,
     Component: ROUTE_COMPONENTS[ROUTES.FARMERS],
-    roles: ROUTE_ROLES[ROUTES.FARMERS],
+    permission: ['farmer', 'view_own'],
     isPublic: false,
-    redirectTo: ROUTES.MAP,
+    redirectTo: null,    // fallback هوشمند
   },
 
-  // ─── محافظت‌شده (فقط super_admin) ───
+  // ─── کشاورزی (محصولات + نهاده‌ها) ───
+  {
+    path: ROUTES.AGRI,
+    Component: ROUTE_COMPONENTS[ROUTES.AGRI],
+    permission: ['input', 'view'],
+    isPublic: false,
+    redirectTo: null,    // fallback هوشمند
+  },
+
+  // ─── گفتگو ───
   {
     path: ROUTES.CONVERSATIONS,
     Component: ROUTE_COMPONENTS[ROUTES.CONVERSATIONS],
-    roles: ROUTE_ROLES[ROUTES.CONVERSATIONS],
+    permission: ['sms', 'send'],
     isPublic: false,
-    redirectTo: ROUTES.MAP,
+    redirectTo: null,    // fallback هوشمند
   },
+
+  // ─── تنظیمات ───
   {
     path: ROUTES.SETTINGS,
     Component: ROUTE_COMPONENTS[ROUTES.SETTINGS],
-    roles: ROUTE_ROLES[ROUTES.SETTINGS],
+    permission: ['settings', 'view'],
     isPublic: false,
-    redirectTo: ROUTES.MAP,
+    redirectTo: null,    // fallback هوشمند
   },
 ];

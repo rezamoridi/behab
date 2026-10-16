@@ -1,18 +1,19 @@
 // src/features/navigation/FloatingDock.jsx
-import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import DockButton from './DockButton';
-import { DOCK_ITEMS } from './navigationConfig';
-import { useFarmPanel } from '../farm-registration/panel/FarmPanelContext';
-import { usePermissions } from '../auth/hooks/usePermissions';
+import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import DockButton from "./DockButton";
+import { DOCK_ITEMS } from "./navigationConfig";
+import { useFarmPanel } from "../farm-registration/panel/FarmPanelContext";
+import { usePermissions } from "../auth/hooks/usePermissions";
 
 // ✅ shortcut نمایشی هر آیتم (id → حرف)
 const SHORTCUTS = {
-  dashboard: 'D',
-  map: 'M',
-  conversations: 'C',
-  'farm-panel': 'F',
-  farmers: 'U',              // ✅ تغییر K → U (Users)
+  dashboard: "D",
+  map: "M",
+  agri: "A", // ✅ جدید
+  "farm-panel": "F",
+  farmers: "U",
+  conversations: "C",
 };
 
 const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {
@@ -22,21 +23,21 @@ const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {
   const { role } = usePermissions();
 
   const isRouteActive = (path) => {
-    if (path === '/') return location.pathname === '/';
+    if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
 
   const handleClick = (item) => {
-    if (item.type === 'route') {
+    if (item.type === "route") {
       navigate(item.path);
-    } else if (item.type === 'action' && onAction) {
+    } else if (item.type === "action" && onAction) {
       onAction(item.actionKey);
     }
   };
 
   // ✅ فیلتر بر اساس نقش + hideFarmPanelAction
   const visibleItems = DOCK_ITEMS.filter((item) => {
-    if (hideFarmPanelAction && item.id === 'farm-panel') return false;
+    if (hideFarmPanelAction && item.id === "farm-panel") return false;
     if (item.roles && !item.roles.includes(role)) return false;
     return true;
   });
@@ -63,9 +64,9 @@ const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {
       >
         {visibleItems.map((item) => {
           const isActive =
-            item.type === 'route'
+            item.type === "route"
               ? isRouteActive(item.path)
-              : item.actionKey === 'toggleFarmPanel' && farmPanelOpen;
+              : item.actionKey === "toggleFarmPanel" && farmPanelOpen;
 
           return (
             <DockButton

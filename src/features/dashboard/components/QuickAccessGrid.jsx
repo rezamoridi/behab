@@ -2,16 +2,38 @@
 import { useNavigate } from 'react-router-dom';
 import {
   Settings2,
-  Sprout,
   Users,
-  UserCog,          // ✅ جدید
+  UserCog,
   Layers,
   UserCircle2,
   Map as MapIcon,
+  Leaf,
+  Sprout,
 } from 'lucide-react';
 import QuickAccessCard from './QuickAccessCard';
+import { usePermissions } from '../../auth/hooks/usePermissions';
 
-const ITEMS = [
+// ═══════════════════════════════════════════════════════════
+// ALL_ITEMS — هر آیتم با permission داینامیک
+//
+// ساختار هر آیتم:
+//   permission: [resource, action] | null
+//   - null → همه کاربران لاگین‌شده
+//   - [resource, action] → از can(resource, action) چک می‌شود
+// ═══════════════════════════════════════════════════════════
+const ALL_ITEMS = [
+  // ─── مدیریت کشاورزی (محصولات + نهاده‌ها) ───
+  {
+    id: 'agri',
+    icon: Leaf,
+    title: 'مدیریت کشاورزی',
+    description: 'بذر، نیازهای زراعی و نهاده‌ها',
+    color: 'emerald',
+    path: '/agri',
+    permission: ['input', 'view'],          // ✅ داینامیک
+  },
+
+  // ─── تنظیمات کشاورزی ───
   {
     id: 'agriculture-settings',
     icon: Settings2,
@@ -20,33 +42,33 @@ const ITEMS = [
     color: 'primary',
     path: '/settings',
     tab: 'agriculture',
+    permission: ['settings', 'view'],       // ✅ داینامیک
   },
+
+  // ─── کشاورزان ───
   {
-    id: 'crops',
-    icon: Sprout,
-    title: 'مدیریت محصولات',
-    description: 'افزودن محصول، رنگ لایه و نرخ‌های مصرفی',
-    color: 'emerald',
-    path: '/settings',
-    tab: 'crops',
-  },
-  {
-    id: 'farmers',                                 // ✅ تغییر id
+    id: 'farmers',
     icon: Users,
-    title: 'کشاورزان',                             // ✅ عنوان
-    description: 'مدیریت کشاورزان ثبت‌شده',           // ✅ توضیح
+    title: 'کشاورزان',
+    description: 'مدیریت کشاورزان ثبت‌شده',
     color: 'blue',
-    path: '/farmers',                              // ✅ لینک به ساب‌پیج کشاورزان
+    path: '/farmers',
+    permission: ['farmer', 'view_own'],     // ✅ داینامیک
   },
+
+  // ─── کاربران ───
   {
-    id: 'users',                                   // ✅ جدید
+    id: 'users',
     icon: UserCog,
-    title: 'کاربران',                              // ✅
-    description: 'مدیریت کاربران و مسئولان سیستم',  // ✅
-    color: 'rose',                                 // ✅
-    path: '/farmers',                              // ✅
-    tab: 'users',                                  // ✅ با tab=users
+    title: 'کاربران',
+    description: 'مدیریت کاربران و مسئولان سیستم',
+    color: 'rose',
+    path: '/farmers',
+    tab: 'users',
+    permission: ['user', 'view'],           // ✅ داینامیک
   },
+
+  // ─── ظاهر لایه‌ها ───
   {
     id: 'layer-style',
     icon: Layers,
@@ -55,7 +77,10 @@ const ITEMS = [
     color: 'purple',
     path: '/settings',
     tab: 'layer-style',
+    permission: ['settings', 'view'],       // ✅ داینامیک
   },
+
+  // ─── پروفایل ───
   {
     id: 'profile',
     icon: UserCircle2,
@@ -64,7 +89,10 @@ const ITEMS = [
     color: 'amber',
     path: '/settings',
     tab: 'profile',
+    permission: null,                        // ✅ همه کاربران
   },
+
+  // ─── نقشه ───
   {
     id: 'map',
     icon: MapIcon,
@@ -72,19 +100,25 @@ const ITEMS = [
     description: 'مشاهده و مدیریت مزارع روی نقشه',
     color: 'rose',
     path: '/map',
+    permission: null,                        // ✅ همه کاربران
   },
 ];
 
-/**
- * QuickAccessGrid
- */
+// ═══════════════════════════════════════════════════════════
+// QuickAccessGrid
+// ═══════════════════════════════════════════════════════════
 const QuickAccessGrid = () => {
   const navigate = useNavigate();
+  const { can } = usePermissions();
+
+  // ✅ فیلتر داینامیک
+  const items = ALL_ITEMS.filter((item) => {
+    if (!item.permission) return true;      // همه
+    const [resource, action] = item.permission;
+    return can(resource, action);
+  });
 
   const handleClick = (item) => {
-    // ✅ اگر tab دارد:
-    //   - path = /settings → state.activeTab
-    //   - path = /farmers  → ?tab=... (searchParam)
     if (item.tab) {
       if (item.path === '/settings') {
         navigate(item.path, { state: { activeTab: item.tab } });
@@ -106,7 +140,7 @@ const QuickAccessGrid = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {ITEMS.map((item) => (
+        {items.map((item) => (
           <QuickAccessCard
             key={item.id}
             icon={item.icon}

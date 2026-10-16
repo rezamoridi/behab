@@ -1,6 +1,7 @@
 // src/app/Layout.jsx
 import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+
 import TopBar from '../features/navigation/TopBar';
 import FloatingDock from '../features/navigation/FloatingDock';
 import FarmRegistrationPanel from '../features/farm-registration/panel/FarmRegistrationPanel';
@@ -11,9 +12,12 @@ import {
 import { usePermissions } from '../features/auth/hooks/usePermissions';
 import useSessionState from '../shared/hooks/useSessionState';
 
+// ═══════════════════════════════════════════════════════════
+// InnerLayout — با keyboard shortcuts
+// ═══════════════════════════════════════════════════════════
 const InnerLayout = () => {
   const { togglePanel, closePanel } = useFarmPanel();
-  const { isSuperAdmin } = usePermissions();
+  const { isSuperAdmin, isManager, isOperator } = usePermissions();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -24,6 +28,7 @@ const InnerLayout = () => {
     null,
   );
 
+  // ── Dock actions ──
   const handleDockAction = (actionKey) => {
     if (actionKey === 'toggleFarmPanel') {
       if (!isMapPage) {
@@ -35,9 +40,20 @@ const InnerLayout = () => {
     }
   };
 
+  // ═══════════════════════════════════════════════════════════
   // Keyboard shortcuts
+  //
+  // D → داشبورد (super_admin)
+  // M → نقشه
+  // A → مدیریت کشاورزی (super_admin, manager) ✅ جدید
+  // F → پنل ثبت زمین
+  // U → کاربران/کشاورزان
+  // C → گفتگو (super_admin)
+  // Esc → بستن پنل
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // ── نادیده گرفتن فیلدهای ورودی ──
       const tag = (e.target.tagName || '').toLowerCase();
       const isInput =
         tag === 'input' ||
@@ -45,35 +61,76 @@ const InnerLayout = () => {
         tag === 'select' ||
         e.target.isContentEditable;
       if (isInput) return;
+
+      // ── نادیده گرفتن modifierها ──
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const key = e.key.toLowerCase();
 
+      // ── F: پنل ثبت زمین ──
       if (key === 'f') {
         e.preventDefault();
         if (isMapPage) togglePanel();
         else navigate('/map');
-      } else if (key === 'm') {
+        return;
+      }
+
+      // ── M: نقشه ──
+      if (key === 'm') {
         e.preventDefault();
         navigate('/map');
-      } else if (key === 'c' && isSuperAdmin) {
+        return;
+      }
+
+      // ── A: مدیریت کشاورزی ✅ جدید ──
+      if (key === 'a' && (isSuperAdmin || isManager)) {
+        e.preventDefault();
+        navigate('/agri');
+        return;
+      }
+
+      // ── U: کاربران / کشاورزان ──
+      if (key === 'u' && (isSuperAdmin || isManager || isOperator)) {
+        e.preventDefault();
+        navigate('/farmers');
+        return;
+      }
+
+      // ── C: گفتگو (فقط super_admin) ──
+      if (key === 'c' && isSuperAdmin) {
         e.preventDefault();
         navigate('/conversations');
-      } else if (key === 'd' && isSuperAdmin) {
+        return;
+      }
+
+      // ── D: داشبورد ──
+      if (key === 'd') {
         e.preventDefault();
         navigate('/');
-      } else if (e.key === 'Escape') {
+        return;
+      }
+
+      // ── Esc: بستن پنل ثبت زمین ──
+      if (e.key === 'Escape') {
         closePanel();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePanel, closePanel, navigate, isMapPage, isSuperAdmin]);
+  }, [
+    togglePanel,
+    closePanel,
+    navigate,
+    isMapPage,
+    isSuperAdmin,
+    isManager,
+    isOperator,
+  ]);
 
   return (
     <div className="app-layout-new" dir="rtl">
-      {/* ✅ TopBar — در همه‌جا (شامل /settings) */}
+      {/* ✅ TopBar — در همه‌جا (شامل /settings و /agri) */}
       <TopBar
         selectedLocation={selectedLocation}
         onLocationSelect={setSelectedLocation}
@@ -93,6 +150,9 @@ const InnerLayout = () => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════
+// Layout — Provider wrapper
+// ═══════════════════════════════════════════════════════════
 const Layout = () => {
   return (
     <FarmPanelProvider>
