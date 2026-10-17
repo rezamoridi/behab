@@ -8,12 +8,13 @@ import { usePermissions } from "../auth/hooks/usePermissions";
 
 // ✅ shortcut نمایشی هر آیتم (id → حرف)
 const SHORTCUTS = {
-  dashboard: "D",
-  map: "M",
-  agri: "A", // ✅ جدید
-  "farm-panel": "F",
-  farmers: "U",
-  conversations: "C",
+  dashboard: 'D',
+  map: 'M',
+  lands: 'L',           // ✅ جدید
+  agri: 'A',
+  'farm-panel': 'F',
+  farmers: 'U',
+  conversations: 'C',
 };
 
 const FloatingDock = ({ onAction, hideFarmPanelAction = false }) => {

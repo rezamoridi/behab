@@ -8,11 +8,12 @@ export const ROUTES = {
   LOGIN: '/login',
   HOME: '/',
   MAP: '/map',
+  LANDS: '/lands',              // ✅ جدید
   FARMERS: '/farmers',
   AGRI: '/agri',
   CONVERSATIONS: '/conversations',
   SETTINGS: '/settings',
-  NO_ACCESS: '/no-access',      // ✅ جدید
+  NO_ACCESS: '/no-access',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -21,23 +22,25 @@ export const ROUTES = {
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const MapViewPage = lazy(() => import('../pages/MapViewPage'));
+const LandsPage = lazy(() => import('../pages/LandsPage'));       // ✅ جدید
 const FarmersPage = lazy(() => import('../pages/FarmersPage'));
 const AgriPage = lazy(() => import('../pages/AgriPage'));
 const ConversationsPage = lazy(
   () => import('../pages/ConversationsPage'),
 );
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
-const NoAccessPage = lazy(() => import('../pages/NoAccessPage'));   // ✅ جدید
+const NoAccessPage = lazy(() => import('../pages/NoAccessPage'));
 
 export const ROUTE_COMPONENTS = {
   [ROUTES.LOGIN]: LoginPage,
   [ROUTES.HOME]: DashboardPage,
   [ROUTES.MAP]: MapViewPage,
+  [ROUTES.LANDS]: LandsPage,            // ✅ جدید
   [ROUTES.FARMERS]: FarmersPage,
   [ROUTES.AGRI]: AgriPage,
   [ROUTES.CONVERSATIONS]: ConversationsPage,
   [ROUTES.SETTINGS]: SettingsPage,
-  [ROUTES.NO_ACCESS]: NoAccessPage,    // ✅ جدید
+  [ROUTES.NO_ACCESS]: NoAccessPage,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -76,8 +79,6 @@ export const ROUTE_DEFINITIONS = [
     Component: ROUTE_COMPONENTS[ROUTES.HOME],
     permission: ['dashboard', 'view'],
     isPublic: false,
-    // اگر dashboard.view نداشت → مستقیم به no-access
-    // (چون fallback هوشمند به داشبورد برمی‌گردد و loop می‌شود)
     redirectTo: ROUTES.NO_ACCESS,
   },
 
@@ -87,9 +88,15 @@ export const ROUTE_DEFINITIONS = [
     Component: ROUTE_COMPONENTS[ROUTES.MAP],
     permission: ['map', 'view'],
     isPublic: false,
-    // ✅ fallback هوشمند:
-    //   اگر داشبورد دارد → /
-    //   اگر نه → /no-access
+    redirectTo: null,
+  },
+
+  // ✅ جدید — مدیریت زمین‌ها
+  {
+    path: ROUTES.LANDS,
+    Component: ROUTE_COMPONENTS[ROUTES.LANDS],
+    permission: ['map', 'view'],        // ← همان دسترسی نقشه
+    isPublic: false,
     redirectTo: null,
   },
 
@@ -99,7 +106,7 @@ export const ROUTE_DEFINITIONS = [
     Component: ROUTE_COMPONENTS[ROUTES.FARMERS],
     permission: ['farmer', 'view_own'],
     isPublic: false,
-    redirectTo: null,    // fallback هوشمند
+    redirectTo: null,
   },
 
   // ─── کشاورزی (محصولات + نهاده‌ها) ───
@@ -108,7 +115,7 @@ export const ROUTE_DEFINITIONS = [
     Component: ROUTE_COMPONENTS[ROUTES.AGRI],
     permission: ['input', 'view'],
     isPublic: false,
-    redirectTo: null,    // fallback هوشمند
+    redirectTo: null,
   },
 
   // ─── گفتگو ───
@@ -117,7 +124,7 @@ export const ROUTE_DEFINITIONS = [
     Component: ROUTE_COMPONENTS[ROUTES.CONVERSATIONS],
     permission: ['sms', 'send'],
     isPublic: false,
-    redirectTo: null,    // fallback هوشمند
+    redirectTo: null,
   },
 
   // ─── تنظیمات ───
@@ -126,6 +133,6 @@ export const ROUTE_DEFINITIONS = [
     Component: ROUTE_COMPONENTS[ROUTES.SETTINGS],
     permission: ['settings', 'view'],
     isPublic: false,
-    redirectTo: null,    // fallback هوشمند
+    redirectTo: null,
   },
 ];

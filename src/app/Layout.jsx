@@ -43,9 +43,10 @@ const InnerLayout = () => {
   // ═══════════════════════════════════════════════════════════
   // Keyboard shortcuts
   //
-  // D → داشبورد (super_admin)
+  // D → داشبورد
   // M → نقشه
-  // A → مدیریت کشاورزی (super_admin, manager) ✅ جدید
+  // L → زمین‌ها ✅ جدید
+  // A → مدیریت کشاورزی (super_admin, manager)
   // F → پنل ثبت زمین
   // U → کاربران/کشاورزان
   // C → گفتگو (super_admin)
@@ -82,7 +83,14 @@ const InnerLayout = () => {
         return;
       }
 
-      // ── A: مدیریت کشاورزی ✅ جدید ──
+      // ── L: زمین‌ها ✅ جدید ──
+      if (key === 'l') {
+        e.preventDefault();
+        navigate('/lands');
+        return;
+      }
+
+      // ── A: مدیریت کشاورزی ──
       if (key === 'a' && (isSuperAdmin || isManager)) {
         e.preventDefault();
         navigate('/agri');
@@ -130,7 +138,7 @@ const InnerLayout = () => {
 
   return (
     <div className="app-layout-new" dir="rtl">
-      {/* ✅ TopBar — در همه‌جا (شامل /settings و /agri) */}
+      {/* ✅ TopBar — در همه‌جا (شامل /settings و /agri و /lands) */}
       <TopBar
         selectedLocation={selectedLocation}
         onLocationSelect={setSelectedLocation}

@@ -1,36 +1,39 @@
 // src/pages/NoAccessPage.jsx
-import { useNavigate } from 'react-router-dom';
-import {
-  ShieldAlert,
-  LogOut,
-  ArrowLeft,
-  Home,
-  Phone,
-} from 'lucide-react';
+import { useNavigate } from "react-router-dom";
+import { ShieldAlert, LogOut, ArrowLeft, Home, Phone } from "lucide-react";
 
-import { useAuth } from '../context/useAuth';
-import { usePermissions } from '../features/auth/hooks/usePermissions';
-import { logout as logoutApi } from '../services/api/authApi';
+import { useAuth } from "../context/useAuth";
+import { usePermissions } from "../features/auth/hooks/usePermissions";
+import { logout as logoutApi } from "../services/api/authApi";
+import { useConfirm } from "../shared/components/ConfirmDialog/ConfirmDialogProvider";
 
 const NoAccessPage = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { user, role } = usePermissions();
+  const confirm = useConfirm();
 
   const handleLogout = async () => {
-    if (!window.confirm('آیا از خروج از سیستم اطمینان دارید؟'))
-      return;
+    const ok = await confirm({
+      title: "خروج از حساب",
+      message: "آیا از خروج از سیستم اطمینان دارید؟",
+      confirmText: "خروج",
+      cancelText: "انصراف",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       await logoutApi();
     } catch (e) {
       /* ignore */
     } finally {
       logout();
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     }
   };
 
-  const roleLabels = {
+    const roleLabels = {
     super_admin: 'مدیر ارشد',
     manager: 'مدیر منطقه',
     dehyar: 'دهیار',
@@ -86,8 +89,8 @@ const NoAccessPage = () => {
             </h1>
 
             <p className="text-sm text-slate-600 leading-relaxed mb-5">
-              حساب کاربری شما در حال حاضر به هیچ بخشی از سیستم
-              دسترسی ندارد. لطفاً با مدیر ارشد تماس بگیرید.
+              حساب کاربری شما در حال حاضر به هیچ بخشی از سیستم دسترسی ندارد.
+              لطفاً با مدیر ارشد تماس بگیرید.
             </p>
 
             {/* اطلاعات کاربر */}
@@ -104,16 +107,13 @@ const NoAccessPage = () => {
                     "
                   >
                     <span className="text-base font-bold text-slate-600">
-                      {(user.fname || user.username || '؟')
-                        .trim()
-                        .charAt(0)}
+                      {(user.fname || user.username || "؟").trim().charAt(0)}
                     </span>
                   </div>
                   <div className="min-w-0 text-right flex-1">
                     <div className="text-sm font-bold text-slate-800 truncate">
-                      {`${user.fname || ''} ${
-                        user.lname || ''
-                      }`.trim() || user.username}
+                      {`${user.fname || ""} ${user.lname || ""}`.trim() ||
+                        user.username}
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5">
                       {roleLabels[role] || role}
@@ -175,9 +175,8 @@ const NoAccessPage = () => {
             <div className="text-xs text-blue-800 leading-relaxed">
               <strong>چرا این پیام را می‌بینم؟</strong>
               <br />
-              دسترسی‌های شما توسط مدیر ارشد قابل تنظیم است. اگر
-              فکر می‌کنید این اشتباه است، با مدیر ارشد تماس
-              بگیرید و درخواست دسترسی کنید.
+              دسترسی‌های شما توسط مدیر ارشد قابل تنظیم است. اگر فکر می‌کنید این
+              اشتباه است، با مدیر ارشد تماس بگیرید و درخواست دسترسی کنید.
             </div>
           </div>
         </div>

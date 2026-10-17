@@ -1,5 +1,5 @@
 // src/features/farm-registration/forms/sections/LocationSection.jsx
-import { useMemo, useId, useEffect } from 'react';
+import { useMemo, useId, useEffect, useCallback } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   CheckCircle2,
@@ -16,8 +16,9 @@ import {
   getVillages,
 } from '../../constants/locations';
 import { useRegionsQuery, useMyRegionsQuery } from '../../../regions/hooks/useRegions';
-import { useVillagesQuery, useMyVillagesQuery } from '../../../villages/hooks/useVillages';  // ✅ فاز ۴
+import { useVillagesQuery, useMyVillagesQuery } from '../../../villages/hooks/useVillages';
 import { usePermissions } from '../../../auth/hooks/usePermissions';
+import { useToast } from '../../../../shared/components/Toast/ToastProvider';  // ✅ جدید
 
 // ============================================
 // Helper: نرمال‌سازی نام
@@ -137,7 +138,7 @@ const ComboBox = ({
 };
 
 // ============================================
-// Region Selector (فقط برای super_admin)
+// Region Selector
 // ============================================
 const RegionSelector = ({ register, watch, isSubmitting }) => {
   const { isSuperAdmin } = usePermissions();
@@ -188,7 +189,7 @@ const RegionSelector = ({ register, watch, isSubmitting }) => {
 };
 
 // ============================================
-// ✅ فاز ۴: Village Selector
+// Village Selector
 // ============================================
 const VillageSelector = ({ register, watch, setValue, isSubmitting }) => {
   const { isSuperAdmin } = usePermissions();
@@ -200,15 +201,11 @@ const VillageSelector = ({ register, watch, setValue, isSubmitting }) => {
   const selectedRegionId = watch('regionId');
   const selectedVillageId = watch('villageId');
 
-  // ✅ فاز ۴: گزینه‌های موجود
-  // - super_admin: همه روستاها (فیلتر بر اساس region اگر انتخاب شده)
-  // - بقیه: فقط روستاهایی که مسئولشان هستند
   const availableVillages = useMemo(() => {
     const base = isSuperAdmin ? allVillages : myVillages;
 
     if (!selectedRegionId) return base;
 
-    // فیلتر بر اساس منطقه انتخاب‌شده
     return base.filter(
       (v) =>
         v.region_id == null ||
@@ -216,7 +213,6 @@ const VillageSelector = ({ register, watch, setValue, isSubmitting }) => {
     );
   }, [isSuperAdmin, allVillages, myVillages, selectedRegionId]);
 
-  // اگر regionId عوض شد و villageId فعلی در لیست جدید نیست، پاکش کن
   useEffect(() => {
     if (!selectedVillageId) return;
 
@@ -282,6 +278,8 @@ export const LocationSection = ({
   totalArea,
   polygonCount,
 }) => {
+  const toast = useToast();  // ✅ جدید
+
   const {
     register,
     watch,
@@ -345,96 +343,129 @@ export const LocationSection = ({
 
   const isFilled = !!(province && county);
 
-  const handleFillFromSearch = () => {
-    if (!locationData) {
-      alert('لطفاً ابتدا یک مکان را جستجو کنید.');
-      return;
-    }
+  // ============================================
+  // ✅ فاز ۴: منطق مشترک اتوفیل (قابل استفاده مجدد)
+  // ============================================
+  const applyLocationToForm = useCallback(
+    (location) => {
+      if (!location) return;
 
-    const rawProvince = locationData.province || locationData.state || '';
-    const rawCounty =
-      locationData.county || locationData.city || locationData.town || '';
-    const rawBakhsh =
-      locationData.bakhsh ||
-      locationData.district ||
-      locationData.municipality ||
-      '';
-    const rawDehestan =
-      locationData.dehestan ||
-      locationData.suburb ||
-      locationData.neighbourhood ||
-      '';
-    const rawVillage =
-      locationData.village || locationData.hamlet || locationData.name || '';
+      const rawProvince = location.province || location.state || '';
+      const rawCounty =
+        location.county || location.city || location.town || '';
+      const rawBakhsh =
+        location.bakhsh ||
+        location.district ||
+        location.municipality ||
+        '';
+      const rawDehestan =
+        location.dehestan ||
+        location.suburb ||
+        location.neighbourhood ||
+        '';
+      const rawVillage =
+        location.village ||
+        location.hamlet ||
+        location.name ||
+        '';
 
-    const matchOrRaw = (rawValue, jsonOptions) => {
-      if (!rawValue) return '';
-      const matched = findMatchingName(rawValue, jsonOptions);
-      return matched || rawValue;
-    };
+      const matchOrRaw = (rawValue, jsonOptions) => {
+        if (!rawValue) return '';
+        const matched = findMatchingName(rawValue, jsonOptions);
+        return matched || rawValue;
+      };
 
-    const finalProvince = matchOrRaw(rawProvince, baseProvinces);
-    if (!finalProvince) {
-      alert('استان در اطلاعات جستجو یافت نشد.');
-      return;
-    }
+      const finalProvince = matchOrRaw(rawProvince, baseProvinces);
+      if (!finalProvince) {
+        // ✅ جایگزین alert
+        toast.warning(
+          'استان در اطلاعات جستجو یافت نشد.',
+          'توجه',
+        );
+        return;
+      }
 
-    setValue('province', finalProvince, {
-      shouldValidate: true,
-      shouldDirty: true,
-      shouldTouch: true,
-    });
-
-    const availableCounties = getCounties(finalProvince);
-    const finalCounty = matchOrRaw(rawCounty, availableCounties);
-
-    if (finalCounty) {
-      setValue('county', finalCounty, {
+      setValue('province', finalProvince, {
         shouldValidate: true,
         shouldDirty: true,
         shouldTouch: true,
       });
+
+      const availableCounties = getCounties(finalProvince);
+      const finalCounty = matchOrRaw(rawCounty, availableCounties);
+
+      if (finalCounty) {
+        setValue('county', finalCounty, {
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true,
+        });
+      }
+
+      const availableBakhshs = getBakhshs(finalProvince, finalCounty);
+      const finalBakhsh = matchOrRaw(rawBakhsh, availableBakhshs);
+
+      if (finalBakhsh) {
+        setValue('bakhsh', finalBakhsh, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      }
+
+      const availableDehestans = getDehestans(
+        finalProvince,
+        finalCounty,
+        finalBakhsh
+      );
+      const finalDehestan = matchOrRaw(rawDehestan, availableDehestans);
+
+      if (finalDehestan) {
+        setValue('dehestan', finalDehestan, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      }
+
+      const availableVillages = getVillages(
+        finalProvince,
+        finalCounty,
+        finalBakhsh,
+        finalDehestan
+      );
+      const finalVillage = matchOrRaw(rawVillage, availableVillages);
+
+      if (finalVillage) {
+        setValue('village', finalVillage, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      }
+
+      toast.success('اطلاعات موقعیت در فرم اعمال شد', 'اتوفیل');
+    },
+    [baseProvinces, setValue, toast],
+  );
+
+  // ✅ دکمه قدیمی فرم — از تابع مشترک استفاده می‌کند
+  const handleFillFromSearch = () => {
+    if (!locationData) {
+      toast.warning('لطفاً ابتدا یک مکان را جستجو کنید.', 'توجه');
+      return;
     }
-
-    const availableBakhshs = getBakhshs(finalProvince, finalCounty);
-    const finalBakhsh = matchOrRaw(rawBakhsh, availableBakhshs);
-
-    if (finalBakhsh) {
-      setValue('bakhsh', finalBakhsh, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-    }
-
-    const availableDehestans = getDehestans(
-      finalProvince,
-      finalCounty,
-      finalBakhsh
-    );
-    const finalDehestan = matchOrRaw(rawDehestan, availableDehestans);
-
-    if (finalDehestan) {
-      setValue('dehestan', finalDehestan, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-    }
-
-    const availableVillages = getVillages(
-      finalProvince,
-      finalCounty,
-      finalBakhsh,
-      finalDehestan
-    );
-    const finalVillage = matchOrRaw(rawVillage, availableVillages);
-
-    if (finalVillage) {
-      setValue('village', finalVillage, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-    }
+    applyLocationToForm(locationData);
   };
+
+  // ✅ فاز ۴: گوش دادن به رویداد اتوفیل از LocationPicker
+  useEffect(() => {
+    const handleApply = (e) => {
+      const location = e.detail?.location;
+      if (location) applyLocationToForm(location);
+    };
+
+    window.addEventListener('location:apply-to-form', handleApply);
+    return () =>
+      window.removeEventListener('location:apply-to-form', handleApply);
+  }, [applyLocationToForm]);
 
   return (
     <div className="space-y-4">
@@ -582,7 +613,7 @@ export const LocationSection = ({
         </div>
       </div>
 
-      {/* ✅ فاز ۴: Village Selector */}
+      {/* Village Selector */}
       <VillageSelector
         register={register}
         watch={watch}
@@ -590,7 +621,7 @@ export const LocationSection = ({
         isSubmitting={isSubmitting}
       />
 
-      {/* Region Selector — فقط super_admin */}
+      {/* Region Selector */}
       <RegionSelector
         register={register}
         watch={watch}

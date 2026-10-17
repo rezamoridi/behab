@@ -14,9 +14,10 @@ import {
   getDashArray,
 } from "../../settings/hooks/useLayerStyle";
 import { usePermissions } from "../../auth/hooks/usePermissions";
+import { useConfirm } from "../../../shared/components/ConfirmDialog/ConfirmDialogProvider";
 
 // ═══════════════════════════════════════════════════════════
-// رنگ محصول
+// helpers
 // ═══════════════════════════════════════════════════════════
 const getFarmColor = (farm, colorByCrop) => {
   const direct = normalizeHex(farm?.crop_color);
@@ -134,17 +135,26 @@ const SavedFarmsLayer = ({
   onFarmHistory,
   onFarmTransfer,
   selectedFarmId = null,
+  autoOpenPopupFarmId = null,   // ✅ جدید
 }) => {
   const map = useMap();
   const { style: layerStyle } = useLayerStyle();
   const { isSuperAdmin } = usePermissions();
+  const confirm = useConfirm();
 
   const ownLayerGroupRef = useRef(null);
   const refLayerGroupRef = useRef(null);
   const ownPolygonsRef = useRef(new Map());
   const popupRootsRef = useRef([]);
-  // ✅ نگه‌داشتن popup content در یک Map برای استفاده‌ی مجدد
   const popupContentByFarmRef = useRef(new Map());
+
+  // ✅ نگه‌داری آخرین ID برای جلوگیری از باز شدن تکراری
+  const lastAutoOpenedRef = useRef(null);
+
+  const confirmRef = useRef(confirm);
+  useEffect(() => {
+    confirmRef.current = confirm;
+  }, [confirm]);
 
   const handlersRef = useRef({
     onFarmClick,
@@ -193,9 +203,7 @@ const SavedFarmsLayer = ({
     isSuperAdminRef.current = isSuperAdmin;
   }, [isSuperAdmin]);
 
-  // ═════════════════════════════════════════════════════════
-  // cleanup
-  // ═════════════════════════════════════════════════════════
+  // ── cleanup ──
   const cleanupAll = useCallback(() => {
     try {
       map.closePopup();
@@ -250,13 +258,12 @@ const SavedFarmsLayer = ({
   }, [map]);
 
   // ═════════════════════════════════════════════════════════
-  // createPopupContent — یک‌بار برای هر مزرعه ساخته می‌شود
+  // createPopupContent
   // ═════════════════════════════════════════════════════════
   const createPopupContent = useCallback(
     (farm) => {
       const farmId = String(farm.farm_id);
 
-      // ✅ اگر قبلاً ساخته شده، همان را برگردان
       const cached = popupContentByFarmRef.current.get(farmId);
       if (cached) return cached;
 
@@ -346,6 +353,7 @@ const SavedFarmsLayer = ({
           onHistory={handleHistory}
           onTransfer={handleTransfer}
           isSuperAdmin={isSuperAdminRef.current}
+          onConfirm={confirmRef.current}
         />,
       );
 
@@ -356,9 +364,7 @@ const SavedFarmsLayer = ({
     [map],
   );
 
-  // ═════════════════════════════════════════════════════════
-  // Main Effect — با پیش‌ساخت popup content و autoPan off
-  // ═════════════════════════════════════════════════════════
+  // ── Main Effect ──
   useEffect(() => {
     if (!map) return;
 
@@ -372,7 +378,6 @@ const SavedFarmsLayer = ({
       return;
     }
 
-    // ─── ۱. مزارع خودی ───
     if (hasOwnFarms) {
       const ownGroup = L.layerGroup();
       ownLayerGroupRef.current = ownGroup;
@@ -391,7 +396,6 @@ const SavedFarmsLayer = ({
           layerStyleRef.current,
         );
 
-        // ✅ پیش‌ساخت popup content — یک‌بار برای هر مزرعه
         const popupContent = createPopupContent(farm);
 
         const farmPolygons = [];
@@ -406,15 +410,14 @@ const SavedFarmsLayer = ({
           );
 
           for (const polygon of polys) {
-            // ✅ popup را از قبل bind کن (بدون autoPan)
             polygon.bindPopup(popupContent, {
               className: "farm-popup",
               offset: L.point(0, -10),
               closeButton: false,
               minWidth: 260,
               maxWidth: 320,
-              autoPan: false,        // ✅ pan خودکار خاموش
-              keepInView: false,     // ✅ keepInView خاموش
+              autoPan: false,
+              keepInView: false,
               closeOnClick: true,
               autoClose: true,
             });
@@ -428,7 +431,6 @@ const SavedFarmsLayer = ({
                 handlersRef.current.onFarmClick(farm, e);
               }
 
-              // ✅ openPopup را در RAF صدا بزن تا DOM آماده باشد
               requestAnimationFrame(() => {
                 try {
                   polygon.openPopup();
@@ -454,7 +456,6 @@ const SavedFarmsLayer = ({
       ownGroup.addTo(map);
     }
 
-    // ─── ۲. مزارع مرجع ───
     if (hasRefFarms) {
       const refGroup = L.layerGroup();
       refLayerGroupRef.current = refGroup;
@@ -503,9 +504,7 @@ const SavedFarmsLayer = ({
     createPopupContent,
   ]);
 
-  // ═════════════════════════════════════════════════════════
-  // Style Effect
-  // ═════════════════════════════════════════════════════════
+  // ── Style Effect ──
   useEffect(() => {
     ownPolygonsRef.current.forEach((entry, farmId) => {
       const polys = entry?.polygons || [];
@@ -531,8 +530,62 @@ const SavedFarmsLayer = ({
   }, [layerStyle, selectedFarmId, farms, colorByCrop]);
 
   // ═════════════════════════════════════════════════════════
-  // Deselect روی کلیک نقشه
+  // ✅ جدید: Auto-open popup
+  //
+  // وقتی autoOpenPopupFarmId ست شود:
+  //   ۱. منتظر می‌مانیم polygons ساخته شوند (تا ۵ بار تلاش)
+  //   ۲. اگر پیدا شد → openPopup روی اولین polygon
+  //   ۳. lastAutoOpenedRef جلوی باز شدن تکراری را می‌گیرد
   // ═════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!map) return;
+    if (!autoOpenPopupFarmId) return;
+
+    const farmIdStr = String(autoOpenPopupFarmId);
+
+    // ✅ جلوگیری از باز شدن دوباره برای همان مزرعه
+    if (lastAutoOpenedRef.current === farmIdStr) return;
+
+    const tryOpen = (attempt = 0) => {
+      const entry = ownPolygonsRef.current.get(farmIdStr);
+
+      if (!entry || !entry.polygons || entry.polygons.length === 0) {
+        // polygons هنوز آماده نیستند → تلاش مجدد
+        if (attempt < 5) {
+          setTimeout(() => tryOpen(attempt + 1), 100);
+        } else {
+          console.warn(
+            "[SavedFarmsLayer] polygons for auto-open not found:",
+            farmIdStr,
+          );
+        }
+        return;
+      }
+
+      lastAutoOpenedRef.current = farmIdStr;
+
+      const polygon = entry.polygons[0];
+      if (!polygon) return;
+
+      requestAnimationFrame(() => {
+        try {
+          polygon.openPopup();
+        } catch (err) {
+          console.warn(
+            "[SavedFarmsLayer] failed to auto-open popup:",
+            err,
+          );
+        }
+      });
+    };
+
+    // تأخیر کوچک برای render کامل نقشه
+    const timer = setTimeout(() => tryOpen(0), 200);
+
+    return () => clearTimeout(timer);
+  }, [map, autoOpenPopupFarmId]);
+
+  // ── Deselect روی کلیک نقشه ──
   useEffect(() => {
     if (!map) return;
 
@@ -549,9 +602,7 @@ const SavedFarmsLayer = ({
     };
   }, [map]);
 
-  // ═════════════════════════════════════════════════════════
-  // Cleanup روی unmount
-  // ═════════════════════════════════════════════════════════
+  // ── Cleanup روی unmount ──
   useEffect(() => {
     return () => {
       popupRootsRef.current.forEach((root) => {

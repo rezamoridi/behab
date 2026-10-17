@@ -4,7 +4,7 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { createRoot } from 'react-dom/client';
 import useLocalStorageState from '../../../shared/hooks/useLocalStorageState';
-import { usePermissions } from '../../auth/hooks/usePermissions';   // ✅ جدید
+import { usePermissions } from '../../auth/hooks/usePermissions';
 
 // ============================================================
 // ✅ آیکون‌های SVG
@@ -19,7 +19,6 @@ const SVG_ICONS = {
   school: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 4 2 10l10 6 10-6z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>`,
   bank: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/></svg>`,
   mosque: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-2 2-4 4-4 7a4 4 0 0 0 8 0c0-3-2-5-4-7z"/><path d="M4 21V14a8 8 0 0 1 16 0v7"/><path d="M9 21v-4a3 3 0 0 1 6 0v4"/></svg>`,
-  // ✅ جدید
   regions: (color) => `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`,
 };
 
@@ -36,6 +35,17 @@ const BASE_ICONS = {
 
 // ============================================================
 // تنظیمات پایه نقشه
+//
+// ✅ فیکس: hybrid از lyrs=s,h به lyrs=y
+//   Google Maps `lyrs` accepts only single letters (no commas).
+//   - lyrs=s = satellite imagery (no labels)
+//   - lyrs=y = satellite + labels (equivalent to old s,h)
+//   - lyrs=m = street map
+//   - lyrs=p = terrain
+//   - lyrs=h = labels only (used for label overlay)
+//
+//   قبلاً lyrs=s,h استفاده می‌شد که مرورگر آن را به عنوان
+//   "invalid JSON" در Reporting Header گزارش می‌داد.
 // ============================================================
 export const BASE_MAPS = [
   {
@@ -49,7 +59,8 @@ export const BASE_MAPS = [
   {
     id: 'hybrid',
     label: 'ماهواره‌ای + برچسب',
-    url: 'https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',
+    // ✅ lyrs=y = satellite + labels (بدون کاما)
+    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
     maxZoom: 22,
     attribution: '&copy; Google',
@@ -216,7 +227,7 @@ const SvgIcon = ({ svg, size = 16, className = '' }) => (
 // ============================================================
 const MapSettingsControl = ({ hidden = false }) => {
   const map = useMap();
-  const { isSuperAdmin } = usePermissions();   // ✅
+  const { isSuperAdmin } = usePermissions();
   const controlRef = useRef(null);
   const containerRef = useRef(null);
   const rootRef = useRef(null);
@@ -231,7 +242,6 @@ const MapSettingsControl = ({ hidden = false }) => {
   const [labelLang, setLabelLang] = useLocalStorageState('map_label_lang_v1', 'fa');
   const [activeLayers, setActiveLayers] = useLocalStorageState('map_active_poi_layers_v1', []);
 
-  // ✅ جدید: نمایش مرز مناطق
   const [showRegions, setShowRegions] = useLocalStorageState(
     'map_show_regions_v1',
     false,
@@ -326,6 +336,7 @@ const MapSettingsControl = ({ hidden = false }) => {
 
     if (!showLabels || baseMapId !== 'satellite') return;
 
+    // ✅ lyrs=h = labels only (بدون کاما)
     const labelUrl = labelLang === 'fa'
       ? 'https://{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}&hl=fa'
       : 'https://{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}&hl=en';
@@ -632,7 +643,7 @@ const MapSettingsControl = ({ hidden = false }) => {
                     </div>
                   )}
 
-                  {/* ✅ بخش مناطق — فقط super_admin */}
+                  {/* بخش مناطق — فقط super_admin */}
                   {isSuperAdmin && (
                     <div className="border-b border-gray-200 bg-purple-50/30">
                       <div className="text-[10px] font-bold text-purple-700 uppercase px-3 pt-2 pb-1">
@@ -649,7 +660,6 @@ const MapSettingsControl = ({ hidden = false }) => {
                               : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                           }`}
                         >
-                          {/* checkbox */}
                           <span
                             className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
                               showRegions
@@ -673,7 +683,6 @@ const MapSettingsControl = ({ hidden = false }) => {
                             )}
                           </span>
 
-                          {/* آیکون */}
                           <span
                             className="flex-shrink-0"
                             style={{
@@ -818,13 +827,13 @@ const MapSettingsControl = ({ hidden = false }) => {
     error,
     poiCount,
     hidden,
-    isSuperAdmin,      // ✅ جدید
-    showRegions,       // ✅ جدید
+    isSuperAdmin,
+    showRegions,
     setBaseMapId,
     setBaseOpacity,
     setShowLabels,
     setLabelLang,
-    setShowRegions,    // ✅ جدید
+    setShowRegions,
   ]);
 
   return null;

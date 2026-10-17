@@ -1,37 +1,36 @@
 // src/features/map/hooks/useMapDrawing.js
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useMap } from "react-leaflet";
 import L from "leaflet";
 import { calculateAreaInHectares } from "../utils/areaCalculations";
-import { snapLatLngArray } from "../utils/snapUtils";
+import {
+  SnapIndex,
+  snapLatLngArray,
+  tolerancePxToMeters,
+  validateNoOverlap,
+  DEFAULT_SNAP_TOLERANCE_PX,
+} from "../utils/snapUtils";
 
-// ============================================================
-// ✅ تبدیل GeoJSON geometry به آرایه‌ای از L.Polygon
-// ============================================================
+// ═══════════════════════════════════════════════════════════
+// Geometry → Leaflet Polygon
+// ═══════════════════════════════════════════════════════════
 export const geometryToLeafletPolygons = (geometry, styleOptions = {}) => {
   if (!geometry) return [];
-
   const type = geometry.type;
   const coordinates = geometry.coordinates;
 
   const defaultStyle = {
-    color: "#4CAF50",
-    weight: 3,
-    fillColor: "#4CAF50",
-    fillOpacity: 0.25,
+    color: "#4CAF50", weight: 3, fillColor: "#4CAF50", fillOpacity: 0.25,
     ...styleOptions,
   };
 
   const buildPolygon = (rings) => {
     if (!rings || rings.length === 0) return null;
-
     const outer = rings[0].map((c) => [c[1], c[0]]);
     if (outer.length < 3) return null;
-
-    const holes = rings
-      .slice(1)
+    const holes = rings.slice(1)
       .map((ring) => ring.map((c) => [c[1], c[0]]))
       .filter((ring) => ring.length >= 3);
-
     try {
       return L.polygon([outer, ...holes], defaultStyle);
     } catch (err) {
@@ -41,7 +40,6 @@ export const geometryToLeafletPolygons = (geometry, styleOptions = {}) => {
   };
 
   const polygons = [];
-
   if (type === "Polygon") {
     const p = buildPolygon(coordinates);
     if (p) polygons.push(p);
@@ -51,13 +49,9 @@ export const geometryToLeafletPolygons = (geometry, styleOptions = {}) => {
       if (p) polygons.push(p);
     }
   }
-
   return polygons;
 };
 
-// ============================================================
-// ✅ تبدیل لیستی از Feature/Geometry به FeatureCollection
-// ============================================================
 export const geojsonsToFeatureCollection = (geojsons) => {
   const features = (geojsons || [])
     .map((g) => {
@@ -69,18 +63,12 @@ export const geojsonsToFeatureCollection = (geojsons) => {
       return null;
     })
     .filter(Boolean);
-
   return { type: "FeatureCollection", features };
 };
 
-// ============================================================
-// ✅ استخراج رئوس از یک L.Polygon
-// خروجی: آرایه‌ای از [lng, lat]
-// ============================================================
 const extractPolygonVertices = (polygonLayer) => {
   const vertices = [];
   if (!polygonLayer) return vertices;
-
   try {
     const latlngs = polygonLayer.getLatLngs();
     const processRing = (ring) => {
@@ -98,8 +86,38 @@ const extractPolygonVertices = (polygonLayer) => {
   } catch (err) {
     console.warn("extractPolygonVertices failed:", err);
   }
-
   return vertices;
+};
+
+const layerToFeature = (layer) => {
+  try {
+    const gj = layer.toGeoJSON();
+    return {
+      type: "Feature",
+      properties: gj.properties || {},
+      geometry: gj.geometry,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// helper: validate lat/lng array (خروجی snapLatLngArray)
+// ═══════════════════════════════════════════════════════════
+const isValidLatLngArray = (arr) => {
+  if (!Array.isArray(arr)) return false;
+  if (arr.length < 3) return false;
+
+  for (const p of arr) {
+    if (!Array.isArray(p) || p.length < 2) return false;
+    const lat = Number(p[0]);
+    const lng = Number(p[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
+    if (lat === 0 && lng === 0) return false;
+  }
+  return true;
 };
 
 // ============================================================
@@ -108,38 +126,66 @@ const extractPolygonVertices = (polygonLayer) => {
 export const useMapDrawing = (
   onPolygonsUpdate,
   snapEnabled = false,
-  snapVertices = [],
-  snapPolygons = [],
+  savedFarms = [],
 ) => {
+  const map = useMap();
+
   const [polygons, setPolygons] = useState([]);
   const [drawnVertices, setDrawnVertices] = useState([]);
   const drawnItems = useRef(new L.FeatureGroup());
   const isProcessingRef = useRef(false);
 
-  // ✅ refs برای جلوگیری از stale closure
-  const snapEnabledRef = useRef(snapEnabled);
-  const snapVerticesRef = useRef(snapVertices);
-  const snapPolygonsRef = useRef(snapPolygons);
+  // ═══════════════════════════════════════════════════════════
+  // SnapIndex — مزارع ذخیره‌شده
+  // ═══════════════════════════════════════════════════════════
+  const savedIndex = useMemo(() => {
+    const idx = new SnapIndex();
+    if (snapEnabled && Array.isArray(savedFarms) && savedFarms.length > 0) {
+      idx.build(savedFarms);
+    }
+    return idx;
+  }, [snapEnabled, savedFarms]);
 
+  const savedIndexRef = useRef(savedIndex);
+  useEffect(() => {
+    savedIndexRef.current = savedIndex;
+  }, [savedIndex]);
+
+  // ═══════════════════════════════════════════════════════════
+  // SnapIndex — لایه‌های در حال رسم
+  // ═══════════════════════════════════════════════════════════
+  const drawnIndexRef = useRef(new SnapIndex());
+
+  const rebuildDrawnIndex = useCallback(() => {
+    const idx = new SnapIndex();
+    try {
+      const layers = drawnItems.current.getLayers();
+      for (const layer of layers) {
+        if (!(layer instanceof L.Polygon)) continue;
+        const feature = layerToFeature(layer);
+        if (feature) idx.addFeature(feature);
+      }
+    } catch (err) {
+      console.warn("rebuildDrawnIndex failed:", err);
+    }
+    drawnIndexRef.current = idx;
+  }, []);
+
+  const snapEnabledRef = useRef(snapEnabled);
   useEffect(() => {
     snapEnabledRef.current = snapEnabled;
-    snapVerticesRef.current = snapVertices;
-    snapPolygonsRef.current = snapPolygons;
-  }, [snapEnabled, snapVertices, snapPolygons]);
+  }, [snapEnabled]);
 
-  // ============================================
-  // Tooltip مساحت
-  // ============================================
+  const getToleranceMeters = useCallback(() => {
+    return tolerancePxToMeters(map, DEFAULT_SNAP_TOLERANCE_PX);
+  }, [map]);
+
   const createAreaTooltip = useCallback((layer, area) => {
-    if (layer._tooltip) {
-      layer.unbindTooltip();
-    }
-
+    if (layer._tooltip) layer.unbindTooltip();
     const formattedArea = area.toLocaleString("fa-IR", {
       maximumFractionDigits: 2,
       minimumFractionDigits: 2,
     });
-
     layer.bindTooltip(`📐 ${formattedArea} هکتار`, {
       permanent: true,
       direction: "center",
@@ -149,20 +195,47 @@ export const useMapDrawing = (
     });
   }, []);
 
-  // ============================================================
-  // ✅ updatePolygons — همیشه از همه‌ی polygonهای drawnItems می‌سازد
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════
+  // helper: پاک‌سازی یک layer (با tooltip)
+  // ═══════════════════════════════════════════════════════════
+  const removeLayerSafely = useCallback((layer) => {
+    if (!layer) return;
+    try {
+      if (layer.getTooltip && layer.getTooltip()) {
+        layer.unbindTooltip();
+      }
+      if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+    } catch (err) {
+      console.warn("removeLayerSafely failed:", err);
+    }
+  }, [map]);
+
+  // ═══════════════════════════════════════════════════════════
+  // helper: پاک‌سازی قطعی همه layers
+  // ═══════════════════════════════════════════════════════════
+  const clearPolygonsInternal = useCallback(() => {
+    try {
+      const layers = drawnItems.current.getLayers();
+      layers.forEach((layer) => removeLayerSafely(layer));
+      drawnItems.current.clearLayers();
+    } catch (err) {
+      console.error("clearPolygonsInternal failed:", err);
+    }
+  }, [removeLayerSafely]);
+
+  // ═══════════════════════════════════════════════════════════
+  // updatePolygons
+  // ═══════════════════════════════════════════════════════════
   const updatePolygons = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
     try {
       const layers = drawnItems.current.getLayers();
-      const polygonLayers = layers.filter(
-        (layer) => layer instanceof L.Polygon,
-      );
+      const polygonLayers = layers.filter((l) => l instanceof L.Polygon);
 
-      // ✅ استخراج رئوس لایه‌های در حال رسم
       const allDrawnVertices = [];
       for (const layer of polygonLayers) {
         const verts = extractPolygonVertices(layer);
@@ -178,11 +251,26 @@ export const useMapDrawing = (
 
       let totalArea = 0;
       const geojsons = [];
+      const invalidLayers = [];
 
       for (const layer of polygonLayers) {
-        const geojson = layer.toGeoJSON();
-        const area = calculateAreaInHectares(geojson);
-        totalArea += area;
+        let geojson;
+        try {
+          geojson = layer.toGeoJSON();
+        } catch (err) {
+          console.warn("toGeoJSON failed for layer:", err);
+          invalidLayers.push(layer);
+          continue;
+        }
+
+        const areaHa = calculateAreaInHectares(geojson);
+        if (!Number.isFinite(areaHa) || areaHa <= 0) {
+          console.warn("Invalid area for layer:", areaHa);
+          invalidLayers.push(layer);
+          continue;
+        }
+
+        totalArea += areaHa;
 
         layer.setStyle({
           weight: 3,
@@ -190,117 +278,182 @@ export const useMapDrawing = (
           fillColor: "#4CAF50",
           fillOpacity: 0.25,
         });
-
-        createAreaTooltip(layer, area);
+        createAreaTooltip(layer, areaHa);
 
         geojson.properties = {
           ...geojson.properties,
-          areaHa: area,
+          areaHa,
           polygonId: layer._leaflet_id || Date.now() + Math.random(),
         };
-
         geojsons.push(geojson);
+      }
+
+      // ✅ حذف layerهای معیوب
+      if (invalidLayers.length > 0) {
+        invalidLayers.forEach((layer) => {
+          try {
+            drawnItems.current.removeLayer(layer);
+            removeLayerSafely(layer);
+          } catch (err) {
+            console.warn("failed to remove invalid layer:", err);
+          }
+        });
       }
 
       const result = {
         totalArea: Number(totalArea.toFixed(4)),
         geojsons,
-        count: polygonLayers.length,
+        count: geojsons.length,
       };
 
       setPolygons(result);
       onPolygonsUpdate?.(result);
+      rebuildDrawnIndex();
     } catch (error) {
       console.error("خطا در updatePolygons:", error);
     } finally {
       isProcessingRef.current = false;
     }
-  }, [onPolygonsUpdate, createAreaTooltip]);
+  }, [
+    onPolygonsUpdate,
+    createAreaTooltip,
+    rebuildDrawnIndex,
+    removeLayerSafely,
+  ]);
 
-  // ============================================
-  // handleCreated
-  // ============================================
+  // ═══════════════════════════════════════════════════════════
+  // handleCreated — Snap فقط با savedIndex
+  // ═══════════════════════════════════════════════════════════
   const handleCreated = useCallback(
     (event) => {
       const layer = event.layer;
+      if (!(layer instanceof L.Polygon)) return;
 
-      if (layer instanceof L.Polygon) {
-        if (snapEnabledRef.current) {
-          try {
-            const existingVertices = [];
-            const existingLayers = drawnItems.current.getLayers();
-            for (const existingLayer of existingLayers) {
-              if (existingLayer instanceof L.Polygon) {
-                const verts = extractPolygonVertices(existingLayer);
-                for (const v of verts) existingVertices.push(v);
-              }
-            }
+      // ─── ۱. Snap ───
+      if (snapEnabledRef.current) {
+        try {
+          const tolerance = getToleranceMeters();
+          const sIdx = savedIndexRef.current;
 
-            const combinedVertices = [
-              ...snapVerticesRef.current,
-              ...existingVertices,
-            ];
+          if (sIdx?.hasAny()) {
+            const latlngs = layer.getLatLngs();
+            const isNested = Array.isArray(latlngs[0]);
+            const rings = isNested ? latlngs : [latlngs];
 
-            if (combinedVertices.length > 0) {
-              const latlngs = layer.getLatLngs();
-              const isNested = Array.isArray(latlngs[0]);
-              const rings = isNested ? latlngs : [latlngs];
+            const snappedRings = rings.map((ring) =>
+              snapLatLngArray(ring, sIdx, tolerance),
+            );
 
-              const snappedRings = rings.map((ring) =>
-                snapLatLngArray(
-                  ring,
-                  combinedVertices,
-                  snapPolygonsRef.current,
-                ),
+            if (isNested) {
+              const allRingsValid = snappedRings.every(
+                (ring, idx) => {
+                  if (idx === 0) return isValidLatLngArray(ring);
+                  return (
+                    Array.isArray(ring) &&
+                    ring.every(
+                      (p) =>
+                        Array.isArray(p) &&
+                        p.length >= 2 &&
+                        Number.isFinite(Number(p[0])) &&
+                        Number.isFinite(Number(p[1])),
+                    )
+                  );
+                },
               );
 
-              layer.setLatLngs(snappedRings);
+              if (allRingsValid) {
+                layer.setLatLngs(snappedRings);
+              }
+            } else {
+              const flatRing = snappedRings[0];
+              if (isValidLatLngArray(flatRing)) {
+                layer.setLatLngs(flatRing);
+              }
             }
-          } catch (err) {
-            console.warn("Snap on created failed:", err);
           }
+        } catch (err) {
+          console.warn("Snap on created failed:", err);
         }
-
-        drawnItems.current.addLayer(layer);
-
-        const geojson = layer.toGeoJSON();
-        const area = calculateAreaInHectares(geojson);
-        createAreaTooltip(layer, area);
-
-        updatePolygons();
       }
+
+      // ─── ۲. اعتبارسنجی همپوشانی ───
+      // ✅ فقط overlap واقعی را reject کن (نه unverifiable)
+      if (
+        snapEnabledRef.current &&
+        savedIndexRef.current?.polygons?.length > 0
+      ) {
+        try {
+          const geojson = layer.toGeoJSON();
+          const validation = validateNoOverlap(
+            geojson,
+            savedIndexRef.current,
+          );
+
+          if (!validation.valid && validation.reason === "overlap") {
+            const farmLabel =
+              validation.conflictingFarm?.farm_id ||
+              validation.conflictingFarm?.farmer_name ||
+              "ثبت‌شده";
+            const msg = `این مزرعه با مزرعه‌ی «${farmLabel}» به مقدار ${validation.overlapArea.toFixed(1)} متر مربع همپوشانی دارد.`;
+
+            window.dispatchEvent(
+              new CustomEvent("map:overlap-detected", {
+                detail: {
+                  message: msg,
+                  conflictingFarm: validation.conflictingFarm,
+                  overlapArea: validation.overlapArea,
+                },
+              }),
+            );
+
+            try {
+              drawnItems.current.removeLayer(layer);
+            } catch {
+              /* ignore */
+            }
+            removeLayerSafely(layer);
+            return;
+          }
+          // reason دیگری (unverifiable) → نادیده بگیر و ادامه بده
+        } catch (err) {
+          console.warn("Overlap validation failed:", err);
+        }
+      }
+
+      // ─── ۳. افزودن به drawnItems ───
+      drawnItems.current.addLayer(layer);
+
+      const geojson = layer.toGeoJSON();
+      const areaHa = calculateAreaInHectares(geojson);
+      createAreaTooltip(layer, areaHa);
+
+      updatePolygons();
     },
-    [updatePolygons, createAreaTooltip],
+    [
+      updatePolygons,
+      createAreaTooltip,
+      getToleranceMeters,
+      removeLayerSafely,
+    ],
   );
 
-  // ============================================
-  // handleDeleted
-  // ============================================
   const handleDeleted = useCallback(() => {
     updatePolygons();
   }, [updatePolygons]);
 
-  // ============================================
-  // handleEdited
-  // ============================================
   const handleEdited = useCallback(() => {
     updatePolygons();
   }, [updatePolygons]);
 
-  // ============================================================
-  // ✅ loadGeometriesForEdit
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════
+  // loadGeometriesForEdit
+  // ═══════════════════════════════════════════════════════════
   const loadGeometriesForEdit = useCallback(
     (geojsons, options = {}) => {
-      const {
-        color = "#FF9800",
-        fillOpacity = 0.3,
-        weight = 3,
-      } = options || {};
-
+      const { color = "#FF9800", fillOpacity = 0.3, weight = 3 } =
+        options || {};
       try {
-        drawnItems.current.clearLayers();
-        isProcessingRef.current = false;
+        clearPolygonsInternal();
 
         if (!geojsons || geojsons.length === 0) {
           setPolygons([]);
@@ -311,10 +464,7 @@ export const useMapDrawing = (
 
         for (const geojson of geojsons) {
           let geometry = geojson;
-          if (geojson.type === "Feature") {
-            geometry = geojson.geometry;
-          }
-
+          if (geojson.type === "Feature") geometry = geojson.geometry;
           if (!geometry) continue;
 
           const layers = geometryToLeafletPolygons(geometry, {
@@ -326,78 +476,57 @@ export const useMapDrawing = (
 
           for (const layer of layers) {
             drawnItems.current.addLayer(layer);
-            const area = calculateAreaInHectares(layer.toGeoJSON());
-            createAreaTooltip(layer, area);
+            const areaHa = calculateAreaInHectares(layer.toGeoJSON());
+            createAreaTooltip(layer, areaHa);
           }
         }
-
         updatePolygons();
       } catch (error) {
         console.error("خطا در loadGeometriesForEdit:", error);
       }
     },
-    [createAreaTooltip, updatePolygons, onPolygonsUpdate],
+    [
+      createAreaTooltip,
+      updatePolygons,
+      onPolygonsUpdate,
+      clearPolygonsInternal,
+    ],
   );
 
-  // ============================================
-  // پاک‌سازی
-  // ============================================
+  // ═══════════════════════════════════════════════════════════
+  // clearPolygons
+  // ═══════════════════════════════════════════════════════════
   const clearPolygons = useCallback(() => {
-    try {
-      drawnItems.current.clearLayers();
-      setPolygons([]);
-      setDrawnVertices([]);
-      onPolygonsUpdate?.({ totalArea: 0, geojsons: [], count: 0 });
-      isProcessingRef.current = false;
-    } catch (error) {
-      console.error("خطا در clearPolygons:", error);
-    }
-  }, [onPolygonsUpdate]);
+    clearPolygonsInternal();
 
-  // ============================================
-  // Helpers
-  // ============================================
+    setPolygons([]);
+    setDrawnVertices([]);
+    onPolygonsUpdate?.({ totalArea: 0, geojsons: [], count: 0 });
+    isProcessingRef.current = false;
+    drawnIndexRef.current = new SnapIndex();
+  }, [clearPolygonsInternal, onPolygonsUpdate]);
+
   const hasPolygons = useCallback(() => {
-    return drawnItems.current
-      .getLayers()
-      .some((layer) => layer instanceof L.Polygon);
+    return drawnItems.current.getLayers().some((l) => l instanceof L.Polygon);
   }, []);
 
   const getPolygonCount = useCallback(() => {
     return drawnItems.current
       .getLayers()
-      .filter((layer) => layer instanceof L.Polygon).length;
+      .filter((l) => l instanceof L.Polygon).length;
   }, []);
 
-  // ============================================================
-  // ✅ جدید: گرفتن geojson همه‌ی لایه‌های رسم‌شده
-  //
-  // خروجی: FeatureCollection یا null اگر هیچ لایه‌ای نباشد
-  //
-  // این تابع برای ذخیره‌ی مرز منطقه استفاده می‌شود.
-  // ============================================================
-  // در useMapDrawing.js
   const getDrawnGeojson = useCallback(() => {
     try {
       const layers = drawnItems.current.getLayers();
-      const polygonLayers = layers.filter(
-        (layer) => layer instanceof L.Polygon,
-      );
-
+      const polygonLayers = layers.filter((l) => l instanceof L.Polygon);
       if (polygonLayers.length === 0) return null;
-
-      const features = polygonLayers.map((layer) => {
-        const geojson = layer.toGeoJSON();
-        return {
-          type: "Feature",
-          properties: geojson.properties || {},
-          geometry: geojson.geometry,
-        };
-      });
 
       return {
         type: "FeatureCollection",
-        features,
+        features: polygonLayers
+          .map((layer) => layerToFeature(layer))
+          .filter(Boolean),
       };
     } catch (error) {
       console.error("getDrawnGeojson error:", error);
@@ -405,9 +534,6 @@ export const useMapDrawing = (
     }
   }, []);
 
-  // ============================================================
-  // Return
-  // ============================================================
   return {
     drawnItems,
     polygons,
@@ -420,11 +546,10 @@ export const useMapDrawing = (
     hasPolygons,
     getPolygonCount,
     loadGeometriesForEdit,
-    getDrawnGeojson, // ✅ جدید
-    _snapRefs: {
-      snapEnabledRef,
-      snapVerticesRef,
-      snapPolygonsRef,
-    },
+    getDrawnGeojson,
+    savedIndex,
+    getToleranceMeters,
+    getSavedIndexForValidation: () => savedIndexRef.current,
+    getDrawnIndex: () => drawnIndexRef.current,
   };
 };

@@ -1,6 +1,22 @@
 // src/features/location/components/LocationPicker.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { Search, X, MapPin, Loader2 } from "lucide-react";
+import { Search, X, MapPin, Loader2, Wand2, Check } from "lucide-react";
+
+// ============================================
+// ✅ Toast bridge — بدون نیاز به useToast hook
+// (چون LocationPicker ممکن است خارج از ToastProvider باشد)
+// ============================================
+const showToast = (type, message, title) => {
+  try {
+    window.dispatchEvent(
+      new CustomEvent("app:toast", {
+        detail: { type, message, title },
+      }),
+    );
+  } catch (err) {
+    console.warn("app:toast dispatch failed:", err);
+  }
+};
 
 // ============================================
 // Helpers
@@ -75,24 +91,21 @@ const LocationPicker = ({
   const [isSearching, setIsSearching] = useState(false);
   const [focused, setFocused] = useState(false);
 
+  // ✅ فاز ۴: بازخورد بصری اتوفیل
+  const [appliedId, setAppliedId] = useState(null);
+
   const abortControllerRef = useRef(null);
   const skipNextSearchRef = useRef(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
-  // ✅ جدید: cache آخرین انتخاب
   const lastSelectedRef = useRef(null);
-
-  // ✅ جدید: فقط برنامه‌ریزی برای پاک کردن cache انتخاب
-  // وقتی کاربر input را دستی تغییر می‌دهد.
   const userEditedRef = useRef(false);
 
-  // ✅ فقط وقتی selectedLocation از بیرون عوض شد، query را همگام کن
   useEffect(() => {
     if (selectedLocation?.name) {
       skipNextSearchRef.current = true;
       setQuery(selectedLocation.name);
-      // ✅ همگام‌سازی cache با انتخاب بیرونی
       lastSelectedRef.current = selectedLocation;
       userEditedRef.current = false;
     }
@@ -169,13 +182,11 @@ const LocationPicker = ({
 
     if (onSearchChange) onSearchChange(false);
 
-    // ✅ اگر انتخاب قبلی بود، skip کن (چه برنامه‌ای چه دستی)
     if (skipNextSearchRef.current) {
       skipNextSearchRef.current = false;
       return undefined;
     }
 
-    // ✅ اگر کاربر متن را دستی تغییر داد، cache انتخاب را پاک کن
     if (userEditedRef.current) {
       lastSelectedRef.current = null;
       userEditedRef.current = false;
@@ -222,9 +233,6 @@ const LocationPicker = ({
     };
   }, [suggestions.length]);
 
-  // ============================================================
-  // Cleanup روی unmount
-  // ============================================================
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
@@ -253,28 +261,46 @@ const LocationPicker = ({
   };
 
   // ============================================================
-  // ✅ handleSubmit — اگر query متناظر با آخرین انتخاب است،
-  // دوباره Nominatim صدا نزن و همان انتخاب را apply کن
+  // ✅ فاز ۴: اتوفیل روی فرم
+  // ============================================================
+  const handleApplyToForm = (location) => {
+    // ۱. انتخاب روی picker و نقشه
+    handleSelect(location);
+
+    // ۲. ارسال به LocationSection
+    window.dispatchEvent(
+      new CustomEvent("location:apply-to-form", {
+        detail: {
+          location: { ...location, zoom: getSmartZoom(location) },
+        },
+      }),
+    );
+
+    // ۳. بازخورد بصری
+    const id = `${location.lat}-${location.lon}`;
+    setAppliedId(id);
+    setTimeout(() => setAppliedId(null), 1500);
+  };
+
+  // ============================================================
+  // handleSubmit
   // ============================================================
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     const cleanQuery = query.trim();
 
-    // ✅ چک: آیا query فعلی همان انتخاب قبلی است؟
     const cached = lastSelectedRef.current;
     if (cached) {
       const cachedText = (cached.persianName || cached.name || "").trim();
       const cachedDisplay = (cached.displayName || "").trim();
 
       if (cleanQuery === cachedText || cleanQuery === cachedDisplay) {
-        // ✅ همان انتخاب را دوباره apply کن (بدون جستجوی دوباره)
         handleSelect(cached);
         return;
       }
     }
 
-    // ✅ اگر query کوتاه است، کاری نکن
     if (cleanQuery.length < 2) {
       return;
     }
@@ -282,7 +308,12 @@ const LocationPicker = ({
     const results = await searchLocations(cleanQuery);
 
     if (results.length === 0) {
-      window.alert("مکانی با این نام یافت نشد.");
+      // ✅ جایگزین toast با bridge
+      showToast(
+        "warning",
+        "مکانی با این نام پیدا نشد. عبارت دیگری امتحان کنید.",
+        "نتیجه‌ای یافت نشد",
+      );
       return;
     }
 
@@ -302,7 +333,6 @@ const LocationPicker = ({
     inputRef.current?.focus();
   };
 
-  // ✅ جدید: وقتی کاربر input را تغییر می‌دهد، flag بگذار
   const handleInputChange = (e) => {
     userEditedRef.current = true;
     setQuery(e.target.value);
@@ -412,35 +442,78 @@ const LocationPicker = ({
           {suggestions.map((item, index) => {
             const displayName = item.persianName || item.name;
             const [title, ...rest] = displayName.split(",");
+            const itemKey = `${item.lat}-${item.lon}-${index}`;
+            const isApplied = appliedId === `${item.lat}-${item.lon}`;
+
             return (
-              <button
-                key={`${item.lat}-${item.lon}-${index}`}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleSelect(item)}
+              <div
+                key={itemKey}
                 className="
-                  w-full flex flex-col items-start gap-1
-                  px-4 py-3 text-right
+                  flex items-stretch
                   border-b border-slate-200/50 last:border-0
-                  hover:bg-primary-50/70 transition-colors
-                  cursor-pointer
+                  hover:bg-primary-50/40 transition-colors
                 "
               >
-                <div className="flex items-center gap-2 w-full">
-                  <MapPin
-                    size={14}
-                    className="text-primary-600 flex-shrink-0"
-                  />
-                  <strong className="text-sm font-bold text-slate-800 truncate">
-                    {title.trim()}
-                  </strong>
-                </div>
-                {rest.length > 0 && (
-                  <span className="text-xs text-slate-500 truncate w-full pr-6">
-                    {rest.slice(0, 3).join("، ").trim()}
+                {/* ─── ناحیه انتخاب (کلیک = انتخاب روی نقشه) ─── */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSelect(item)}
+                  className="
+                    flex-1 flex flex-col items-start gap-1
+                    px-3 py-2.5 text-right cursor-pointer
+                    min-w-0
+                  "
+                  title="انتخاب روی نقشه"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <MapPin
+                      size={13}
+                      className="text-primary-600 flex-shrink-0"
+                    />
+                    <strong className="text-[13px] font-bold text-slate-800 truncate">
+                      {title.trim()}
+                    </strong>
+                  </div>
+                  {rest.length > 0 && (
+                    <span className="text-[11px] text-slate-500 truncate w-full pr-5">
+                      {rest.slice(0, 3).join("، ").trim()}
+                    </span>
+                  )}
+                </button>
+
+                {/* ─── ✅ دکمه اتوفیل ─── */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleApplyToForm(item);
+                  }}
+                  className={`
+                    flex flex-col items-center justify-center gap-0.5
+                    px-2.5 min-w-[56px]
+                    text-[10px] font-bold
+                    border-r border-slate-200/50
+                    transition-colors cursor-pointer
+                    ${
+                      isApplied
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-white/40 text-primary-700 hover:bg-primary-50 hover:text-primary-800"
+                    }
+                  `}
+                  title="اتوفیل: پر کردن خودکار فرم"
+                >
+                  {isApplied ? (
+                    <Check size={14} strokeWidth={2.6} />
+                  ) : (
+                    <Wand2 size={14} strokeWidth={2.4} />
+                  )}
+                  <span className="leading-none">
+                    {isApplied ? "فیل شد" : "اتوفیل"}
                   </span>
-                )}
-              </button>
+                </button>
+              </div>
             );
           })}
         </div>

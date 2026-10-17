@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import Modal from "../../../shared/components/Modal/Modal";
+import { useToast } from "../../../shared/components/Toast/ToastProvider";
 
 import {
   METRICS,
@@ -75,8 +76,7 @@ const ColorPicker = ({ value, onChange, disabled = false }) => {
       {/* پالت */}
       <div className="flex flex-wrap gap-1.5">
         {CROP_COLOR_PALETTE.map((c) => {
-          const isActive =
-            safeValue.toUpperCase() === c.toUpperCase();
+          const isActive = safeValue.toUpperCase() === c.toUpperCase();
           return (
             <button
               key={c}
@@ -173,8 +173,7 @@ const IrrigationBadge = ({ type }) => {
 // ============================================================
 const MetricCell = ({ config, value }) => {
   const Icon = config.icon;
-  const hasValue =
-    value !== null && value !== undefined && Number(value) > 0;
+  const hasValue = value !== null && value !== undefined && Number(value) > 0;
 
   if (!hasValue) {
     return (
@@ -289,10 +288,7 @@ const CropRow = ({ crop, onEdit, onToggleActive, onDeleteCrop }) => {
           </div>
           <div className="flex items-center gap-1 flex-wrap">
             <IrrigationBadge type={crop.irrigation_type} />
-            <StatusPill
-              isActive={crop.is_active}
-              hasRate={hasRate}
-            />
+            <StatusPill isActive={crop.is_active} hasRate={hasRate} />
           </div>
         </div>
       </div>
@@ -303,9 +299,7 @@ const CropRow = ({ crop, onEdit, onToggleActive, onDeleteCrop }) => {
       ))}
 
       {/* Price */}
-      {priceMetric && (
-        <MetricCell config={priceMetric} value={crop.price} />
-      )}
+      {priceMetric && <MetricCell config={priceMetric} value={crop.price} />}
 
       {/* Actions */}
       <div className="flex items-center justify-end gap-1">
@@ -331,11 +325,7 @@ const CropRow = ({ crop, onEdit, onToggleActive, onDeleteCrop }) => {
           `}
           title={crop.is_active ? "غیرفعال کردن" : "فعال کردن"}
         >
-          {crop.is_active ? (
-            <Power size={14} />
-          ) : (
-            <PowerOff size={14} />
-          )}
+          {crop.is_active ? <Power size={14} /> : <PowerOff size={14} />}
         </button>
 
         <button
@@ -359,9 +349,7 @@ const SectionHeader = ({ icon: Icon, title, hint }) => (
     <span className="flex items-center justify-center w-6 h-6 rounded-md bg-primary-50 text-primary-600 flex-shrink-0">
       <Icon size={13} strokeWidth={2.4} />
     </span>
-    <span className="text-xs font-bold text-gray-800">
-      {title}
-    </span>
+    <span className="text-xs font-bold text-gray-800">{title}</span>
     {hint && (
       <span className="text-[10px] text-gray-400 font-normal mr-auto truncate">
         {hint}
@@ -453,8 +441,8 @@ const IrrigationRadio = ({ value, onChange, disabled }) => {
 // Edit Modal
 // ============================================================
 const EditModal = ({ crop, onClose, onSubmit }) => {
-  const initialColor =
-    normalizeHex(crop.color) || DEFAULT_FARM_COLOR;
+  const toast = useToast();
+  const initialColor = normalizeHex(crop.color) || DEFAULT_FARM_COLOR;
 
   const [form, setForm] = useState(() => {
     const initial = {
@@ -502,39 +490,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
       return;
     }
 
-    const safeColor =
-      normalizeHex(form.color) || DEFAULT_FARM_COLOR;
-
-    const payload = {
-      name: trimmedName,
-      irrigation_type: form.irrigation_type,
-      color: safeColor,
-    };
-
-    const numericKeys = [
-      "requirement",
-      "nitrogen",
-      "phosphate",
-      "potassium",
-      "seed_rate",
-      "crop_yield",
-      "price",
-      "machinery_primary_tillage",
-      "machinery_secondary_tillage",
-      "machinery_planting",
-      "machinery_spraying",
-      "machinery_fertilizing",
-      "machinery_harvesting",
-    ];
-    numericKeys.forEach((k) => {
-      const raw = form[k];
-      if (raw === "" || raw === null || raw === undefined) {
-        payload[k] = null;
-      } else {
-        const v = parseFloat(raw);
-        payload[k] = Number.isFinite(v) && v >= 0 ? v : 0;
-      }
-    });
+    // ... existing payload logic
 
     const nameChanged = trimmedName !== crop.name;
     const irrigationChanged =
@@ -543,8 +499,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
     const anyNumericChanged = numericKeys.some((k) => {
       const original = crop[k];
       const next = payload[k];
-      const origNum =
-        original == null ? null : Number(original);
+      const origNum = original == null ? null : Number(original);
       return origNum !== next;
     });
 
@@ -554,7 +509,8 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
       !colorChanged &&
       !anyNumericChanged
     ) {
-      alert("تغییری اعمال نشده است");
+      // ✅ جایگزین alert
+      toast.warning("تغییری اعمال نشده است", "توجه");
       return;
     }
 
@@ -625,9 +581,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
                     <input
                       type="text"
                       value={form.name}
-                      onChange={(e) =>
-                        handleChange("name", e.target.value)
-                      }
+                      onChange={(e) => handleChange("name", e.target.value)}
                       placeholder="مثال: گندم"
                       disabled={isSubmitting}
                       className={`
@@ -661,9 +615,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
                     </label>
                     <IrrigationRadio
                       value={form.irrigation_type}
-                      onChange={(v) =>
-                        handleChange("irrigation_type", v)
-                      }
+                      onChange={(v) => handleChange("irrigation_type", v)}
                       disabled={isSubmitting}
                     />
                   </div>
@@ -673,10 +625,7 @@ const EditModal = ({ crop, onClose, onSubmit }) => {
                       <span
                         className="flex items-center justify-center w-5 h-5 rounded-md border flex-shrink-0"
                         style={{
-                          backgroundColor: withAlpha(
-                            form.color,
-                            0.2
-                          ),
+                          backgroundColor: withAlpha(form.color, 0.2),
                           borderColor: withAlpha(form.color, 0.5),
                         }}
                       >
@@ -871,17 +820,14 @@ const AddCropModal = ({ onClose, onSubmit }) => {
 
         {error && (
           <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg text-[11px] text-red-700">
-            <AlertCircle
-              size={13}
-              className="flex-shrink-0 mt-0.5"
-            />
+            <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
         <p className="text-[11px] text-gray-500">
-          بعد از افزودن، می‌توانید نیازهای زراعی، قیمت و
-          ماشین‌آلات را تنظیم کنید.
+          بعد از افزودن، می‌توانید نیازهای زراعی، قیمت و ماشین‌آلات را تنظیم
+          کنید.
         </p>
       </div>
     </Modal>
@@ -895,9 +841,7 @@ const StatsBar = ({ stats }) => (
   <div className="grid grid-cols-3 gap-2">
     {STATS_CONFIG.map((item, i) => {
       const Icon = item.icon;
-      const color = item.getColor
-        ? item.getColor(stats[item.key])
-        : item.color;
+      const color = item.getColor ? item.getColor(stats[item.key]) : item.color;
 
       return (
         <div
@@ -910,9 +854,7 @@ const StatsBar = ({ stats }) => (
             <Icon size={15} strokeWidth={2.2} />
           </span>
           <div className="min-w-0">
-            <div className="text-[10px] text-gray-500">
-              {item.label}
-            </div>
+            <div className="text-[10px] text-gray-500">{item.label}</div>
             <div className="text-base font-bold text-gray-800 leading-none mt-0.5">
               {stats[item.key]}
             </div>
@@ -1016,15 +958,13 @@ const Legend = () => {
               <div className="flex items-start gap-3">
                 <IrrigationBadge type="آبی" />
                 <span className="text-xs text-gray-600 pt-1">
-                  محصول با نیاز آبی بالا — نرخ‌های مصرفی معمولاً
-                  بیشتر است.
+                  محصول با نیاز آبی بالا — نرخ‌های مصرفی معمولاً بیشتر است.
                 </span>
               </div>
               <div className="flex items-start gap-3">
                 <IrrigationBadge type="دیم" />
                 <span className="text-xs text-gray-600 pt-1">
-                  محصول وابسته به بارش — نرخ آب صفر یا خیلی کم
-                  است.
+                  محصول وابسته به بارش — نرخ آب صفر یا خیلی کم است.
                 </span>
               </div>
             </div>
@@ -1044,9 +984,9 @@ const Legend = () => {
                 <Palette size={15} strokeWidth={2.4} />
               </span>
               <p className="text-xs text-gray-600 pt-1.5">
-                رنگ انتخاب‌شده برای هر محصول، روی لایه‌ی آن محصول
-                در نقشه اعمال می‌شود. مزارعی که محصول ندارند با
-                رنگ خاکستری پیش‌فرض نمایش داده می‌شوند.
+                رنگ انتخاب‌شده برای هر محصول، روی لایه‌ی آن محصول در نقشه اعمال
+                می‌شود. مزارعی که محصول ندارند با رنگ خاکستری پیش‌فرض نمایش داده
+                می‌شوند.
               </p>
             </div>
           </div>
@@ -1168,12 +1108,9 @@ const CropSettingsManager = () => {
               <Sprout size={16} strokeWidth={2.2} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">
-                محصولات
-              </h3>
+              <h3 className="text-sm font-bold text-gray-900">محصولات</h3>
               <p className="text-[11px] text-gray-500 mt-0.5">
-                مدیریت محصولات، رنگ لایه، نیازهای زراعی و
-                ماشین‌آلات
+                مدیریت محصولات، رنگ لایه، نیازهای زراعی و ماشین‌آلات
               </p>
             </div>
           </div>

@@ -2,10 +2,11 @@
 import {
   LayoutDashboard,
   Map as MapIcon,
+  MapPinned,       // ✅ جدید — برای مدیریت زمین‌ها
   PlusCircle,
   MessageSquare,
   Users,
-  Sprout,        // ✅ جدید
+  Sprout,
 } from 'lucide-react';
 
 export const DOCK_ITEMS = [
@@ -26,7 +27,17 @@ export const DOCK_ITEMS = [
     roles: ['super_admin', 'manager', 'dehyar', 'operator'],
   },
 
-  // ✅ جدید: مدیریت کشاورزی — بین map و farmers
+  // ✅ جدید: مدیریت زمین‌ها — بین map و agri
+  {
+    id: 'lands',
+    label: 'زمین‌ها',
+    icon: MapPinned,
+    path: '/lands',
+    type: 'route',
+    roles: ['super_admin', 'manager', 'dehyar', 'operator'],
+  },
+
+  // ✅ مدیریت کشاورزی
   {
     id: 'agri',
     label: 'کشاورزی',

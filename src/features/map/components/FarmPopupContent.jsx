@@ -32,11 +32,31 @@ const InfoRow = ({ icon: Icon, label, value, valueClass = "" }) => (
 );
 
 // ============================================================
+// ✅ helper: اجرای confirm چه تابع باشد چه آبجکت
+// ============================================================
+const runConfirm = async (confirmFnOrObj, opts) => {
+  try {
+    // اگر تابع است
+    if (typeof confirmFnOrObj === "function") {
+      return await confirmFnOrObj(opts);
+    }
+    // اگر آبجکت با متد confirm است
+    if (
+      confirmFnOrObj &&
+      typeof confirmFnOrObj.confirm === "function"
+    ) {
+      return await confirmFnOrObj.confirm(opts);
+    }
+    // fallback
+    return window.confirm(opts?.message || "تأیید می‌کنید؟");
+  } catch (err) {
+    console.warn("confirm failed, falling back to window.confirm:", err);
+    return window.confirm(opts?.message || "تأیید می‌کنید؟");
+  }
+};
+
+// ============================================================
 // FarmPopupContent
-//
-// ⚠️ این کامپوننت داخل یک React root جداگانه (Leaflet popup)
-// render می‌شود → نمی‌تواند از useAuth/usePermissions استفاده کند.
-// پس isSuperAdmin از props گرفته می‌شود.
 // ============================================================
 const FarmPopupContent = ({
   farm,
@@ -47,7 +67,8 @@ const FarmPopupContent = ({
   onDelete,
   onHistory,
   onTransfer,
-  isSuperAdmin = false,   // ✅ از props
+  isSuperAdmin = false,
+  onConfirm = null,
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -96,15 +117,20 @@ const FarmPopupContent = ({
     if (typeof onClose === "function") onClose();
   };
 
+  // ✅ جایگزین window.confirm — با fallback امن
   const handleDeleteClick = async (e) => {
     e.stopPropagation();
     e.preventDefault();
 
     if (typeof onDelete !== "function" || isDeleting) return;
 
-    const confirmed = window.confirm(
-      `آیا از حذف مزرعه «${fullName}» اطمینان دارید؟\nاین عمل قابل بازگشت نیست.`,
-    );
+    const confirmed = await runConfirm(onConfirm, {
+      title: "حذف مزرعه",
+      message: `آیا از حذف مزرعه «${fullName}» اطمینان دارید؟\nاین عمل قابل بازگشت نیست.`,
+      confirmText: "حذف کن",
+      cancelText: "انصراف",
+      variant: "danger",
+    });
     if (!confirmed) return;
 
     setIsDeleting(true);
@@ -157,55 +183,87 @@ const FarmPopupContent = ({
       />
 
       <div className="relative z-10">
-        {/* دکمه‌های گوشه */}
-        <div className="absolute top-0 left-0 flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            disabled={isDeleting}
-            className="
-              p-1 rounded-md text-red-500
-              hover:bg-red-50/70 hover:text-red-700
-              transition-colors
-              disabled:opacity-50 disabled:cursor-wait
-            "
-            aria-label="حذف مزرعه"
-            title="حذف مزرعه"
-          >
-            {isDeleting ? (
-              <span className="block w-3.5 h-3.5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
-            ) : (
-              <Trash2 size={14} />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleCloseClick}
-            className="p-1 rounded-md text-gray-600 hover:bg-white/50 hover:text-gray-800 transition-colors"
-            aria-label="بستن"
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        {/* هدر */}
-        <div className="flex items-center gap-2 mb-2.5 pr-1">
-          <div className="w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm border border-white/80 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <User size={14} className="text-primary-700" />
+        {/* ═══════════════════════════════════════════════ */}
+        {/* ✅ Header بازطراحی‌شده — دکمه‌ها در flow، نه absolute */}
+        {/* ═══════════════════════════════════════════════ */}
+        <div className="flex items-start gap-2 mb-2.5">
+          {/* آواتار + نام */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm border border-white/80 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <User size={14} className="text-primary-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="font-bold text-sm text-gray-900 drop-shadow-sm truncate">
+                {fullName}
+              </h4>
+              {phone && (
+                <div
+                  className="text-[10px] text-gray-800 font-medium mt-0.5"
+                  style={{ direction: "ltr", textAlign: "right" }}
+                >
+                  {phone}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <h4 className="font-bold text-sm text-gray-900 drop-shadow-sm truncate">
-              {fullName}
-            </h4>
-            {phone && (
-              <div
-                className="text-[10px] text-gray-800 font-medium mt-0.5"
-                style={{ direction: "ltr", textAlign: "right" }}
-              >
-                {phone}
-              </div>
-            )}
+
+          {/* ✅ دکمه‌های حذف و بستن — در flow عادی، ۴۰×۴۰ */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              disabled={isDeleting}
+              className="
+                flex items-center justify-center
+                w-10 h-10 p-2 rounded-lg
+                text-red-500 bg-white/40
+                hover:bg-red-50 hover:text-red-700
+                active:bg-red-100
+                border border-white/50
+                shadow-sm
+                transition-colors
+                disabled:opacity-50 disabled:cursor-wait
+                touch-manipulation
+              "
+              aria-label="حذف مزرعه"
+              title="حذف مزرعه"
+              style={{
+                touchAction: "manipulation",
+                pointerEvents: "auto",
+                zIndex: 20,
+              }}
+            >
+              {isDeleting ? (
+                <span className="block w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+              ) : (
+                <Trash2 size={16} strokeWidth={2.2} />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCloseClick}
+              className="
+                flex items-center justify-center
+                w-10 h-10 p-2 rounded-lg
+                text-gray-600 bg-white/40
+                hover:bg-white/70 hover:text-gray-800
+                active:bg-white/90
+                border border-white/50
+                shadow-sm
+                transition-colors
+                touch-manipulation
+              "
+              aria-label="بستن"
+              title="بستن"
+              style={{
+                touchAction: "manipulation",
+                pointerEvents: "auto",
+                zIndex: 20,
+              }}
+            >
+              <X size={16} strokeWidth={2.2} />
+            </button>
           </div>
         </div>
 

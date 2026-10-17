@@ -49,7 +49,6 @@ import { FarmerSection } from './sections/FarmerSection';
 import { LandSection } from './sections/LandSection';
 import { WaterSection } from './sections/WaterSection';
 
-// ✅ جدید فاز ۸: تب نهاده‌ها
 import FarmInputsTab from '../panel/inputs/FarmInputsTab';
 
 // ═══════════════════════════════════════════════════════════
@@ -60,7 +59,7 @@ const SECTION_MAP = {
   farmer: FarmerSection,
   land: LandSection,
   water: WaterSection,
-  inputs: FarmInputsTab,       // ✅ فاز ۸
+  inputs: FarmInputsTab,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -95,7 +94,7 @@ const TAB_META = {
       'bg-sky-500/25 text-sky-800 ring-1 ring-sky-500/40',
     barClass: 'bg-sky-500',
   },
-  inputs: {                     // ✅ جدید
+  inputs: {
     icon: PackageIcon,
     label: 'نهاده‌ها',
     activeClass:
@@ -105,6 +104,21 @@ const TAB_META = {
 };
 
 const DEFAULT_WATER_REQUIREMENT = 5000;
+
+// ═══════════════════════════════════════════════════════════
+// ✅ فاز ۱: helper برای فرستادن رویداد ریست نقشه
+// ═══════════════════════════════════════════════════════════
+const emitGeometryReset = ({ reason, farm = null, farmId = null }) => {
+  try {
+    window.dispatchEvent(
+      new CustomEvent('farm:geometry-reset', {
+        detail: { reason, farm, farmId },
+      }),
+    );
+  } catch (err) {
+    console.warn('farm:geometry-reset dispatch failed:', err);
+  }
+};
 
 // ═══════════════════════════════════════════════════════════
 // FarmFormContainer
@@ -131,9 +145,8 @@ export const FarmFormContainer = ({
 
   const isMutating = isUpdatingFarm || registerMutation.isPending;
 
-  const { crops: activeCrops, getRequirement } = useActiveCrops();
+  const { crops: activeCrops } = useActiveCrops();
 
-  // ✅ اپراتور در حالت ویرایش، قفل است
   const isLockedForOperator = isEditing && isOperator;
 
   // ── defaultValues ──
@@ -160,22 +173,17 @@ export const FarmFormContainer = ({
     formState: { isValid, errors },
   } = methods;
 
-  // ✅ فاز ۶: cropId به‌جای crop
   const selectedCropId = useWatch({ control, name: 'cropId' });
 
   const activeRequirement = useMemo(() => {
     if (!selectedCropId) return DEFAULT_WATER_REQUIREMENT;
-    const crop = activeCrops.find(
-      (c) => c.id === Number(selectedCropId)
-    );
+    const crop = activeCrops.find((c) => c.id === Number(selectedCropId));
     return crop?.requirement ?? DEFAULT_WATER_REQUIREMENT;
   }, [selectedCropId, activeCrops]);
 
   const hasRealRequirement = useMemo(() => {
     if (!selectedCropId) return false;
-    const crop = activeCrops.find(
-      (c) => c.id === Number(selectedCropId)
-    );
+    const crop = activeCrops.find((c) => c.id === Number(selectedCropId));
     return crop?.requirement != null && crop.requirement > 0;
   }, [selectedCropId, activeCrops]);
 
@@ -201,7 +209,6 @@ export const FarmFormContainer = ({
     return calculateTotalArea(geojson);
   }, [areaHa, geojson]);
 
-  // ── آب محاسبه‌شده ──
   const waterVolume = useMemo(() => {
     if (computedTotalArea <= 0) return 0;
     return computedTotalArea * activeRequirement;
@@ -216,9 +223,7 @@ export const FarmFormContainer = ({
       setSubmitSuccess(null);
 
       if (isLockedForOperator) {
-        setSubmitError(
-          'اپراتور فقط می‌تواند ثبت کند، نه ویرایش'
-        );
+        setSubmitError('اپراتور فقط می‌تواند ثبت کند، نه ویرایش');
         return;
       }
 
@@ -231,10 +236,7 @@ export const FarmFormContainer = ({
           return;
         }
 
-        // ✅ فاز ۶: cropId از فرم گرفته می‌شود
-        const cropId = formData.cropId
-          ? Number(formData.cropId)
-          : null;
+        const cropId = formData.cropId ? Number(formData.cropId) : null;
         const selectedCropObj = cropId
           ? activeCrops.find((c) => c.id === cropId)
           : null;
@@ -258,10 +260,15 @@ export const FarmFormContainer = ({
           });
 
           setSubmitSuccess('تغییرات با موفقیت ذخیره شد.');
-          toast.success(
-            'تغییرات ذخیره شد.',
-            'مزرعه به‌روزرسانی شد'
-          );
+          toast.success('تغییرات ذخیره شد.', 'مزرعه به‌روزرسانی شد');
+
+          // ✅ فاز ۱: ریست نقشه بدون نیاز به رفرش
+          emitGeometryReset({
+            reason: 'update',
+            farmId: editingFarmId,
+            farm: result?.farm || result?.data || null,
+          });
+
           onSuccess?.(result);
           setTimeout(() => setSubmitSuccess(null), 4000);
           return;
@@ -277,10 +284,14 @@ export const FarmFormContainer = ({
           cropObj: selectedCropObj,
         });
 
-        const result = await registerMutation.mutateAsync(
-          payload
-        );
+        const result = await registerMutation.mutateAsync(payload);
         const { action, message } = result;
+
+        // ✅ فاز ۱: ریست نقشه بدون نیاز به رفرش
+        emitGeometryReset({
+          reason: 'register',
+          farm: result?.farms?.[0] ?? null,
+        });
 
         if (action === 'created') {
           toast.success(
@@ -340,9 +351,6 @@ export const FarmFormContainer = ({
   const ActiveSection = SECTION_MAP[activeTab] || LocationSection;
   const activeMeta = TAB_META[activeTab] || TAB_META.location;
 
-  // ═══════════════════════════════════════════════════════════
-  // sectionProps — پاس دادن به همهٔ sectionها
-  // ═══════════════════════════════════════════════════════════
   const sectionProps = {
     isSubmitting: isMutating,
     totalArea: computedTotalArea,
@@ -351,15 +359,10 @@ export const FarmFormContainer = ({
     locationData,
     getPolygonArea,
     waterRequirement: activeRequirement,
-
-    // ✅ جدید فاز ۸: برای FarmInputsTab
     farmId: editingFarmId ?? null,
     isEditing,
   };
 
-  // ═══════════════════════════════════════════════════════════
-  // Render
-  // ═══════════════════════════════════════════════════════════
   return (
     <FormProvider {...methods}>
       <form
@@ -367,7 +370,6 @@ export const FarmFormContainer = ({
         className="relative flex flex-col h-full"
         dir="rtl"
       >
-        {/* ─── هشدار اپراتور ─── */}
         {isLockedForOperator && (
           <div className="flex-shrink-0 mx-4 mt-3 p-2.5 bg-amber-500/25 backdrop-blur-md rounded-xl flex items-start gap-2 text-xs ring-1 ring-amber-500/30">
             <Lock
@@ -381,7 +383,6 @@ export const FarmFormContainer = ({
           </div>
         )}
 
-        {/* ─── Alerts ─── */}
         {submitSuccess && (
           <div className="flex-shrink-0 mx-4 mt-3 p-2.5 bg-green-500/25 backdrop-blur-md rounded-xl flex items-start gap-2 text-xs ring-1 ring-green-500/30">
             <CheckCircle2
@@ -420,11 +421,7 @@ export const FarmFormContainer = ({
           </div>
         )}
 
-        {/* ═══════════════════════════════════════════════ */}
-        {/* Main Content                                    */}
-        {/* ═══════════════════════════════════════════════ */}
         <div className="flex-1 flex min-h-0">
-          {/* ─── Sidebar (tabs) ─── */}
           <aside
             className="
               flex-shrink-0 w-[72px]
@@ -497,7 +494,6 @@ export const FarmFormContainer = ({
             })}
           </aside>
 
-          {/* ─── Content ─── */}
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
             <div className="flex-shrink-0 px-5 pt-4 pb-3">
               <h4 className="text-base font-bold text-slate-800 drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)]">
@@ -511,9 +507,6 @@ export const FarmFormContainer = ({
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════ */}
-        {/* Footer                                          */}
-        {/* ═══════════════════════════════════════════════ */}
         <div
           className="flex-shrink-0 border-t border-white/40"
           style={{
@@ -523,16 +516,12 @@ export const FarmFormContainer = ({
           }}
         >
           <div className="px-4 py-2.5 flex items-center justify-between gap-3">
-            {/* ─── نمایش آب مصرفی ─── */}
             <div className="flex items-center gap-2 min-w-0">
               <Droplet
                 size={14}
                 className="text-sky-600 flex-shrink-0 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]"
               />
-              <div
-                className="flex items-baseline gap-1 min-w-0"
-                dir="ltr"
-              >
+              <div className="flex items-baseline gap-1 min-w-0" dir="ltr">
                 <span className="text-sm font-bold text-sky-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
                   {waterVolume.toLocaleString('fa-IR')}
                 </span>
@@ -551,16 +540,13 @@ export const FarmFormContainer = ({
                       }
                     `}
                   >
-                    {Number(activeRequirement).toLocaleString(
-                      'fa-IR'
-                    )}{' '}
+                    {Number(activeRequirement).toLocaleString('fa-IR')}{' '}
                     m³/ha
                   </span>
                 )}
               </div>
             </div>
 
-            {/* ─── دکمه‌ها ─── */}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -581,11 +567,7 @@ export const FarmFormContainer = ({
 
               <button
                 type="submit"
-                disabled={
-                  !isValid ||
-                  isMutating ||
-                  isLockedForOperator
-                }
+                disabled={!isValid || isMutating || isLockedForOperator}
                 className={`
                   inline-flex items-center gap-1.5
                   px-4 py-2 rounded-xl
@@ -606,10 +588,7 @@ export const FarmFormContainer = ({
               >
                 {isMutating ? (
                   <>
-                    <Loader2
-                      size={14}
-                      className="animate-spin"
-                    />
+                    <Loader2 size={14} className="animate-spin" />
                     <span>در حال ثبت...</span>
                   </>
                 ) : isLockedForOperator ? (
@@ -620,9 +599,7 @@ export const FarmFormContainer = ({
                 ) : (
                   <>
                     <Save size={14} strokeWidth={2.2} />
-                    <span>
-                      {isEditing ? 'ذخیره' : 'ثبت'}
-                    </span>
+                    <span>{isEditing ? 'ذخیره' : 'ثبت'}</span>
                   </>
                 )}
               </button>

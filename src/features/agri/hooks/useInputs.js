@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 
 import { inputApi } from '../../../services/api/inputApi';
+import { useConfirm } from '../../../shared/components/ConfirmDialog/ConfirmDialogProvider';
 
 // ═══════════════════════════════════════════════════════════
 // Query Keys
@@ -41,6 +42,8 @@ const deleteInputApi = async (id) => {
 // ═══════════════════════════════════════════════════════════
 export const useInputs = () => {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();  // ✅ جدید
+
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [editModalInput, setEditModalInput] = useState(null);
@@ -126,12 +129,20 @@ export const useInputs = () => {
     [updateMutation]
   );
 
+  // ✅ جایگزین window.confirm
   const handleDeleteInput = useCallback(
     async (item) => {
-      if (!window.confirm(`حذف نهاده «${item.name}»؟`)) return;
+      const ok = await confirm({
+        title: 'حذف نهاده',
+        message: `حذف نهاده «${item.name}»؟`,
+        confirmText: 'حذف کن',
+        cancelText: 'انصراف',
+        variant: 'danger',
+      });
+      if (!ok) return;
       await deleteMutation.mutateAsync(item.id);
     },
-    [deleteMutation]
+    [deleteMutation, confirm]
   );
 
   const handleSubmitEdit = useCallback(

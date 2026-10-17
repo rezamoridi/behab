@@ -160,6 +160,53 @@ export const ToastProvider = ({ children }) => {
     };
   }, [show, dismiss]);
 
+  // ═══════════════════════════════════════════════════════════
+  // ✅ جدید: bridge برای window event
+  //
+  // چرا؟ چون LocationPicker ممکن است خارج از درخت
+  // ToastProvider رندر شود (مثلاً در TopBar قبل از Proivder).
+  // این bridge اجازه می‌دهد بدون نیاز به context، از هر جای
+  // اپ یک toast نشان دهیم:
+  //
+  //   window.dispatchEvent(new CustomEvent('app:toast', {
+  //     detail: {
+  //       type: 'success' | 'error' | 'warning' | 'info',
+  //       message: '...',
+  //       title: '...',  // اختیاری
+  //       duration: 4000, // اختیاری
+  //     },
+  //   }));
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    const handleToast = (e) => {
+      const detail = e?.detail || {};
+      const {
+        type = 'info',
+        message,
+        title,
+        duration,
+      } = detail;
+
+      if (!message) return;
+
+      const variant = ['success', 'error', 'warning', 'info'].includes(type)
+        ? type
+        : 'info';
+
+      show({
+        variant,
+        message,
+        title,
+        ...(typeof duration === 'number' ? { duration } : {}),
+      });
+    };
+
+    window.addEventListener('app:toast', handleToast);
+    return () => {
+      window.removeEventListener('app:toast', handleToast);
+    };
+  }, [show]);
+
   return (
     <ToastContext.Provider value={value}>
       {children}

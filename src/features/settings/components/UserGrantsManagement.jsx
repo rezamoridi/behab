@@ -509,6 +509,109 @@ const CreateGrantModal = ({ onClose, onSuccess }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
+// ✅ Revoke Reason Modal — جایگزین window.prompt
+// ═══════════════════════════════════════════════════════════
+const RevokeReasonModal = ({
+  grant,
+  onClose,
+  onConfirm,
+  isSubmitting,
+}) => {
+  const [reason, setReason] = useState('');
+
+  const handleConfirm = () => {
+    onConfirm(reason.trim() || null);
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) return;
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
+      <div
+        className="bg-white rounded-2xl w-full max-w-md shadow-2xl"
+        dir="rtl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+              <Ban size={16} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-gray-900">
+                ابطال مجوز
+              </h4>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                برای: {grant?.grantee_username || '—'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-50"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-3">
+          <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            دلیل ابطال (اختیاری)
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder="مثال: پایان ماموریت، تغییر مسئولیت..."
+            disabled={isSubmitting}
+            className="
+              w-full px-3.5 py-2.5 rounded-lg border border-gray-300
+              text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100
+              outline-none transition-all resize-none
+              disabled:bg-gray-50
+            "
+            autoFocus
+          />
+          <div className="text-[10px] text-gray-400 text-left">
+            {reason.length} / 500
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
+          >
+            انصراف
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {isSubmitting && (
+              <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            )}
+            ابطال کن
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
 // Main Component
 // ═══════════════════════════════════════════════════════════
 const UserGrantsManagement = () => {
@@ -517,6 +620,7 @@ const UserGrantsManagement = () => {
   const queryClient = useQueryClient();
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [revokeModal, setRevokeModal] = useState(null); // { grant }
   const [searchTerm, setSearchTerm] = useState('');
   const [includeRevoked, setIncludeRevoked] = useState(false);
   const [resourceFilter, setResourceFilter] = useState('');
@@ -583,6 +687,7 @@ const UserGrantsManagement = () => {
     },
   });
 
+  // ✅ فاز ۲: دو مرحله — confirm بومی + مودال دلیل
   const handleRevoke = useCallback(
     async (grant) => {
       const ok = await confirm({
@@ -590,24 +695,35 @@ const UserGrantsManagement = () => {
         message: `آیا از ابطال این مجوز برای «${
           grant.grantee_username || 'کاربر'
         }» اطمینان دارید؟\nاین عمل قابل بازگشت نیست (ولی در تاریخچه می‌ماند).`,
-        confirmText: 'ابطال کن',
+        confirmText: 'ادامه',
         cancelText: 'انصراف',
         variant: 'danger',
       });
       if (!ok) return;
 
-      const reason = window.prompt(
-        'دلیل ابطال (اختیاری):',
-        '',
-      );
-
-      revokeMutation.mutate({
-        id: grant.id,
-        reason: reason || null,
-      });
+      // ✅ باز کردن مودال دلیل (به‌جای window.prompt)
+      setRevokeModal({ grant });
     },
-    [confirm, revokeMutation],
+    [confirm],
   );
+
+  // ✅ تایید نهایی از مودال
+  const handleConfirmRevoke = useCallback(
+    (reason) => {
+      if (!revokeModal) return;
+      revokeMutation.mutate({
+        id: revokeModal.grant.id,
+        reason,
+      });
+      setRevokeModal(null);
+    },
+    [revokeModal, revokeMutation],
+  );
+
+  const handleCloseRevokeModal = useCallback(() => {
+    if (revokeMutation.isPending) return;
+    setRevokeModal(null);
+  }, [revokeMutation.isPending]);
 
   const handleCreateSuccess = () => {
     queryClient.invalidateQueries({ queryKey: grantKeys.all });
@@ -960,6 +1076,16 @@ const UserGrantsManagement = () => {
         <CreateGrantModal
           onClose={() => setCreateModalOpen(false)}
           onSuccess={handleCreateSuccess}
+        />
+      )}
+
+      {/* ✅ Revoke Reason Modal — جایگزین window.prompt */}
+      {revokeModal && (
+        <RevokeReasonModal
+          grant={revokeModal.grant}
+          onClose={handleCloseRevokeModal}
+          onConfirm={handleConfirmRevoke}
+          isSubmitting={revokeMutation.isPending}
         />
       )}
     </div>

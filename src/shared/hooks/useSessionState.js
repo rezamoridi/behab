@@ -6,6 +6,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  *
  * مثل useState ولی مقدار را در sessionStorage نگه می‌دارد.
  * + همگام‌سازی بین کامپوننت‌ها در همان tab (با custom event)
+ *
+ * ⚠️ مهم: برای جلوگیری از "Cannot update component during render":
+ *   - dispatchEvent در setTimeout(0) → بعد از commit
+ *   - setState در listener با queueMicrotask → بعد از render فعلی
  */
 const SYNC_EVENT_PREFIX = 'session-state-sync:';
 
@@ -33,7 +37,7 @@ export const useSessionState = (key, initialValue) => {
         const next =
           typeof updater === 'function' ? updater(prev) : updater;
 
-        // ✅ نوشتن در sessionStorage
+        // ✅ نوشتن در sessionStorage (sync)
         try {
           if (typeof window !== 'undefined') {
             if (next === undefined) {
@@ -42,12 +46,20 @@ export const useSessionState = (key, initialValue) => {
               sessionStorage.setItem(key, JSON.stringify(next));
             }
 
-            // ✅ broadcast در همان tab
-            window.dispatchEvent(
-              new CustomEvent(`${SYNC_EVENT_PREFIX}${key}`, {
-                detail: { value: next },
-              })
-            );
+            // ✅ broadcast در tick جدا — بعد از commit
+            // (بدون این defer، اگر در حین render کامپوننت دیگری
+            //  listener صدا زده شود، setState در حین render رخ می‌دهد)
+            setTimeout(() => {
+              try {
+                window.dispatchEvent(
+                  new CustomEvent(`${SYNC_EVENT_PREFIX}${key}`, {
+                    detail: { value: next },
+                  })
+                );
+              } catch {
+                /* ignore */
+              }
+            }, 0);
           }
         } catch {
           /* quota یا حالت خصوصی */
@@ -67,9 +79,13 @@ export const useSessionState = (key, initialValue) => {
       if (e.storageArea !== sessionStorage) return;
       if (e.key !== key) return;
       try {
-        setValueInternal(
-          e.newValue !== null ? JSON.parse(e.newValue) : initialValue
-        );
+        const next =
+          e.newValue !== null ? JSON.parse(e.newValue) : initialValue;
+
+        // ✅ defer برای جلوگیری از setState در حین render
+        queueMicrotask(() => {
+          setValueInternal(next);
+        });
       } catch {
         /* ignore */
       }
@@ -88,7 +104,10 @@ export const useSessionState = (key, initialValue) => {
       const nextValue = e.detail?.value;
       // ✅ فقط اگر مقدار جدید متفاوت است set کن
       if (JSON.stringify(nextValue) !== JSON.stringify(valueRef.current)) {
-        setValueInternal(nextValue);
+        // ✅ defer — بعد از render فعلی
+        queueMicrotask(() => {
+          setValueInternal(nextValue);
+        });
       }
     };
 
@@ -100,11 +119,14 @@ export const useSessionState = (key, initialValue) => {
   const clear = useCallback(() => {
     try {
       sessionStorage.removeItem(key);
-      window.dispatchEvent(
-        new CustomEvent(`${SYNC_EVENT_PREFIX}${key}`, {
-          detail: { value: initialValue },
-        })
-      );
+      // ✅ defer
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent(`${SYNC_EVENT_PREFIX}${key}`, {
+            detail: { value: initialValue },
+          })
+        );
+      }, 0);
     } catch {
       /* ignore */
     }

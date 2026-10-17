@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import apiClient from '../../../services/api/apiClient';
 import { useToast } from '../../../shared/components/Toast/ToastProvider';
+import { useConfirm } from '../../../shared/components/ConfirmDialog/ConfirmDialogProvider';  // ✅ جدید
 
 const ProfileSettings = ({
   profile,
@@ -19,6 +20,7 @@ const ProfileSettings = ({
   isLoading,
 }) => {
   const toast = useToast();
+  const confirm = useConfirm();  // ✅ جدید
 
   const [formData, setFormData] = useState({
     fname: '',
@@ -128,7 +130,7 @@ const ProfileSettings = ({
   };
 
   // ============================================
-  // ✅ Toggle OTP
+  // ✅ Toggle OTP — جایگزین window.confirm
   // ============================================
   const handleToggleOtp = async () => {
     // چک شماره تلفن قبل از فعال‌سازی
@@ -148,14 +150,18 @@ const ProfileSettings = ({
       return;
     }
 
-    // تأیید کاربر
     const action = otpEnabled ? 'غیرفعال' : 'فعال';
-    const ok = window.confirm(
-      `آیا از ${action} کردن تایید دو مرحله‌ای اطمینان دارید؟\n\n` +
-        (otpEnabled
-          ? 'در این حالت، ورود شما فقط با رمز عبور خواهد بود.'
-          : `در این حالت، کد تایید به شماره ${formData.phone_number} ارسال می‌شود.`),
-    );
+
+    // ✅ جایگزین window.confirm با ConfirmDialog بومی
+    const ok = await confirm({
+      title: `${action} کردن تایید دو مرحله‌ای`,
+      message: otpEnabled
+        ? 'در این حالت، ورود شما فقط با رمز عبور خواهد بود.'
+        : `در این حالت، کد تایید به شماره ${formData.phone_number} ارسال می‌شود.`,
+      confirmText: `${action} کن`,
+      cancelText: 'انصراف',
+      variant: otpEnabled ? 'danger' : 'primary',
+    });
     if (!ok) return;
 
     setIsTogglingOtp(true);

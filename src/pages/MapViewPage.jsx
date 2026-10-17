@@ -38,16 +38,16 @@ const MapViewPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
-  const { openPanel, isOpen: isPanelOpen } = useFarmPanel();
+
+  const { openPanel, closePanel, isOpen: isPanelOpen } = useFarmPanel();
   const { isSuperAdmin } = usePermissions();
 
   // ── نمایش لایه‌ها از localStorage ──
-  const [showRegions] = useLocalStorageState(
-    "map_show_regions_v1",
-    false,
-  );
-  const [showVillages] = useLocalStorageState(
-    "map_show_villages_v1",
+  const [showRegions] = useLocalStorageState("map_show_regions_v1", false);
+  const [showVillages] = useLocalStorageState("map_show_villages_v1", true);
+
+  const [snapEnabled, setSnapEnabled] = useLocalStorageState(
+    "map_snap_enabled",
     true,
   );
 
@@ -72,13 +72,16 @@ const MapViewPage = () => {
   const [villageEditPolygonCount, setVillageEditPolygonCount] = useState(0);
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ Focus Farm state — برای پرش از داشبورد
+  // Focus Farm state
   // ═══════════════════════════════════════════════════════════
   const [pendingFocusFarmId, setPendingFocusFarmId] = useState(
     location.state?.focusFarmId || null,
   );
   const [focusFarmObject, setFocusFarmObject] = useState(null);
   const [focusTrigger, setFocusTrigger] = useState(0);
+
+  // ✅ جدید: باز کردن خودکار پاپ‌آپ مزرعه
+  const [autoOpenPopupFarmId, setAutoOpenPopupFarmId] = useState(null);
 
   const drawnItemsRef = useRef(null);
   const drawingApiRef = useRef(null);
@@ -96,21 +99,20 @@ const MapViewPage = () => {
     enabled: !!editVillageId,
   });
 
-  // ── مزارع خودی ──
-  const { data: farmsData, isLoading: farmsLoading } = useFarmsQuery(
-    FARM_LIST_QUERY_PARAMS,
-  );
+  const {
+    data: farmsData,
+    isLoading: farmsLoading,
+    refetch: refetchFarms,
+  } = useFarmsQuery(FARM_LIST_QUERY_PARAMS);
 
   const ownFarms = useMemo(() => farmsData?.farms || [], [farmsData]);
 
-  // ── لایهٔ مرجع ──
   const { data: referenceData } = useReferenceLayerQuery();
   const referenceFarms = useMemo(
     () => referenceData?.items || [],
     [referenceData],
   );
 
-  // ── کشاورزان ──
   const { data: farmersData } = useFarmersQuery(FARMER_LIST_QUERY_PARAMS);
 
   const farmersById = useMemo(() => {
@@ -124,9 +126,7 @@ const MapViewPage = () => {
     return map;
   }, [farmersData]);
 
-  // ── محصولات و تنظیمات ──
-  const { crops, settings: agricultureSettings } =
-    useAgricultureSettings();
+  const { crops, settings: agricultureSettings } = useAgricultureSettings();
 
   const colorByCrop = useMemo(() => {
     const map = {};
@@ -138,14 +138,11 @@ const MapViewPage = () => {
 
   const referenceStyle = useMemo(
     () => ({
-      color:
-        agricultureSettings?.reference_layer_color || "#9E9E9E",
-      stroke_weight:
-        agricultureSettings?.reference_layer_stroke_weight ?? 2,
+      color: agricultureSettings?.reference_layer_color || "#9E9E9E",
+      stroke_weight: agricultureSettings?.reference_layer_stroke_weight ?? 2,
       stroke_style:
         agricultureSettings?.reference_layer_stroke_style || "solid",
-      fill_opacity:
-        agricultureSettings?.reference_layer_fill_opacity ?? 0.08,
+      fill_opacity: agricultureSettings?.reference_layer_fill_opacity ?? 0.08,
     }),
     [agricultureSettings],
   );
@@ -167,15 +164,8 @@ const MapViewPage = () => {
     "map_selected_village_id",
     null,
   );
-  const [, setPendingGeojson] = useSessionState(
-    "map_pending_geojson",
-    null,
-  );
+  const [, setPendingGeojson] = useSessionState("map_pending_geojson", null);
   const [, setPendingArea] = useSessionState("map_pending_area", 0);
-  const [snapEnabled, setSnapEnabled] = useLocalStorageState(
-    "map_snap_enabled",
-    false,
-  );
 
   const [polygonsData, setPolygonsData] = useState({
     totalArea: 0,
@@ -193,8 +183,94 @@ const MapViewPage = () => {
     navFocusFarmId || navEditFarmId || selectedFarmIdPersisted;
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ Sync navigation state — فقط region/village/farm-edit
-  // (focusFarm جداگانه در useEffect پایین‌تر مدیریت می‌شود)
+  // گوش دادن به رویداد همپوشانی
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    const handleOverlapDetected = (e) => {
+      const detail = e?.detail || {};
+      const message =
+        detail.message || "این مزرعه با مزرعه‌ی ثبت‌شده همپوشانی دارد.";
+
+      toast.error(message, "رسم مسدود شد");
+    };
+
+    window.addEventListener("map:overlap-detected", handleOverlapDetected);
+
+    return () => {
+      window.removeEventListener("map:overlap-detected", handleOverlapDetected);
+    };
+  }, [toast]);
+
+  // ═══════════════════════════════════════════════════════════
+  // ✅ فاز ۱: ریست نقشه بعد از ثبت/ویرایش موفق
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    const handleReset = () => {
+      // ─── ۱. پاک‌سازی قطعی لایه‌ها ───
+      try {
+        const api = drawingApiRef.current;
+        if (api?.clearPolygons) {
+          api.clearPolygons();
+        }
+      } catch (err) {
+        console.warn("api.clearPolygons failed:", err);
+      }
+
+      // BACKUP: مستقیم از FeatureGroup
+      try {
+        const fg = drawnItemsRef.current;
+        if (fg && typeof fg.getLayers === "function") {
+          const layers = fg.getLayers();
+
+          layers.forEach((layer) => {
+            try {
+              if (layer.getTooltip && layer.getTooltip()) {
+                layer.unbindTooltip();
+              }
+              fg.removeLayer(layer);
+            } catch (err) {
+              console.warn("fg.removeLayer failed:", err);
+            }
+          });
+
+          fg.clearLayers();
+        }
+      } catch (err) {
+        console.warn("direct featureGroup cleanup failed:", err);
+      }
+
+      // ─── ۲. ریست state محلی (sync — این‌ها داخلی هستند) ───
+      setPolygonsData({ totalArea: 0, geojsons: [], count: 0 });
+
+      // ─── ۳. بستن پنل + ریست stateهای سراسری ───
+      // ✅ فیکس: همه در setTimeout تا در حین render نباشند
+      setTimeout(() => {
+        try {
+          setPendingGeojson(null);
+          setPendingArea(0);
+          closePanel();
+          setSelectedFarmId(null);
+          setFocusFarmObject(null);
+          setAutoOpenPopupFarmId(null);   // ✅ جدید
+          refetchFarms?.();
+        } catch (err) {
+          console.warn("reset deferred failed:", err);
+        }
+      }, 0);
+    };
+
+    window.addEventListener("farm:geometry-reset", handleReset);
+    return () => window.removeEventListener("farm:geometry-reset", handleReset);
+  }, [
+    closePanel,
+    setPendingGeojson,
+    setPendingArea,
+    setSelectedFarmId,
+    refetchFarms,
+  ]);
+
+  // ═══════════════════════════════════════════════════════════
+  // Sync navigation state
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (!navEditFarmId && !navEditRegionId && !navEditVillageId) {
@@ -204,7 +280,13 @@ const MapViewPage = () => {
     const syncState = () => {
       if (navEditFarmId) {
         setSelectedFarmId(navEditFarmId);
-        openPanel();
+        setTimeout(() => {
+          try {
+            openPanel();
+          } catch (err) {
+            console.warn("openPanel failed:", err);
+          }
+        }, 0);
       }
       if (navEditRegionId) {
         setEditRegionId(navEditRegionId);
@@ -217,17 +299,16 @@ const MapViewPage = () => {
       navigate(location.pathname, { replace: true, state: {} });
     };
 
-    queueMicrotask(syncState);
+    const timerId = setTimeout(syncState, 0);
+    return () => clearTimeout(timerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navEditFarmId, navEditRegionId, navEditVillageId]);
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ Focus Farm — انتظار برای لود شدن مزرعه در ownFarms
+  // Focus Farm
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (!pendingFocusFarmId) return;
-
-    // اگر مزارع هنوز لود نشده‌اند، صبر کن
     if (!ownFarms || ownFarms.length === 0) return;
 
     const found = ownFarms.find(
@@ -235,27 +316,29 @@ const MapViewPage = () => {
     );
 
     if (!found) {
-      // مزرعه پیدا نشد → پاک کردن
       setPendingFocusFarmId(null);
       navigate(location.pathname, { replace: true, state: {} });
       return;
     }
 
-    // ✅ اعمال focus
     setFocusFarmObject(found);
     setFocusTrigger((t) => t + 1);
     setSelectedFarmId(pendingFocusFarmId);
+
+    // ✅ جدید: باز کردن خودکار پاپ‌آپ مزرعه
+    setAutoOpenPopupFarmId(pendingFocusFarmId);
+
     setPendingFocusFarmId(null);
 
-    // پاک کردن state ناوبری
     navigate(location.pathname, { replace: true, state: {} });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFocusFarmId, ownFarms]);
 
-  // ✅ پاک کردن focusFarmObject وقتی مزرعه‌ای انتخاب نشده
+  // ✅ جدید: پاک کردن auto-open وقتی مزرعه‌ای انتخاب نشده
   useEffect(() => {
     if (!effectiveSelectedFarmId) {
       setFocusFarmObject(null);
+      setAutoOpenPopupFarmId(null);
     }
   }, [effectiveSelectedFarmId]);
 
@@ -267,11 +350,10 @@ const MapViewPage = () => {
       if (!farm?.farm_id) return;
       try {
         await deleteFarmMutation.mutateAsync(farm.farm_id);
-        if (
-          String(selectedFarmIdPersisted) === String(farm.farm_id)
-        ) {
+        if (String(selectedFarmIdPersisted) === String(farm.farm_id)) {
           setSelectedFarmId(null);
         }
+        toast.success("مزرعه حذف شد", "حذف شد");
       } catch (err) {
         const raw =
           err?.response?.data?.detail ||
@@ -282,10 +364,10 @@ const MapViewPage = () => {
           typeof raw === "object" && raw !== null
             ? raw.message || raw.detail || JSON.stringify(raw)
             : raw;
-        window.alert(finalMsg);
+        toast.error(finalMsg, "خطا");
       }
     },
-    [deleteFarmMutation, selectedFarmIdPersisted, setSelectedFarmId],
+    [deleteFarmMutation, selectedFarmIdPersisted, setSelectedFarmId, toast],
   );
 
   // ── Farm handlers ──
@@ -300,7 +382,13 @@ const MapViewPage = () => {
     (farm) => {
       if (!farm?.farm_id) return;
       setSelectedFarmId(farm.farm_id);
-      openPanel();
+      setTimeout(() => {
+        try {
+          openPanel();
+        } catch (err) {
+          console.warn("openPanel failed:", err);
+        }
+      }, 0);
     },
     [setSelectedFarmId, openPanel],
   );
@@ -313,7 +401,6 @@ const MapViewPage = () => {
     [setSelectedFarmId],
   );
 
-  // ✅ Farm history/transfer
   const [historyFarm, setHistoryFarm] = useState(null);
 
   const handleFarmHistory = useCallback((farm) => {
@@ -342,26 +429,38 @@ const MapViewPage = () => {
     [setSelectedVillageId],
   );
 
-  // ── Polygons update ──
+  // ═══════════════════════════════════════════════════════════
+  // handlePolygonsUpdate — با defer برای stateهای سراسری
+  // ═══════════════════════════════════════════════════════════
   const handlePolygonsUpdate = useCallback(
     (data) => {
       const next = data || { totalArea: 0, geojsons: [], count: 0 };
       const prevCount = polygonsData.count || 0;
 
+      // ✅ state داخلی MapViewPage — بلافاصله
       setPolygonsData(next);
-      setPendingGeojson(next.geojsons || null);
-      setPendingArea(next.totalArea || 0);
 
-      if (next.count > prevCount && !isPanelOpen) {
-        openPanel();
-      }
-
+      // ✅ stateهای مربوط به region/village edit — بلافاصله (داخلی)
       if (editRegionId) {
         setRegionEditPolygonCount(next.count || 0);
       }
       if (editVillageId) {
         setVillageEditPolygonCount(next.count || 0);
       }
+
+      // ✅ stateهای سراسری (sessionStorage) + openPanel — بعد از commit
+      setTimeout(() => {
+        try {
+          setPendingGeojson(next.geojsons || null);
+          setPendingArea(next.totalArea || 0);
+
+          if (next.count > prevCount && !isPanelOpen) {
+            openPanel();
+          }
+        } catch (err) {
+          console.warn("handlePolygonsUpdate deferred failed:", err);
+        }
+      }, 0);
     },
     [
       setPendingGeojson,
@@ -407,11 +506,7 @@ const MapViewPage = () => {
     }
 
     const geojson = api.getDrawnGeojson();
-    if (
-      !geojson ||
-      !geojson.features ||
-      geojson.features.length === 0
-    ) {
+    if (!geojson || !geojson.features || geojson.features.length === 0) {
       toast.warning("لطفاً ابتدا مرز منطقه را رسم کنید", "توجه");
       return;
     }
@@ -426,13 +521,8 @@ const MapViewPage = () => {
       handleCancelRegionEdit();
     } catch (err) {
       const msg =
-        err?.response?.data?.detail ||
-        err?.message ||
-        "خطا در ذخیره مرز";
-      toast.error(
-        typeof msg === "string" ? msg : JSON.stringify(msg),
-        "خطا",
-      );
+        err?.response?.data?.detail || err?.message || "خطا در ذخیره مرز";
+      toast.error(typeof msg === "string" ? msg : JSON.stringify(msg), "خطا");
     } finally {
       setRegionEditSaving(false);
     }
@@ -452,13 +542,10 @@ const MapViewPage = () => {
   }, [navigate]);
 
   // ── Village edit handlers ──
-  const handleVillageEditLoaded = useCallback(
-    (village, polygonCount) => {
-      setVillageEditLoading(false);
-      setVillageEditPolygonCount(polygonCount);
-    },
-    [],
-  );
+  const handleVillageEditLoaded = useCallback((village, polygonCount) => {
+    setVillageEditLoading(false);
+    setVillageEditPolygonCount(polygonCount);
+  }, []);
 
   const handleVillageEditError = useCallback(
     (err) => {
@@ -479,11 +566,7 @@ const MapViewPage = () => {
     }
 
     const geojson = api.getDrawnGeojson();
-    if (
-      !geojson ||
-      !geojson.features ||
-      geojson.features.length === 0
-    ) {
+    if (!geojson || !geojson.features || geojson.features.length === 0) {
       toast.warning("لطفاً ابتدا مرز روستا را رسم کنید", "توجه");
       return;
     }
@@ -498,13 +581,8 @@ const MapViewPage = () => {
       handleCancelVillageEdit();
     } catch (err) {
       const msg =
-        err?.response?.data?.detail ||
-        err?.message ||
-        "خطا در ذخیره مرز";
-      toast.error(
-        typeof msg === "string" ? msg : JSON.stringify(msg),
-        "خطا",
-      );
+        err?.response?.data?.detail || err?.message || "خطا در ذخیره مرز";
+      toast.error(typeof msg === "string" ? msg : JSON.stringify(msg), "خطا");
     } finally {
       setVillageEditSaving(false);
     }
@@ -529,14 +607,7 @@ const MapViewPage = () => {
   const isEditMode = isRegionEditMode || isVillageEditMode;
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ تعیین selectedLocation برای پاس دادن به MapComponent
-  //
-  // قاعده:
-  //   - اگر در حالت focusFarm یا ویرایش هستیم → null
-  //   - در غیر این صورت → همان selectedLocation از session
-  //
-  // دلیل: وقتی focusFarm داریم، نباید selectedLocation قدیمی
-  // روی map اثر بگذارد.
+  // تعیین selectedLocation
   // ═══════════════════════════════════════════════════════════
   const effectiveSelectedLocation = useMemo(() => {
     if (focusFarmObject) return null;
@@ -544,23 +615,23 @@ const MapViewPage = () => {
     return selectedLocation;
   }, [focusFarmObject, isEditMode, selectedLocation]);
 
-  // ═══════════════════════════════════════════════════════════
-  // ✅ پاک کردن selectedLocation بعد از اعمال (وقتی تثبیت شد)
-  //
-  // از یک تایمر استفاده می‌کنیم که به map فرصت بدهد setView بزند.
-  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (!effectiveSelectedLocation) return;
 
     const timer = setTimeout(() => {
-      // بعد از ۱.۵ ثانیه (بعد از setView)، selectedLocation را پاک کن
-      // تا در ورود بعدی viewport ذخیره‌شده برنده شود.
       setSelectedLocation(null);
-    }, 1500);
+    }, 5 * 60 * 1000);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveSelectedLocation]);
+
+  // ═══════════════════════════════════════════════════════════
+  // Snap toggle handler
+  // ═══════════════════════════════════════════════════════════
+  const handleToggleSnap = useCallback(() => {
+    setSnapEnabled((prev) => !prev);
+  }, [setSnapEnabled]);
 
   return (
     <MapErrorBoundary>
@@ -568,14 +639,9 @@ const MapViewPage = () => {
         <MapComponent
           selectedLocation={effectiveSelectedLocation}
           onPolygonsUpdate={handlePolygonsUpdate}
-
-          // ── مزارع خودی ──
           savedFarms={ownFarms}
-
-          // ── لایهٔ مرجع ──
           referenceFarms={referenceFarms}
           referenceStyle={referenceStyle}
-
           farmersById={farmersById}
           colorByCrop={colorByCrop}
           onFarmClick={handleFarmClick}
@@ -586,39 +652,28 @@ const MapViewPage = () => {
           onFarmTransfer={handleFarmTransfer}
           selectedFarmId={effectiveSelectedFarmId}
           snapEnabled={snapEnabled}
-          onToggleSnap={() => setSnapEnabled((v) => !v)}
+          onToggleSnap={handleToggleSnap}
           snapToggleHidden={farmsLoading}
-
-          // ── Regions ──
           showRegions={isSuperAdmin && showRegions && !isEditMode}
           selectedRegionId={selectedRegionId}
           onRegionClick={handleRegionClick}
-
-          // ── Villages ──
           showVillages={showVillages && !isEditMode}
           selectedVillageId={selectedVillageId}
           onVillageClick={handleVillageClick}
-
-          // ── Region edit ──
           editRegionId={editRegionId}
           drawnItemsRef={drawnItemsRef}
           onRegionEditLoaded={handleRegionEditLoaded}
           onRegionEditError={handleRegionEditError}
-
-          // ── Village edit ──
           editVillageId={editVillageId}
           onVillageEditLoaded={handleVillageEditLoaded}
           onVillageEditError={handleVillageEditError}
-
-          // ── ✅ Focus Farm (از dashboard) ──
           focusFarm={focusFarmObject}
           focusTrigger={focusTrigger}
-
+          autoOpenPopupFarmId={autoOpenPopupFarmId}   // ✅ جدید
           onDrawnItemsReady={handleDrawnItemsReady}
           onDrawingApiReady={handleDrawingApiReady}
         />
 
-        {/* ─── نوار ویرایش مرز منطقه ─── */}
         {isRegionEditMode && (
           <div
             className="
@@ -700,7 +755,6 @@ const MapViewPage = () => {
           </div>
         )}
 
-        {/* ─── نوار ویرایش مرز روستا ─── */}
         {isVillageEditMode && (
           <div
             className="
@@ -790,7 +844,6 @@ const MapViewPage = () => {
           />
         )}
 
-        {/* ─── Farm History Modal ─── */}
         {historyFarm && (
           <FarmHistoryModal
             farm={historyFarm}

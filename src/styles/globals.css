@@ -158,6 +158,11 @@ body {
   cursor: crosshair !important;
 }
 
+/* ✅ فیکس: اگر edge-snap فعال است، cursor را با data attribute کنترل می‌کنیم */
+.leaflet-container.leaflet-draw-draw-mode[data-base-cursor="grab"] {
+  cursor: grab !important;
+}
+
 /* ============================================ */
 /* Leaflet Controls Position                    */
 /*                                              */
@@ -209,6 +214,52 @@ body {
 
 .leaflet-popup.farm-popup .leaflet-popup-close-button {
   display: none !important;
+}
+
+/* ============================================ */
+/* ✅ فاز ۳: Farm Popup — دکمه‌های داخل پاپ‌آپ  */
+/*                                              */
+/* چرا این بخش مهم است؟                         */
+/* - Leaflet در حالت‌هایی pointer-events را روی */
+/*   popup محدود می‌کند و کلیک روی دکمه‌های گوشه */
+/*   ناپایدار می‌شود. این قواعد مشکل را حل می‌کند */
+/* ============================================ */
+
+/* container پاپ‌آپ Leaflet — همیشه قابل کلیک */
+.leaflet-popup.farm-popup {
+  pointer-events: auto !important;
+}
+
+/* همه فرزندان پاپ‌آپ — pointer-events پیش‌فرض */
+.leaflet-popup.farm-popup * {
+  pointer-events: auto;
+}
+
+/* container داخلی React (createRoot) */
+.farm-popup-container {
+  overflow: visible !important;
+  width: 100%;
+}
+
+/* همه دکمه‌های داخل پاپ‌آپ مزرعه — ناحیه کلیک مطمئن */
+.farm-popup-container button {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* آیکون‌های تزئینی pointer-events نداشته باشند */
+.leaflet-popup.farm-popup [aria-hidden="true"] {
+  pointer-events: none !important;
+}
+
+/* ⚠️ نکته: Leaflet در برخی حالت‌ها (autoPan, dragging)
+   ویژگی pointer-events را روی wrapper بازنویسی می‌کند.
+   این قاعده از آن جلوگیری می‌کند. */
+.leaflet-pane .leaflet-popup.farm-popup {
+  pointer-events: auto !important;
 }
 
 /* ============================================ */
@@ -667,5 +718,63 @@ input[type="number"] {
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .floating-dock-safe {
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* ============================================ */
+/* ✅ Snap Indicator — فاز edge-snap            */
+/*                                              */
+/* دو نوع indicator:                            */
+/*  - vertex: دایره نارنجی                      */
+/*  - edge: ضربدر نارنجی + highlight خط‌دار     */
+/* ============================================ */
+
+.snap-vertex-indicator,
+.snap-edge-indicator {
+  pointer-events: none !important;
+  transform-origin: center center;
+  animation: snap-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes snap-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ✅ highlight خط‌دار روی لبه — روی SVG path */
+.snap-edge-highlight {
+  pointer-events: none !important;
+  animation: snap-glow 1.2s ease-in-out infinite;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  filter: drop-shadow(0 0 4px rgba(255, 107, 53, 0.6));
+}
+
+@keyframes snap-glow {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ✅ احترام به prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .snap-vertex-indicator,
+  .snap-edge-indicator,
+  .snap-edge-highlight {
+    animation: none !important;
   }
 }
