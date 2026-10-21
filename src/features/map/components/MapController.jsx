@@ -60,6 +60,7 @@ const MapController = ({
     handleDeleted,
     handleEdited,
     clearPolygons,
+    updatePolygons,
     loadGeometriesForEdit,
     getDrawnGeojson,
     getToleranceMeters,
@@ -245,6 +246,9 @@ const MapController = ({
 
   // ═══════════════════════════════════════════════════════════
   // پاس دادن API به بیرون
+  //
+  // ✅ removeLastPolygon: حذف آخرین polygon و به‌روزرسانی state
+  //    (استفاده در MapViewPage.handlePolygonsUpdate هنگام لغو رسم جدید)
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (typeof onDrawnItemsReady === "function") {
@@ -255,10 +259,31 @@ const MapController = ({
         getDrawnGeojson,
         clearPolygons,
         loadGeometriesForEdit,
+        updatePolygons,
         getPolygonCount: () =>
           drawnItems.current
             .getLayers()
             .filter((l) => l instanceof L.Polygon).length,
+        removeLastPolygon: () => {
+          try {
+            const layers = drawnItems.current.getLayers();
+            const polygonLayers = layers.filter(
+              (l) => l instanceof L.Polygon,
+            );
+            const lastPoly = polygonLayers[polygonLayers.length - 1];
+            if (!lastPoly) return false;
+
+            if (lastPoly.getTooltip && lastPoly.getTooltip()) {
+              lastPoly.unbindTooltip();
+            }
+            drawnItems.current.removeLayer(lastPoly);
+            updatePolygons();
+            return true;
+          } catch (err) {
+            console.warn("removeLastPolygon failed:", err);
+            return false;
+          }
+        },
       });
     }
   }, [
@@ -268,6 +293,7 @@ const MapController = ({
     getDrawnGeojson,
     clearPolygons,
     loadGeometriesForEdit,
+    updatePolygons,
   ]);
 
   // Clear trigger

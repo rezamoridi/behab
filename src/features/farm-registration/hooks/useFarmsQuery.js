@@ -17,6 +17,27 @@ import {
 export { farmKeys, farmerKeys } from './farmQueryKeys';
 
 // ═══════════════════════════════════════════════════════════
+// retry helper — skip 4xx, retry 5xx/network
+//
+// چرا؟
+//   React Query پیش‌فرض ۳ بار retry می‌کند. اما:
+//   - خطاهای 4xx (401, 403, 404, 422) → تلاش مجدد بی‌فایده است
+//   - خطاهای 5xx و network error → ممکن است گذرا باشند، retry منطقی است
+//
+// استفاده در هوک‌ها:
+//   useFarmQuery(id)                  → default skipClientErrors
+//   useFarmQuery(id, { retry: false }) → override
+//   useFarmQuery(id, { retry: 3 })     → override با عدد
+// ═══════════════════════════════════════════════════════════
+const skipClientErrors = (failureCount, error) => {
+  const status = error?.response?.status ?? error?.status;
+  if (status !== undefined && status >= 400 && status < 500) {
+    return false;
+  }
+  return failureCount < 2;
+};
+
+// ═══════════════════════════════════════════════════════════
 // Farms — list (paginated)
 // ═══════════════════════════════════════════════════════════
 export const useFarmsQuery = ({
@@ -62,14 +83,23 @@ export const useAllFarmsQuery = ({ enabled = true } = {}) => {
 
 // ═══════════════════════════════════════════════════════════
 // Farm — detail
+//
+// ✅ retry پیش‌فرض = skipClientErrors
+//   - 4xx → هیچ retry (403 دسترسی محدود دهیار فوری fail می‌شود)
+//   - 5xx / network → حداکثر ۲ بار retry
+//   - caller می‌تواند override کند
 // ═══════════════════════════════════════════════════════════
-export const useFarmQuery = (farmId, { enabled = true } = {}) => {
+export const useFarmQuery = (
+  farmId,
+  { enabled = true, retry = skipClientErrors } = {},
+) => {
   return useQuery({
     queryKey: farmKeys.detail(farmId),
     queryFn: () => fetchFarmById(farmId),
     enabled: enabled && !!farmId,
     staleTime: QUERY_STALE_TIME.detail,
     gcTime: QUERY_GC_TIME.default,
+    retry,
   });
 };
 
@@ -132,10 +162,15 @@ export const useAllFarmersQuery = ({ enabled = true } = {}) => {
 
 // ═══════════════════════════════════════════════════════════
 // Farmer — detail
+//
+// ✅ retry پیش‌فرض = skipClientErrors
+//   - 403 (دهیار بدون دسترسی) → فوری fail، بدون retry
+//   - 5xx / network → حداکثر ۲ بار retry
+//   - caller می‌تواند override کند
 // ═══════════════════════════════════════════════════════════
 export const useFarmerQuery = (
   farmerId,
-  { enabled = true } = {},
+  { enabled = true, retry = skipClientErrors } = {},
 ) => {
   return useQuery({
     queryKey: farmerKeys.detail(farmerId),
@@ -143,6 +178,7 @@ export const useFarmerQuery = (
     enabled: enabled && !!farmerId,
     staleTime: QUERY_STALE_TIME.detail,
     gcTime: QUERY_GC_TIME.default,
+    retry,
   });
 };
 

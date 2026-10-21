@@ -1,11 +1,19 @@
 // src/features/farm-registration/panel/FarmRegistrationPanel.jsx
 import { memo, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, MapPinned, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MapPinned,
+  X,
+  Pencil,
+  Sprout,
+} from "lucide-react";
 import { useFarmPanel } from "./FarmPanelContext";
 import FarmPanelContent from "./FarmPanelContent";
 
 const FarmRegistrationPanel = () => {
-  const { isOpen, togglePanel, closePanel } = useFarmPanel();
+  // ✅ دریافت editingFarmId برای تغییر تایتل و رنگ هدر
+  const { isOpen, togglePanel, closePanel, editingFarmId } = useFarmPanel();
 
   const [visible, setVisible] = useState(isOpen);
   const [animating, setAnimating] = useState(false);
@@ -40,26 +48,35 @@ const FarmRegistrationPanel = () => {
     return clearAll;
   }, [isOpen]);
 
+  const isEditMode = !!editingFarmId;
+
   if (!visible) {
     return (
       <button
         type="button"
         onClick={togglePanel}
-        className="
+        className={`
           hidden md:flex
           fixed top-1/2 -translate-y-1/2 right-0 z-[1050]
           items-center gap-2
           py-3 px-2.5 rounded-l-2xl
-          bg-white/40 backdrop-blur-xl
-          border border-r-0 border-white/60
-          text-slate-700 text-xs font-semibold font-vazir
+          backdrop-blur-xl
+          border border-r-0
+          text-xs font-semibold font-vazir
+          transition-colors cursor-pointer
+          ${
+            isEditMode
+              ? "bg-orange-50/80 border-orange-200 text-orange-800 hover:bg-orange-100/80"
+              : "bg-emerald-50/80 border-emerald-200 text-emerald-800 hover:bg-emerald-100/80"
+          }
           shadow-[-4px_0_20px_rgba(31,38,135,0.12)]
-          hover:bg-white/60 transition-colors cursor-pointer
-        "
-        title="باز کردن فرم ثبت زمین"
+        `}
+        title={isEditMode ? "باز کردن ویرایش زمین" : "باز کردن ثبت زمین"}
       >
         <ChevronLeft size={14} strokeWidth={2.4} className="rotate-180" />
-        <span className="[writing-mode:vertical-rl]">ثبت زمین</span>
+        <span className="[writing-mode:vertical-rl]">
+          {isEditMode ? "ویرایش زمین" : "ثبت زمین"}
+        </span>
         <MapPinned size={14} strokeWidth={2.4} />
       </button>
     );
@@ -73,7 +90,6 @@ const FarmRegistrationPanel = () => {
         aria-hidden="true"
       />
 
-      {/* ✅ مینیمال: یک لایه شفاف، بدون gradient گوشه، بدون خطوط نور */}
       <aside
         className={`
           farm-panel-aside
@@ -87,7 +103,6 @@ const FarmRegistrationPanel = () => {
           pointerEvents: animating ? "auto" : "none",
           backdropFilter: "blur(10px) saturate(150%)",
           WebkitBackdropFilter: "blur(10px) saturate(150%)",
-          // ✅ از 0.28 به 0.45 — پنل مات‌تر
           backgroundColor: "rgba(255, 255, 255, 0.45)",
           borderLeft: "1px solid rgba(255, 255, 255, 0.55)",
           boxShadow: "-8px 0 32px rgba(31, 38, 135, 0.15)",
@@ -96,17 +111,32 @@ const FarmRegistrationPanel = () => {
         aria-hidden={!isOpen}
       >
         <div className="relative z-10 h-full flex flex-col">
-          {/* Header مینیمال — فقط عنوان + دکمه بستن */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* ✅ هدر داینامیک: سبز برای ثبت، نارنجی برای ویرایش  */}
+          {/* ═══════════════════════════════════════════════════ */}
           <div
-            className="
-              flex-shrink-0
-              flex items-center justify-between
-              px-5 py-4
-              border-b border-white/30
-            "
+            className={`
+              farm-panel-header
+              flex-shrink-0 flex items-center justify-between px-5 py-4
+              ${
+                isEditMode
+                  ? "farm-panel-header--edit farm-panel-header--edit-animate"
+                  : "farm-panel-header--new"
+              }
+            `}
           >
-            <h3 className="text-slate-900 text-base font-bold drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)]">
-              {isOpen ? "ثبت / ویرایش زمین" : "ثبت زمین"}
+            <h3 className="text-slate-900 text-base font-bold flex items-center gap-2 farm-panel-title drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)]">
+              {isEditMode ? (
+                <>
+                  <Pencil size={18} className="farm-panel-icon" />
+                  ویرایش زمین
+                </>
+              ) : (
+                <>
+                  <Sprout size={18} className="farm-panel-icon" />
+                  ثبت زمین جدید
+                </>
+              )}
             </h3>
 
             <button

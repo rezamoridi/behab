@@ -33,13 +33,22 @@ import {
 import useSessionState from "../shared/hooks/useSessionState";
 import useLocalStorageState from "../shared/hooks/useLocalStorageState";
 import { useToast } from "../shared/components/Toast/ToastProvider";
+import { useConfirm } from "../shared/components/ConfirmDialog/ConfirmDialogProvider";
 
 const MapViewPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
 
-  const { openPanel, closePanel, isOpen: isPanelOpen } = useFarmPanel();
+  // ✅ دریافت editingFarmId و openPanelForEdit از Context
+  const {
+    openPanel,
+    openPanelForEdit,
+    editingFarmId,
+    isOpen: isPanelOpen,
+  } = useFarmPanel();
+
   const { isSuperAdmin } = usePermissions();
 
   // ── نمایش لایه‌ها از localStorage ──
@@ -80,8 +89,15 @@ const MapViewPage = () => {
   const [focusFarmObject, setFocusFarmObject] = useState(null);
   const [focusTrigger, setFocusTrigger] = useState(0);
 
-  // ✅ جدید: باز کردن خودکار پاپ‌آپ مزرعه
+  // ✅ باز کردن خودکار پاپ‌آپ مزرعه
   const [autoOpenPopupFarmId, setAutoOpenPopupFarmId] = useState(null);
+
+  // ═══════════════════════════════════════════════════════════
+  // ✅ Farm geometry edit state (متصل به MapController)
+  // ═══════════════════════════════════════════════════════════
+  const [geometriesToEdit, setGeometriesToEdit] = useState(null);
+  const [editGeometryTrigger, setEditGeometryTrigger] = useState(0);
+  const [editGeometryOptions, setEditGeometryOptions] = useState(null);
 
   const drawnItemsRef = useRef(null);
   const drawingApiRef = useRef(null);
@@ -175,12 +191,12 @@ const MapViewPage = () => {
 
   // ── Navigation state ──
   const navFocusFarmId = location.state?.focusFarmId || null;
-  const navEditFarmId = location.state?.editFarmId || null;
+  const navEditGeometryFarmId = location.state?.editGeometryFarmId || null;
   const navEditRegionId = location.state?.editRegionId || null;
   const navEditVillageId = location.state?.editVillageId || null;
 
   const effectiveSelectedFarmId =
-    navFocusFarmId || navEditFarmId || selectedFarmIdPersisted;
+    navFocusFarmId || editingFarmId || selectedFarmIdPersisted;
 
   // ═══════════════════════════════════════════════════════════
   // گوش دادن به رویداد همپوشانی
@@ -202,11 +218,13 @@ const MapViewPage = () => {
   }, [toast]);
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ فاز ۱: ریست نقشه بعد از ثبت/ویرایش موفق
+  // ✅ ریست نقشه بعد از ثبت/ویرایش موفق یا لغو
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    const handleReset = () => {
-      // ─── ۱. پاک‌سازی قطعی لایه‌ها ───
+    const handleReset = (e) => {
+      const reason = e?.detail?.reason || "submit";
+
+      // ─── ۱. پاک‌سازی قطعی لایه‌ها (همیشه) ───
       try {
         const api = drawingApiRef.current;
         if (api?.clearPolygons) {
@@ -239,20 +257,21 @@ const MapViewPage = () => {
         console.warn("direct featureGroup cleanup failed:", err);
       }
 
-      // ─── ۲. ریست state محلی (sync — این‌ها داخلی هستند) ───
+      // ─── ۲. ریست state محلی (sync) ───
       setPolygonsData({ totalArea: 0, geojsons: [], count: 0 });
 
-      // ─── ۳. بستن پنل + ریست stateهای سراسری ───
-      // ✅ فیکس: همه در setTimeout تا در حین render نباشند
+      // ─── ۳. ریست stateهای سراسری (بدون بستن پنل) ───
       setTimeout(() => {
         try {
           setPendingGeojson(null);
           setPendingArea(0);
-          closePanel();
           setSelectedFarmId(null);
           setFocusFarmObject(null);
-          setAutoOpenPopupFarmId(null);   // ✅ جدید
-          refetchFarms?.();
+          setAutoOpenPopupFarmId(null);
+
+          if (reason === "register" || reason === "update") {
+            refetchFarms?.();
+          }
         } catch (err) {
           console.warn("reset deferred failed:", err);
         }
@@ -261,33 +280,17 @@ const MapViewPage = () => {
 
     window.addEventListener("farm:geometry-reset", handleReset);
     return () => window.removeEventListener("farm:geometry-reset", handleReset);
-  }, [
-    closePanel,
-    setPendingGeojson,
-    setPendingArea,
-    setSelectedFarmId,
-    refetchFarms,
-  ]);
+  }, [setPendingGeojson, setPendingArea, setSelectedFarmId, refetchFarms]);
 
   // ═══════════════════════════════════════════════════════════
-  // Sync navigation state
+  // Sync navigation state — فقط برای region/village
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!navEditFarmId && !navEditRegionId && !navEditVillageId) {
+    if (!navEditRegionId && !navEditVillageId) {
       return;
     }
 
     const syncState = () => {
-      if (navEditFarmId) {
-        setSelectedFarmId(navEditFarmId);
-        setTimeout(() => {
-          try {
-            openPanel();
-          } catch (err) {
-            console.warn("openPanel failed:", err);
-          }
-        }, 0);
-      }
       if (navEditRegionId) {
         setEditRegionId(navEditRegionId);
         setRegionEditLoading(true);
@@ -302,7 +305,58 @@ const MapViewPage = () => {
     const timerId = setTimeout(syncState, 0);
     return () => clearTimeout(timerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navEditFarmId, navEditRegionId, navEditVillageId]);
+  }, [navEditRegionId, navEditVillageId]);
+
+  // ═══════════════════════════════════════════════════════════
+  // ✅ خواندن editGeometryFarmId از state (از /lands)
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!navEditGeometryFarmId) return;
+    if (!ownFarms || ownFarms.length === 0) return;
+
+    const found = ownFarms.find(
+      (f) => String(f.farm_id) === String(navEditGeometryFarmId),
+    );
+
+    if (!found) {
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    const features = (() => {
+      const gj = found.geojson;
+      if (!gj) return [];
+      if (Array.isArray(gj)) {
+        return gj.map((item) =>
+          item?.type === "Feature"
+            ? item
+            : { type: "Feature", properties: {}, geometry: item },
+        );
+      }
+      if (gj.type === "FeatureCollection") {
+        return Array.isArray(gj.features) ? gj.features : [];
+      }
+      if (gj.type === "Feature") return [gj];
+      return [{ type: "Feature", properties: {}, geometry: gj }];
+    })();
+
+    if (features.length === 0) {
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    setSelectedFarmId(navEditGeometryFarmId);
+    setGeometriesToEdit(features);
+    setEditGeometryOptions({
+      color: "#FF9800",
+      weight: 3,
+      fillOpacity: 0.3,
+    });
+    setEditGeometryTrigger((t) => t + 1);
+
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navEditGeometryFarmId, ownFarms]);
 
   // ═══════════════════════════════════════════════════════════
   // Focus Farm
@@ -325,7 +379,7 @@ const MapViewPage = () => {
     setFocusTrigger((t) => t + 1);
     setSelectedFarmId(pendingFocusFarmId);
 
-    // ✅ جدید: باز کردن خودکار پاپ‌آپ مزرعه
+    // ✅ باز کردن خودکار پاپ‌آپ مزرعه
     setAutoOpenPopupFarmId(pendingFocusFarmId);
 
     setPendingFocusFarmId(null);
@@ -334,7 +388,7 @@ const MapViewPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFocusFarmId, ownFarms]);
 
-  // ✅ جدید: پاک کردن auto-open وقتی مزرعه‌ای انتخاب نشده
+  // ✅ پاک کردن auto-open وقتی مزرعه‌ای انتخاب نشده
   useEffect(() => {
     if (!effectiveSelectedFarmId) {
       setFocusFarmObject(null);
@@ -378,25 +432,54 @@ const MapViewPage = () => {
     [setSelectedFarmId],
   );
 
+  // ═══════════════════════════════════════════════════════════
+  // ✅ handleFarmEdit — با استفاده از Context
+  // ═══════════════════════════════════════════════════════════
   const handleFarmEdit = useCallback(
     (farm) => {
       if (!farm?.farm_id) return;
       setSelectedFarmId(farm.farm_id);
-      setTimeout(() => {
-        try {
-          openPanel();
-        } catch (err) {
-          console.warn("openPanel failed:", err);
-        }
-      }, 0);
+      // ✅ باز کردن پنل در حالت ویرایش
+      openPanelForEdit(farm.farm_id);
     },
-    [setSelectedFarmId, openPanel],
+    [setSelectedFarmId, openPanelForEdit],
   );
 
+  // ═══════════════════════════════════════════════════════════
+  // ✅ handleFarmEditGeometry — از پاپ‌آپ نقشه
+  // ═══════════════════════════════════════════════════════════
   const handleFarmEditGeometry = useCallback(
     (farm) => {
       if (!farm?.geojson) return;
+
       setSelectedFarmId(farm.farm_id);
+
+      const features = (() => {
+        const gj = farm.geojson;
+        if (!gj) return [];
+        if (Array.isArray(gj)) {
+          return gj.map((item) =>
+            item?.type === "Feature"
+              ? item
+              : { type: "Feature", properties: {}, geometry: item },
+          );
+        }
+        if (gj.type === "FeatureCollection") {
+          return Array.isArray(gj.features) ? gj.features : [];
+        }
+        if (gj.type === "Feature") return [gj];
+        return [{ type: "Feature", properties: {}, geometry: gj }];
+      })();
+
+      if (features.length === 0) return;
+
+      setGeometriesToEdit(features);
+      setEditGeometryOptions({
+        color: "#FF9800",
+        weight: 3,
+        fillOpacity: 0.3,
+      });
+      setEditGeometryTrigger((t) => t + 1);
     },
     [setSelectedFarmId],
   );
@@ -430,35 +513,85 @@ const MapViewPage = () => {
   );
 
   // ═══════════════════════════════════════════════════════════
-  // handlePolygonsUpdate — با defer برای stateهای سراسری
+  // handlePolygonsUpdate — با تشخیص تداخل ویرایش/رسم جدید
   // ═══════════════════════════════════════════════════════════
   const handlePolygonsUpdate = useCallback(
     (data) => {
       const next = data || { totalArea: 0, geojsons: [], count: 0 };
       const prevCount = polygonsData.count || 0;
 
-      // ✅ state داخلی MapViewPage — بلافاصله
+      // ✅ تشخیص تداخل با editingFarmId
+      const isEditingAnotherFarm = !!editingFarmId;
+      const isNewDrawing = next.count > 0 && next.count > prevCount;
+
+      if (isEditingAnotherFarm && isNewDrawing) {
+        setTimeout(async () => {
+          try {
+            const ok = await confirm({
+              title: "ویرایش در جریان است",
+              message:
+                "در حال ویرایش مزرعه‌ای هستید. با رسم polygon جدید، " +
+                "ویرایش قبلی لغو می‌شود و یک زمین جدید ثبت خواهد شد. " +
+                "ادامه می‌دهید؟",
+              confirmText: "بله، زمین جدید ثبت کن",
+              cancelText: "لغو رسم",
+              variant: "danger",
+            });
+
+            if (!ok) {
+              // ─── کاربر لغو کرد: polygon جدید را حذف کن ───
+              try {
+                const api = drawingApiRef.current;
+                if (api?.removeLastPolygon) {
+                  api.removeLastPolygon();
+                }
+              } catch (err) {
+                console.warn("removeLastPolygon failed:", err);
+              }
+
+              setPolygonsData({ totalArea: 0, geojsons: [], count: 0 });
+              return;
+            }
+
+            // ─── کاربر تأیید کرد: ویرایش A را لغو کن ───
+            try {
+              window.dispatchEvent(
+                new CustomEvent("farm:edit-cancel", {
+                  detail: { reason: "new-drawing-confirmed" },
+                }),
+              );
+            } catch (err) {
+              console.warn("edit-cancel dispatch failed:", err);
+            }
+
+            // polygon جدید به‌عنوان ثبت جدید
+            setPolygonsData(next);
+            setPendingGeojson(next.geojsons || null);
+            setPendingArea(next.totalArea || 0);
+
+            if (!isPanelOpen) {
+              openPanel();
+            }
+          } catch (err) {
+            console.warn("handlePolygonsUpdate conflict handler failed:", err);
+          }
+        }, 0);
+
+        return;
+      }
+
+      // ─── حالت عادی (بدون تداخل) ───
       setPolygonsData(next);
 
-      // ✅ stateهای مربوط به region/village edit — بلافاصله (داخلی)
-      if (editRegionId) {
-        setRegionEditPolygonCount(next.count || 0);
-      }
-      if (editVillageId) {
-        setVillageEditPolygonCount(next.count || 0);
-      }
+      if (editRegionId) setRegionEditPolygonCount(next.count || 0);
+      if (editVillageId) setVillageEditPolygonCount(next.count || 0);
 
-      // ✅ stateهای سراسری (sessionStorage) + openPanel — بعد از commit
       setTimeout(() => {
-        try {
-          setPendingGeojson(next.geojsons || null);
-          setPendingArea(next.totalArea || 0);
+        setPendingGeojson(next.geojsons || null);
+        setPendingArea(next.totalArea || 0);
 
-          if (next.count > prevCount && !isPanelOpen) {
-            openPanel();
-          }
-        } catch (err) {
-          console.warn("handlePolygonsUpdate deferred failed:", err);
+        if (next.count > prevCount && !isPanelOpen) {
+          openPanel();
         }
       }, 0);
     },
@@ -470,6 +603,8 @@ const MapViewPage = () => {
       polygonsData.count,
       editRegionId,
       editVillageId,
+      editingFarmId,
+      confirm,
     ],
   );
 
@@ -618,9 +753,12 @@ const MapViewPage = () => {
   useEffect(() => {
     if (!effectiveSelectedLocation) return;
 
-    const timer = setTimeout(() => {
-      setSelectedLocation(null);
-    }, 5 * 60 * 1000);
+    const timer = setTimeout(
+      () => {
+        setSelectedLocation(null);
+      },
+      5 * 60 * 1000,
+    );
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -651,6 +789,10 @@ const MapViewPage = () => {
           onFarmHistory={handleFarmHistory}
           onFarmTransfer={handleFarmTransfer}
           selectedFarmId={effectiveSelectedFarmId}
+          // ✅ ویرایش هندسه مزرعه
+          geometriesToEdit={geometriesToEdit}
+          editGeometryTrigger={editGeometryTrigger}
+          editGeometryOptions={editGeometryOptions}
           snapEnabled={snapEnabled}
           onToggleSnap={handleToggleSnap}
           snapToggleHidden={farmsLoading}
@@ -669,7 +811,7 @@ const MapViewPage = () => {
           onVillageEditError={handleVillageEditError}
           focusFarm={focusFarmObject}
           focusTrigger={focusTrigger}
-          autoOpenPopupFarmId={autoOpenPopupFarmId}   // ✅ جدید
+          autoOpenPopupFarmId={autoOpenPopupFarmId}
           onDrawnItemsReady={handleDrawnItemsReady}
           onDrawingApiReady={handleDrawingApiReady}
         />
