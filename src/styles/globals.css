@@ -69,7 +69,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-secondary);
   color: var(--text-primary);
-  overflow: hidden;
+  overflow: hidden; /* پیش‌فرض برای اپلیکیشن */
+}
+
+/* ✅ راه‌حل اسکرول در صفحه لندینگ */
+body:has(.landing-page) {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+}
+body:has(.landing-page) #root {
+  height: auto;
+  min-height: 100%;
 }
 
 /* ============================================ */
@@ -165,8 +176,6 @@ body {
 
 /* ============================================ */
 /* Leaflet Controls Position                    */
-/*                                              */
-/* برای جلوگیری از تداخل با TopBar شناور        */
 /* ============================================ */
 .leaflet-top {
   top: 80px !important;
@@ -218,30 +227,20 @@ body {
 
 /* ============================================ */
 /* ✅ فاز ۳: Farm Popup — دکمه‌های داخل پاپ‌آپ  */
-/*                                              */
-/* چرا این بخش مهم است؟                         */
-/* - Leaflet در حالت‌هایی pointer-events را روی */
-/*   popup محدود می‌کند و کلیک روی دکمه‌های گوشه */
-/*   ناپایدار می‌شود. این قواعد مشکل را حل می‌کند */
 /* ============================================ */
-
-/* container پاپ‌آپ Leaflet — همیشه قابل کلیک */
 .leaflet-popup.farm-popup {
   pointer-events: auto !important;
 }
 
-/* همه فرزندان پاپ‌آپ — pointer-events پیش‌فرض */
 .leaflet-popup.farm-popup * {
   pointer-events: auto;
 }
 
-/* container داخلی React (createRoot) */
 .farm-popup-container {
   overflow: visible !important;
   width: 100%;
 }
 
-/* همه دکمه‌های داخل پاپ‌آپ مزرعه — ناحیه کلیک مطمئن */
 .farm-popup-container button {
   touch-action: manipulation !important;
   -webkit-tap-highlight-color: transparent;
@@ -250,14 +249,10 @@ body {
   user-select: none;
 }
 
-/* آیکون‌های تزئینی pointer-events نداشته باشند */
 .leaflet-popup.farm-popup [aria-hidden="true"] {
   pointer-events: none !important;
 }
 
-/* ⚠️ نکته: Leaflet در برخی حالت‌ها (autoPan, dragging)
-   ویژگی pointer-events را روی wrapper بازنویسی می‌کند.
-   این قاعده از آن جلوگیری می‌کند. */
 .leaflet-pane .leaflet-popup.farm-popup {
   pointer-events: auto !important;
 }
@@ -338,14 +333,8 @@ body {
 /* ============================================ */
 
 @keyframes tooltip-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-tooltip-in {
@@ -353,12 +342,8 @@ body {
 }
 
 @keyframes panel-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-panel-fade-in {
@@ -366,14 +351,8 @@ body {
 }
 
 @keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .animate-scaleIn {
@@ -381,12 +360,8 @@ body {
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .animate-slideUp {
@@ -394,14 +369,8 @@ body {
 }
 
 @keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-slideDown {
@@ -409,12 +378,8 @@ body {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-fadeIn {
@@ -424,19 +389,10 @@ body {
 /* ============================================ */
 /* ✅ جدید: No Access Page Animation             */
 /* ============================================ */
-
 @keyframes shake-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.92) translateY(6px);
-  }
-  50% {
-    transform: scale(1.02) translateY(-2px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  0% { opacity: 0; transform: scale(0.92) translateY(6px); }
+  50% { transform: scale(1.02) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .animate-shake-in {
@@ -446,17 +402,9 @@ body {
 /* ============================================ */
 /* ✅ جدید: Attention pulse (badge ها)          */
 /* ============================================ */
-
 @keyframes attention-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 0.75;
-  }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.75; }
 }
 
 .animate-attention-pulse {
@@ -466,7 +414,6 @@ body {
 /* ============================================ */
 /* Performance Optimizations                    */
 /* ============================================ */
-
 .farm-panel-aside {
   will-change: transform;
   backface-visibility: hidden;
@@ -476,7 +423,6 @@ body {
   will-change: auto;
 }
 
-/* حذف tap highlight در موبایل */
 * {
   -webkit-tap-highlight-color: transparent;
 }
@@ -484,125 +430,66 @@ body {
 /* ============================================ */
 /* Responsive                                   */
 /* ============================================ */
-
 @media (min-width: 1920px) {
-  .app-main {
-    padding-bottom: 104px;
-  }
+  .app-main { padding-bottom: 104px; }
 }
 
 @media (max-width: 1366px) {
-  .app-main {
-    padding-bottom: 88px;
-  }
+  .app-main { padding-bottom: 88px; }
 }
 
 @media (max-width: 1024px) {
-  .app-main {
-    padding-bottom: 84px;
-  }
+  .app-main { padding-bottom: 84px; }
 }
 
 @media (max-width: 768px) {
-  .app-main {
-    padding-bottom: 80px;
-  }
+  .app-main { padding-bottom: 80px; }
 }
 
 /* ============================================ */
 /* Utility Classes                              */
 /* ============================================ */
-.text-center {
-  text-align: center;
-}
-.text-left {
-  text-align: left;
-}
-.text-right {
-  text-align: right;
-}
-.flex {
-  display: flex;
-}
-.flex-col {
-  flex-direction: column;
-}
-.items-center {
-  align-items: center;
-}
-.justify-center {
-  justify-content: center;
-}
-.justify-between {
-  justify-content: space-between;
-}
-.w-full {
-  width: 100%;
-}
-.h-full {
-  height: 100%;
-}
-.relative {
-  position: relative;
-}
-.absolute {
-  position: absolute;
-}
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.relative { position: relative; }
+.absolute { position: absolute; }
 
 /* ============================================ */
 /* Dashboard Entry Animations                   */
 /* ============================================ */
-
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fadeInUp {
   animation: fadeInUp 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
-/* با تأخیرهای متفاوت برای stagger */
-.animate-delay-1 {
-  animation-delay: 0.05s;
-}
-.animate-delay-2 {
-  animation-delay: 0.1s;
-}
-.animate-delay-3 {
-  animation-delay: 0.15s;
-}
-.animate-delay-4 {
-  animation-delay: 0.2s;
-}
-.animate-delay-5 {
-  animation-delay: 0.25s;
-}
-.animate-delay-6 {
-  animation-delay: 0.3s;
-}
-.animate-delay-7 {
-  animation-delay: 0.35s;
-}
+.animate-delay-1 { animation-delay: 0.05s; }
+.animate-delay-2 { animation-delay: 0.1s; }
+.animate-delay-3 { animation-delay: 0.15s; }
+.animate-delay-4 { animation-delay: 0.2s; }
+.animate-delay-5 { animation-delay: 0.25s; }
+.animate-delay-6 { animation-delay: 0.3s; }
+.animate-delay-7 { animation-delay: 0.35s; }
 
-/* Card hover lift */
 .card-hover-lift {
-  transition:
-    transform 0.2s ease-out,
-    box-shadow 0.2s ease-out;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
 }
 
 .card-hover-lift:hover {
   transform: translateY(-3px);
 }
 
-/* حالت احترام به prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-fadeInUp,
   .animate-tooltip-in,
@@ -633,10 +520,8 @@ body {
   transform: scale(1.15);
 }
 
-/* پنل تنظیمات نقشه — فضای کافی در موبایل */
 @media (max-width: 640px) {
   .leaflet-control {
-    /* جلوگیری از خروج پنل از viewport */
     max-width: calc(100vw - 20px);
   }
 }
@@ -644,12 +529,10 @@ body {
 /* ============================================ */
 /* Foreign Farm Outline (دهیار)                 */
 /* ============================================ */
-
 .foreign-farm-outline {
   pointer-events: none !important;
 }
 
-/* اگر Leaflet SVG را نمی‌گیرد، از CSS مستقیم */
 path.foreign-farm-outline {
   pointer-events: none !important;
   cursor: default !important;
@@ -658,7 +541,6 @@ path.foreign-farm-outline {
 /* ============================================ */
 /* ✅ جدید: Form Focus Improvements             */
 /* ============================================ */
-
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -669,7 +551,6 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* بهبود scroll در modal body */
 .modal-body-scroll {
   scrollbar-gutter: stable;
 }
@@ -677,7 +558,6 @@ input[type="number"] {
 /* ============================================ */
 /* ✅ جدید: Table Utilities                     */
 /* ============================================ */
-
 .table-sticky-header thead {
   position: sticky;
   top: 0;
@@ -688,26 +568,15 @@ input[type="number"] {
 /* ============================================ */
 /* ✅ جدید: Print Styles                        */
 /* ============================================ */
-
 @media print {
-  .print\:hidden {
-    display: none !important;
-  }
-
-  body {
-    background: white !important;
-    overflow: visible !important;
-  }
-
-  .app-main {
-    padding: 0 !important;
-  }
+  .print\:hidden { display: none !important; }
+  body { background: white !important; overflow: visible !important; }
+  .app-main { padding: 0 !important; }
 }
 
 /* ============================================ */
 /* ✅ جدید: Smooth Scroll برای صفحات بلند      */
 /* ============================================ */
-
 .smooth-scroll {
   scroll-behavior: smooth;
 }
@@ -715,7 +584,6 @@ input[type="number"] {
 /* ============================================ */
 /* ✅ جدید: Safe Area برای iOS (Bottom Dock)   */
 /* ============================================ */
-
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .floating-dock-safe {
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -724,12 +592,7 @@ input[type="number"] {
 
 /* ============================================ */
 /* ✅ Snap Indicator — فاز edge-snap            */
-/*                                              */
-/* دو نوع indicator:                            */
-/*  - vertex: دایره نارنجی                      */
-/*  - edge: ضربدر نارنجی + highlight خط‌دار     */
 /* ============================================ */
-
 .snap-vertex-indicator,
 .snap-edge-indicator {
   pointer-events: none !important;
@@ -738,21 +601,11 @@ input[type="number"] {
 }
 
 @keyframes snap-pop {
-  0% {
-    transform: scale(0.4);
-    opacity: 0;
-  }
-  70% {
-    transform: scale(1.15);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
-/* ✅ highlight خط‌دار روی لبه — روی SVG path */
 .snap-edge-highlight {
   pointer-events: none !important;
   animation: snap-glow 1.2s ease-in-out infinite;
@@ -762,16 +615,10 @@ input[type="number"] {
 }
 
 @keyframes snap-glow {
-  0%,
-  100% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 
-/* ✅ احترام به prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .snap-vertex-indicator,
   .snap-edge-indicator,
@@ -782,24 +629,13 @@ input[type="number"] {
 
 /* ============================================ */
 /* ✅ Farm Panel Header (Edit/New Modes)        */
-/*                                              */
-/* ثبت جدید: هدر سبز (تم اصلی)                  */
-/* ویرایش: هدر نارنجی                           */
 /* ============================================ */
-
 .farm-panel-header {
-  transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* ✅ حالت ثبت جدید — سبز */
 .farm-panel-header--new {
-  background: linear-gradient(
-    135deg,
-    rgba(46, 125, 50, 0.15) 0%,
-    rgba(76, 175, 80, 0.08) 100%
-  );
+  background: linear-gradient(135deg, rgba(46, 125, 50, 0.15) 0%, rgba(76, 175, 80, 0.08) 100%);
   border-bottom: 1px solid rgba(46, 125, 50, 0.25);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.5);
 }
@@ -813,13 +649,8 @@ input[type="number"] {
   filter: drop-shadow(0 1px 2px rgba(46, 125, 50, 0.25));
 }
 
-/* ✅ حالت ویرایش — نارنجی */
 .farm-panel-header--edit {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 152, 0, 0.15) 0%,
-    rgba(245, 124, 0, 0.08) 100%
-  );
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.15) 0%, rgba(245, 124, 0, 0.08) 100%);
   border-bottom: 1px solid rgba(245, 124, 0, 0.25);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.5);
 }
@@ -833,19 +664,186 @@ input[type="number"] {
   filter: drop-shadow(0 1px 2px rgba(230, 81, 0, 0.25));
 }
 
-/* انیمیشن ورود حالت ویرایش */
 @keyframes edit-mode-pulse {
-  0% {
-    background-color: rgba(255, 152, 0, 0);
-  }
-  50% {
-    background-color: rgba(255, 152, 0, 0.1);
-  }
-  100% {
-    background-color: rgba(255, 152, 0, 0);
-  }
+  0% { background-color: rgba(255, 152, 0, 0); }
+  50% { background-color: rgba(255, 152, 0, 0.1); }
+  100% { background-color: rgba(255, 152, 0, 0); }
 }
 
 .farm-panel-header--edit-animate {
   animation: edit-mode-pulse 1s ease-out;
+}
+
+/* ============================================ */
+/* ✅ Slider Fade Edges (محو شدگی دو طرف)       */
+/* ============================================ */
+.embla-fade-edges {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+/* ============================================ */
+/* ✅ Dashboard Preview Animations              */
+/* ============================================ */
+
+/* ورود از پایین با محو — نرم و آهسته */
+@keyframes dp-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dp-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.9s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.9s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: opacity, transform;
+}
+
+.dp-reveal.dp-reveal-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* تأخیرهای پلکانی */
+.dp-delay-1 { transition-delay: 0.08s; }
+.dp-delay-2 { transition-delay: 0.16s; }
+.dp-delay-3 { transition-delay: 0.24s; }
+.dp-delay-4 { transition-delay: 0.32s; }
+.dp-delay-5 { transition-delay: 0.4s; }
+.dp-delay-6 { transition-delay: 0.48s; }
+.dp-delay-7 { transition-delay: 0.56s; }
+.dp-delay-8 { transition-delay: 0.64s; }
+
+/* کارت شیشه‌ای — hover */
+.dp-glass-hover {
+  transition:
+    transform 0.35s ease-out,
+    box-shadow 0.35s ease-out,
+    background-color 0.35s ease-out;
+}
+
+.dp-glass-hover:hover {
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 8px 32px rgba(31, 38, 135, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* خط نمودار روند — رسم تدریجی (کند) */
+@keyframes dp-draw-line {
+  from { stroke-dashoffset: 1500; }
+  to { stroke-dashoffset: 0; }
+}
+
+.dp-trend-line {
+  stroke-dasharray: 1500;
+  stroke-dashoffset: 1500;
+}
+
+.dp-trend-line.dp-reveal-active {
+  animation: dp-draw-line 2.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
+}
+
+/* ناحیه زیر خط — محو تدریجی */
+@keyframes dp-fade-in-area {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dp-trend-area {
+  opacity: 0;
+}
+
+.dp-trend-area.dp-reveal-active {
+  animation: dp-fade-in-area 1.8s ease-out 1.5s forwards;
+}
+
+/* نقاط روی نمودار — پاپ‌آپ */
+@keyframes dp-pop-dot {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.dp-trend-dot {
+  transform-origin: center;
+  transform-box: fill-box;
+  opacity: 0;
+}
+
+.dp-trend-dot.dp-reveal-active {
+  animation: dp-pop-dot 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* میله افقی — رشد از صفر */
+@keyframes dp-grow-bar {
+  from { width: 0; }
+}
+
+.dp-bar-grow {
+  width: 0;
+  transition: width 1.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dp-bar-grow.dp-reveal-active {
+  width: var(--bar-width);
+}
+
+/* دونات — ظاهر شدن با چرخش و مقیاس */
+@keyframes dp-donut-in {
+  from { transform: rotate(-90deg) scale(0.85); opacity: 0; }
+  to { transform: rotate(0) scale(1); opacity: 1; }
+}
+
+.dp-donut-wrap {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.85);
+}
+
+.dp-donut-wrap.dp-reveal-active {
+  animation: dp-donut-in 1.8s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+
+/* دکمه — افکت فشردن */
+.dp-btn-press {
+  transition: transform 0.15s ease-out, background-color 0.2s ease-out;
+}
+
+.dp-btn-press:active {
+  transform: scale(0.95);
+}
+
+/* داک پایین — ورود از پایین */
+@keyframes dp-dock-in {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.dp-dock-reveal {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.dp-dock-reveal.dp-reveal-active {
+  animation: dp-dock-in 1s cubic-bezier(0.34, 1.4, 0.64, 1) 0.2s forwards;
+}
+
+/* احترام به prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .dp-reveal,
+  .dp-trend-line,
+  .dp-trend-area,
+  .dp-trend-dot,
+  .dp-bar-grow,
+  .dp-donut-wrap,
+  .dp-dock-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+    transition: none !important;
+  }
 }

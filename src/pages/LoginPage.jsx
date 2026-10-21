@@ -1,6 +1,7 @@
 // src/pages/LoginPage.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react'; // ✅ اضافه شد
 import {
   loginWithCredentials,
   verifyOtp,
@@ -402,20 +403,36 @@ const LoginPage = () => {
               {isLoading ? 'در حال ورود...' : 'ورود به سیستم'}
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setStep('forgot');
-                setError('');
-                setSuccessMsg('');
-              }}
-              className="
-                text-xs text-slate-400 hover:text-primary-400
-                transition-colors font-vazir
-              "
-            >
-              رمز عبور خود را فراموش کرده‌اید؟
-            </button>
+            <div className="flex flex-col gap-3 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('forgot');
+                  setError('');
+                  setSuccessMsg('');
+                }}
+                className="
+                  text-xs text-slate-400 hover:text-primary-400
+                  transition-colors font-vazir text-center
+                "
+              >
+                رمز عبور خود را فراموش کرده‌اید؟
+              </button>
+
+              {/* ✅ دکمه بازگشت به صفحه معرفی (Landing) */}
+              <button
+                type="button"
+                onClick={() => navigate('/home')}
+                className="
+                  flex items-center justify-center gap-1.5
+                  text-xs text-slate-500 hover:text-slate-300
+                  transition-colors font-vazir
+                "
+              >
+                <ArrowRight size={14} />
+                بازگشت به صفحه معرفی
+              </button>
+            </div>
           </form>
         )}
 

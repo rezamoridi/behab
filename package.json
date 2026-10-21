@@ -26,6 +26,8 @@
     "@turf/intersect": "^7.4.0",
     "@turf/point-to-polygon-distance": "^7.4.0",
     "axios": "^1.7.0",
+    "embla-carousel-auto-scroll": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
     "lucide-react": "^0.400.0",

@@ -12,7 +12,8 @@ const ProtectedLayout = () => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // ✅ هدایت به صفحه لندینگ (معرفی) به جای صفحه ورود
+    return <Navigate to="/home" replace />;
   }
 
   return (
