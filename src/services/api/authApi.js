@@ -12,8 +12,17 @@ export const getAuthToken = () => {
   return localStorage.getItem('access_token');
 };
 
+export const setRefreshToken = (token) => {
+  localStorage.setItem('refresh_token', token);
+};
+
+export const getRefreshToken = () => {
+  return localStorage.getItem('refresh_token');
+};
+
 export const removeAuthToken = () => {
   localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
   localStorage.removeItem('user_data');
 };
 
@@ -110,6 +119,9 @@ export const loginWithCredentials = async (username, password) => {
     // ── Direct login (OTP disabled) ──
     if (data.access_token) {
       setAuthToken(data.access_token);
+      if (data.refresh_token) {
+        setRefreshToken(data.refresh_token);
+      }
     }
 
     const userData = data.user || (await getCurrentUser());
@@ -140,6 +152,9 @@ export const verifyOtp = async (tempToken, code) => {
 
     if (data.access_token) {
       setAuthToken(data.access_token);
+      if (data.refresh_token) {
+        setRefreshToken(data.refresh_token);
+      }
     }
 
     const userData = data.user || (await getCurrentUser());
@@ -213,6 +228,40 @@ export const confirmPasswordReset = async (resetToken, newPassword) => {
     return response.data;
   } catch (error) {
     console.error('خطا در confirmPasswordReset:', error);
+    throw error;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// Refresh Token
+// ═══════════════════════════════════════════════════════════
+export const refreshToken = async () => {
+  try {
+    const refresh = getRefreshToken();
+    if (!refresh) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await apiClient.post('/login/refresh', {
+      refresh_token: refresh,
+    });
+
+    const data = response.data;
+
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+    }
+    if (data.refresh_token) {
+      setRefreshToken(data.refresh_token);
+    }
+
+    return {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    };
+  } catch (error) {
+    console.error('خطا در refreshToken:', error);
+    removeAuthToken();
     throw error;
   }
 };

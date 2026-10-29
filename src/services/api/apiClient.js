@@ -41,49 +41,131 @@ apiClient.interceptors.request.use(
 );
 
 // ═══════════════════════════════════════════════════════════
+// وضعیت refresh — جلوگیری از چند refresh همزمان
+// ═══════════════════════════════════════════════════════════
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((pending) => {
+    if (error) {
+      pending.reject(error);
+    } else {
+      pending.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+const clearSession = () => {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user_data');
+};
+
+const redirectToLogin = () => {
+  if (
+    typeof window !== 'undefined' &&
+    !window.location.pathname.includes('/login')
+  ) {
+    window.location.href = '/login';
+  }
+};
+
+// تابع refresh داخلی — از axios خالص استفاده می‌کند تا از import دایره‌ای
+// با authApi و همچنین از interceptor خود apiClient در امان باشد.
+const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const response = await axios.post(
+    `${API_BASE_URL}/login/refresh`,
+    { refresh_token: refreshToken },
+    {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000,
+    }
+  );
+
+  const data = response.data;
+  if (data.access_token) {
+    localStorage.setItem('access_token', data.access_token);
+  }
+  if (data.refresh_token) {
+    localStorage.setItem('refresh_token', data.refresh_token);
+  }
+
+  return data.access_token;
+};
+
+// ═══════════════════════════════════════════════════════════
 // Response interceptor — مدیریت خطاها
 //
-// ✅ تفکیک دقیق:
-//   - 401 Unauthorized → توکن باطل یا منقضی → logout
-//   - 403 Forbidden → کاربر توکن معتبر دارد ولی دسترسی ندارد
-//                     → فقط error، بدون logout
+//   - 401 → تلاش برای refresh، سپس تکرار request اصلی
+//   - 403 → فقط error (توکن معتبر است، دسترسی نیست)
 // ═══════════════════════════════════════════════════════════
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error.response?.status;
-    const url = error.config?.url || '';
+    const originalRequest = error.config;
+    const url = originalRequest?.url || '';
 
-    // لاگ خطا در development
     if (import.meta.env.DEV && error.response) {
       console.error(`❌ API Error: ${status} on ${url}`, {
         data: error.response.data,
-        fullURL: `${error.config?.baseURL}${url}`,
+        fullURL: `${originalRequest?.baseURL}${url}`,
       });
     }
 
+    // endpointهای احراز هویت نباید refresh را دوباره صدا بزنند
     const isAuthEndpoint =
-      url.includes('/auth/') ||
       url.includes('/login') ||
       url.includes('/logout') ||
-      url.includes('/me');
+      url.includes('/refresh') ||
+      url.includes('/password-reset');
 
-    // ✅ فقط 401 → logout
-    //    (403 = دسترسی نداری ولی توکن معتبر است → بدون logout)
-    if (status === 401 && !isAuthEndpoint) {
-      console.warn(`🔒 Unauthorized on ${url} — logging out`);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user_data');
-
-      if (
-        typeof window !== 'undefined' &&
-        !window.location.pathname.includes('/login')
-      ) {
-        window.location.href = '/login';
-      }
+    if (status !== 401 || isAuthEndpoint || !originalRequest) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    if (!localStorage.getItem('refresh_token') || originalRequest._retry) {
+      clearSession();
+      redirectToLogin();
+      return Promise.reject(error);
+    }
+
+    // اگر refresh در جریان است، این درخواست را در صف نگه دار
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return apiClient(originalRequest);
+        })
+        .catch((queueError) => Promise.reject(queueError));
+    }
+
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      const newAccessToken = await refreshAccessToken();
+      processQueue(null, newAccessToken);
+
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      return apiClient(originalRequest);
+    } catch (refreshError) {
+      processQueue(refreshError, null);
+      clearSession();
+      redirectToLogin();
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
   }
 );
 
