@@ -35,6 +35,11 @@ import useLocalStorageState from "../shared/hooks/useLocalStorageState";
 import { useToast } from "../shared/components/Toast/ToastProvider";
 import { useConfirm } from "../shared/components/ConfirmDialog/ConfirmDialogProvider";
 
+// ═══════════════════════════════════════════════════════════
+// Sentinel-2 defaults
+// ═══════════════════════════════════════════════════════════
+const SENTINEL_DEFAULT_OPACITY = 0.7;
+
 const MapViewPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -58,6 +63,34 @@ const MapViewPage = () => {
   const [snapEnabled, setSnapEnabled] = useLocalStorageState(
     "map_snap_enabled",
     true,
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // Sentinel state — asset-based
+  //
+  // assetId + bounds از صفحه /sentinel انتخاب می‌شوند و از طریق
+  // navigation state به این صفحه می‌آیند. analysis هم برای نمایش
+  // در تب Sentinel و legend آینده نگه داشته می‌شود.
+  // ═══════════════════════════════════════════════════════════
+  const [sentinelVisible, setSentinelVisible] = useLocalStorageState(
+    "map_sentinel_visible_v1",
+    false,
+  );
+  const [sentinelOpacity, setSentinelOpacity] = useLocalStorageState(
+    "map_sentinel_opacity_v1",
+    SENTINEL_DEFAULT_OPACITY,
+  );
+  const [sentinelAssetId, setSentinelAssetId] = useLocalStorageState(
+    "map_sentinel_asset_id_v1",
+    null,
+  );
+  const [sentinelBounds, setSentinelBounds] = useLocalStorageState(
+    "map_sentinel_bounds_v1",
+    null,
+  );
+  const [sentinelAnalysis, setSentinelAnalysis] = useLocalStorageState(
+    "map_sentinel_analysis_v1",
+    null,
   );
 
   // ═══════════════════════════════════════════════════════════
@@ -197,6 +230,59 @@ const MapViewPage = () => {
 
   const effectiveSelectedFarmId =
     navFocusFarmId || editingFarmId || selectedFarmIdPersisted;
+
+  // ═══════════════════════════════════════════════════════════
+  // Sentinel: پاک‌سازی کلیدهای deprecated — یک‌بار در mount
+  //
+  // کلیدهای map_sentinel_date_v1 و map_sentinel_index_v1 در نسخه
+  // قدیمی (WMS-based) استفاده می‌شدند. بعد از مهاجرت به asset-based
+  // دیگر معنایی ندارند. این effect یک‌بار اجرا می‌شود و آن‌ها را پاک
+  // می‌کند. بعد از یک هفته (وقتی کاربران همه یک‌بار سایت را باز
+  // کرده‌اند) می‌توان این effect را حذف کرد.
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    try {
+      localStorage.removeItem("map_sentinel_date_v1");
+      localStorage.removeItem("map_sentinel_index_v1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════
+  // Sentinel: خواندن از navigation state (الگوی focusFarmId)
+  //
+  // وقتی کاربر از /sentinel یک asset انتخاب می‌کند و navigate می‌کند،
+  // این effect آن را به state منتقل می‌کند و navigation state را پاک
+  // می‌کند تا refresh دوباره اجرا نشود.
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    const st = location.state;
+    if (!st?.sentinelAssetId) return;
+
+    setSentinelAssetId(st.sentinelAssetId);
+    setSentinelBounds(st.sentinelBounds || null);
+    setSentinelAnalysis(st.sentinelAnalysis || null);
+    setSentinelVisible(true);
+
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state?.sentinelAssetId]);
+
+  // ═══════════════════════════════════════════════════════════
+  // Sentinel: پاک کردن انتخاب (از دکمه «حذف» در تب Sentinel)
+  // ═══════════════════════════════════════════════════════════
+  const handleSentinelClear = useCallback(() => {
+    setSentinelAssetId(null);
+    setSentinelBounds(null);
+    setSentinelAnalysis(null);
+    setSentinelVisible(false);
+  }, [
+    setSentinelAssetId,
+    setSentinelBounds,
+    setSentinelAnalysis,
+    setSentinelVisible,
+  ]);
 
   // ═══════════════════════════════════════════════════════════
   // گوش دادن به رویداد همپوشانی
@@ -814,6 +900,15 @@ const MapViewPage = () => {
           autoOpenPopupFarmId={autoOpenPopupFarmId}
           onDrawnItemsReady={handleDrawnItemsReady}
           onDrawingApiReady={handleDrawingApiReady}
+          // ✅ Sentinel (asset-based)
+          sentinelVisible={sentinelVisible}
+          sentinelAssetId={sentinelAssetId}
+          sentinelBounds={sentinelBounds}
+          sentinelAnalysis={sentinelAnalysis}
+          sentinelOpacity={sentinelOpacity}
+          onSentinelVisibleChange={setSentinelVisible}
+          onSentinelOpacityChange={setSentinelOpacity}
+          onSentinelClear={handleSentinelClear}
         />
 
         {isRegionEditMode && (
