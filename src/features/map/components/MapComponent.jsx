@@ -1,22 +1,24 @@
 // src/features/map/components/MapComponent.jsx
-import React, { useMemo, useCallback, useEffect } from 'react';
-import { MapContainer, ScaleControl, useMap } from 'react-leaflet';
-import SearchLocationController from './SearchLocationController';
-import MapController from './MapController';
-import SavedFarmsLayer from './SavedFarmsLayer';
-import RegionsLayer from './RegionsLayer';
-import VillagesLayer from './VillagesLayer';
-import RegionEditController from './RegionEditController';
-import VillageEditController from './VillageEditController';
-import FocusFarmController from './FocusFarmController';
-import MapSettingsControl from './MapSettingsControl';
-import SnapToggleControl from './SnapToggleControl';
-import useLocalStorageState from '../../../shared/hooks/useLocalStorageState';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet-draw/dist/leaflet.draw.css';
-import 'leaflet-draw';
+import React, { useMemo, useCallback, useEffect } from "react";
+import { MapContainer, ScaleControl, useMap } from "react-leaflet";
+import SearchLocationController from "./SearchLocationController";
+import MapController from "./MapController";
+import SavedFarmsLayer from "./SavedFarmsLayer";
+import RegionsLayer from "./RegionsLayer";
+import VillagesLayer from "./VillagesLayer";
+import RegionEditController from "./RegionEditController";
+import VillageEditController from "./VillageEditController";
+import FocusFarmController from "./FocusFarmController";
+import MapSettingsControl from "./MapSettingsControl";
+import SnapToggleControl from "./SnapToggleControl";
+import SentinelLayer from "../../sentinel/components/SentinelLayer";
+import SentinelPaneInit from "../../sentinel/components/SentinelPaneInit";
+import useLocalStorageState from "../../../shared/hooks/useLocalStorageState";
+import "leaflet/dist/leaflet.css";
+import "leaflet-draw/dist/leaflet.draw.css";
+import "leaflet-draw";
 
-const VIEWPORT_STORAGE_KEY = 'map_viewport_v1';
+const VIEWPORT_STORAGE_KEY = "map_viewport_v1";
 const DEFAULT_CENTER = [35.6892, 51.389];
 const DEFAULT_ZOOM = 13;
 
@@ -45,10 +47,7 @@ const normalizeLocation = (loc) => {
 // ═══════════════════════════════════════════════════════════
 const ViewportSaver = ({ disabled = false }) => {
   const map = useMap();
-  const [, setSavedViewport] = useLocalStorageState(
-    VIEWPORT_STORAGE_KEY,
-    null,
-  );
+  const [, setSavedViewport] = useLocalStorageState(VIEWPORT_STORAGE_KEY, null);
 
   useEffect(() => {
     if (disabled) return;
@@ -71,9 +70,9 @@ const ViewportSaver = ({ disabled = false }) => {
       }, 400);
     };
 
-    map.on('moveend', handleMoveEnd);
+    map.on("moveend", handleMoveEnd);
     return () => {
-      map.off('moveend', handleMoveEnd);
+      map.off("moveend", handleMoveEnd);
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [map, setSavedViewport, disabled]);
@@ -180,22 +179,24 @@ const MapComponent = ({
   // ─── Focus on farm ───
   focusFarm = null,
   focusTrigger = 0,
-
-  // ✅ جدید: باز کردن خودکار پاپ‌آپ مزرعه
   autoOpenPopupFarmId = null,
+
+  // ─── Sentinel (asset-based) ───
+  sentinelVisible = false,
+  sentinelAssetId = null,
+  sentinelBounds = null,
+  sentinelOpacity = 0.7,
+  sentinelFitBounds = false, 
+  onSentinelVisibleChange,
+  onSentinelOpacityChange,
+  onSentinelClear,
 
   // ─── API بیرونی ───
   onDrawnItemsReady,
   onDrawingApiReady,
 }) => {
-  const [savedViewport] = useLocalStorageState(
-    VIEWPORT_STORAGE_KEY,
-    null,
-  );
+  const [savedViewport] = useLocalStorageState(VIEWPORT_STORAGE_KEY, null);
 
-  // ═══════════════════════════════════════════════════════════
-  // تعیین مرکز و zoom اولیه
-  // ═══════════════════════════════════════════════════════════
   const initialView = useMemo(() => {
     if (focusFarm) {
       const geojson = focusFarm.geojson;
@@ -206,9 +207,7 @@ const MapComponent = ({
         }
       }
       const lat = Number(focusFarm.lat ?? focusFarm.latitude);
-      const lng = Number(
-        focusFarm.lng ?? focusFarm.lon ?? focusFarm.longitude,
-      );
+      const lng = Number(focusFarm.lng ?? focusFarm.lon ?? focusFarm.longitude);
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         return { center: [lat, lng], zoom: 15 };
       }
@@ -226,10 +225,9 @@ const MapComponent = ({
     ) {
       return {
         center: [savedViewport.lat, savedViewport.lng],
-        zoom:
-          Number.isFinite(savedViewport.zoom)
-            ? savedViewport.zoom
-            : DEFAULT_ZOOM,
+        zoom: Number.isFinite(savedViewport.zoom)
+          ? savedViewport.zoom
+          : DEFAULT_ZOOM,
       };
     }
 
@@ -237,10 +235,7 @@ const MapComponent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const mapStyle = useMemo(
-    () => ({ height: '100%', width: '100%' }),
-    [],
-  );
+  const mapStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
 
   const handlePolygonsUpdate = useCallback(
     (data) => {
@@ -260,20 +255,23 @@ const MapComponent = ({
       attributionControl={true}
       className="leaflet-container"
     >
-      <ScaleControl
-        position="bottomleft"
-        imperial={false}
-        metric={true}
-      />
+      <ScaleControl position="bottomleft" imperial={false} metric={true} />
 
-      <FocusFarmController
-        focusFarm={focusFarm}
-        focusTrigger={focusTrigger}
-      />
+      <FocusFarmController focusFarm={focusFarm} focusTrigger={focusTrigger} />
 
       <SearchLocationController selectedLocation={selectedLocation} />
 
       <ViewportSaver disabled={shouldDisableViewportSaver} />
+
+      {/* ─── Sentinel: pane + overlay (باید قبل از لایه‌های برداری باشد) ─── */}
+      <SentinelPaneInit />
+      <SentinelLayer
+        visible={sentinelVisible}
+        assetId={sentinelAssetId}
+        bounds={sentinelBounds}
+        opacity={sentinelOpacity}
+        fitBounds={sentinelFitBounds}
+      />
 
       <VillagesLayer
         visible={showVillages}
@@ -308,7 +306,17 @@ const MapComponent = ({
         hidden={snapToggleHidden}
       />
 
-      <MapSettingsControl hidden={snapToggleHidden} />
+      {/* ─── پنل تنظیمات نقشه (شامل تب Sentinel) ─── */}
+      <MapSettingsControl
+        hidden={snapToggleHidden}
+        sentinelVisible={sentinelVisible}
+        sentinelAssetId={sentinelAssetId}
+        sentinelBounds={sentinelBounds}
+        sentinelOpacity={sentinelOpacity}
+        onSentinelVisibleChange={onSentinelVisibleChange}
+        onSentinelOpacityChange={onSentinelOpacityChange}
+        onSentinelClear={onSentinelClear}
+      />
 
       <MapController
         onPolygonsUpdate={handlePolygonsUpdate}
@@ -322,7 +330,6 @@ const MapComponent = ({
         onDrawingApiReady={onDrawingApiReady}
       />
 
-      {/* ─── مزارع ذخیره‌شده ─── */}
       <SavedFarmsLayer
         farms={savedFarms}
         referenceFarms={referenceFarms}
@@ -336,7 +343,7 @@ const MapComponent = ({
         onFarmHistory={onFarmHistory}
         onFarmTransfer={onFarmTransfer}
         selectedFarmId={selectedFarmId}
-        autoOpenPopupFarmId={autoOpenPopupFarmId}   // ✅ جدید
+        autoOpenPopupFarmId={autoOpenPopupFarmId}
       />
     </MapContainer>
   );

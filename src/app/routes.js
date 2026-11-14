@@ -5,37 +5,47 @@ import { lazy } from "react";
 // Route paths
 // ═══════════════════════════════════════════════════════════
 export const ROUTES = {
-  LOGIN: "/login",
-  LANDING: "/home", // ✅ صفحه معرفی (عمومی)
-  HOME: "/", // ✅ داشبورد (نیازمند لاگین)
-  MAP: "/map",
-  LANDS: "/lands",
-  FARMERS: "/farmers",
-  AGRI: "/agri",
-  CONVERSATIONS: "/conversations",
-  SETTINGS: "/settings",
-  NO_ACCESS: "/no-access",
+  LOGIN: '/login',
+  LANDING: "/home",
+  HOME: '/',
+  MAP: '/map',
+  SENTINEL: "/sentinel",
+  SENTINEL_FILES: "/sentinel/files",
+  LANDS: '/lands',              // ✅ جدید
+  FARMERS: '/farmers',
+  AGRI: '/agri',
+  CONVERSATIONS: '/conversations',
+  SETTINGS: '/settings',
+  NO_ACCESS: '/no-access',
 };
 
 // ═══════════════════════════════════════════════════════════
 // Lazy components
 // ═══════════════════════════════════════════════════════════
-const LoginPage = lazy(() => import("../pages/LoginPage"));
-const LandingPage = lazy(() => import("../pages/HomePage")); // ✅ لندینگ
-const DashboardPage = lazy(() => import("../pages/DashboardPage"));
-const MapViewPage = lazy(() => import("../pages/MapViewPage"));
-const LandsPage = lazy(() => import("../pages/LandsPage"));
-const FarmersPage = lazy(() => import("../pages/FarmersPage"));
-const AgriPage = lazy(() => import("../pages/AgriPage"));
-const ConversationsPage = lazy(() => import("../pages/ConversationsPage"));
-const SettingsPage = lazy(() => import("../pages/SettingsPage"));
-const NoAccessPage = lazy(() => import("../pages/NoAccessPage"));
+const LoginPage = lazy(() => import('../pages/LoginPage'));
+const LandingPage = lazy(() => import("../pages/HomePage")); 
+const DashboardPage = lazy(() => import('../pages/DashboardPage'));
+const MapViewPage = lazy(() => import('../pages/MapViewPage'));
+const SentinelPage = lazy(() => import("../pages/SentinelPage"));
+const SentinelFilesPage = lazy(
+  () => import("../features/sentinel/pages/SentinelFilesPage"),
+);
+const LandsPage = lazy(() => import('../pages/LandsPage'));       // ✅ جدید
+const FarmersPage = lazy(() => import('../pages/FarmersPage'));
+const AgriPage = lazy(() => import('../pages/AgriPage'));
+const ConversationsPage = lazy(
+  () => import('../pages/ConversationsPage'),
+);
+const SettingsPage = lazy(() => import('../pages/SettingsPage'));
+const NoAccessPage = lazy(() => import('../pages/NoAccessPage'));
 
 export const ROUTE_COMPONENTS = {
   [ROUTES.LOGIN]: LoginPage,
   [ROUTES.LANDING]: LandingPage, // ✅
   [ROUTES.HOME]: DashboardPage,
   [ROUTES.MAP]: MapViewPage,
+  [ROUTES.SENTINEL]: SentinelPage,
+  [ROUTES.SENTINEL_FILES]: SentinelFilesPage,
   [ROUTES.LANDS]: LandsPage,
   [ROUTES.FARMERS]: FarmersPage,
   [ROUTES.AGRI]: AgriPage,
@@ -45,7 +55,7 @@ export const ROUTE_COMPONENTS = {
 };
 
 // ═══════════════════════════════════════════════════════════
-// Route definitions
+// Route definitions — با permission داینامیک
 // ═══════════════════════════════════════════════════════════
 export const ROUTE_DEFINITIONS = [
   // ─── عمومی (بدون احراز هویت) ───
@@ -86,6 +96,24 @@ export const ROUTE_DEFINITIONS = [
     permission: ["map", "view"],
     isPublic: false,
     redirectTo: null,
+  },
+
+  // ─── ماهواره: جستجو ───
+  {
+    path: ROUTES.SENTINEL,
+    Component: ROUTE_COMPONENTS[ROUTES.SENTINEL],
+    permission: ["sentinel", "view"],
+    isPublic: false,
+    redirectTo: ROUTES.NO_ACCESS,
+  },
+
+  // ─── ماهواره: مدیریت فایل‌ها ───
+  {
+    path: ROUTES.SENTINEL_FILES,
+    Component: ROUTE_COMPONENTS[ROUTES.SENTINEL_FILES],
+    permission: ["sentinel", "view"],
+    isPublic: false,
+    redirectTo: ROUTES.NO_ACCESS,
   },
 
   // ─── مدیریت زمین‌ها ───

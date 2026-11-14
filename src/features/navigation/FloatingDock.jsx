@@ -10,6 +10,7 @@ import { usePermissions } from "../auth/hooks/usePermissions";
 const SHORTCUTS = {
   dashboard: 'D',
   map: 'M',
+  sentinel: 'S', 
   lands: 'L',           // ✅ جدید
   agri: 'A',
   'farm-panel': 'F',
