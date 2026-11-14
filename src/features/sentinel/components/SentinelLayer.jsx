@@ -1,10 +1,4 @@
 // src/features/sentinel/components/SentinelLayer.jsx
-//
-// Renders a locally-cached Sentinel preview as an L.imageOverlay in a
-// dedicated pane. Browser never receives CDSE tokens or instance_id.
-//
-// ⚠️ Deprecated WMS props (date, indexId) are accepted but ignored for
-// backwards compatibility — will be removed in a follow-up PR.
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -15,9 +9,7 @@ const SentinelLayer = ({
   assetId = null,
   bounds = null,
   opacity = 0.7,
-  // Deprecated — ignored
-  date: _legacyDate,
-  indexId: _legacyIndex,
+  fitBounds = false,
 }) => {
   const map = useMap();
   const layerRef = useRef(null);
@@ -26,7 +18,6 @@ const SentinelLayer = ({
     visible ? assetId : null,
   );
 
-  // Mount / unmount overlay
   useEffect(() => {
     if (!visible || !url || !bounds) {
       if (layerRef.current) {
@@ -40,13 +31,14 @@ const SentinelLayer = ({
       return;
     }
 
-    // Leaflet wants [[south, west], [north, east]]
+    // bounds از بک‌اند به صورت [West, South, East, North] می‌آید
     const [w, s, e, n] = bounds;
     const leafletBounds = [
-      [s, w],
-      [n, e],
+      [s, w], // SouthWest
+      [n, e], // NorthEast
     ];
 
+    // حذف لایه قبلی
     if (layerRef.current) {
       try {
         map.removeLayer(layerRef.current);
@@ -56,13 +48,20 @@ const SentinelLayer = ({
       layerRef.current = null;
     }
 
+    // ایجاد لایه تصویر با تنظیمات دقیق
     const overlay = L.imageOverlay(url, leafletBounds, {
       opacity,
       interactive: false,
-      pane: 'sentinelPane',
+      pane: 'sentinelPane', // باید در MapComponent تعریف شده باشد
     });
+    
     overlay.addTo(map);
     layerRef.current = overlay;
+
+    // اگر نیاز به زوم روی تصویر است
+    if (fitBounds) {
+      map.fitBounds(leafletBounds, { padding: [20, 20], maxZoom: 18 });
+    }
 
     return () => {
       if (layerRef.current) {
@@ -74,11 +73,9 @@ const SentinelLayer = ({
         layerRef.current = null;
       }
     };
-    // opacity intentionally excluded — handled below without reload
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, visible, url, bounds]);
+  }, [map, visible, url, bounds, fitBounds]);
 
-  // Opacity without reload
+  // تغییر شفافیت بدون بارگذاری مجدد
   useEffect(() => {
     if (layerRef.current) {
       try {
@@ -88,15 +85,6 @@ const SentinelLayer = ({
       }
     }
   }, [opacity]);
-
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('[SentinelLayer] preview fetch failed:', error);
-  }
-  if (loading) {
-    // eslint-disable-next-line no-console
-    console.debug('[SentinelLayer] loading preview...', assetId);
-  }
 
   return null;
 };

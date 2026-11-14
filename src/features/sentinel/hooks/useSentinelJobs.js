@@ -10,10 +10,12 @@ export const useSentinelJob = (jobId) => {
     queryFn: () => getJobStatus(jobId),
     enabled: !!jobId,
     refetchInterval: (query) => {
-      const status = query?.state?.data?.status;
-      if (!status || TERMINAL.has(status)) return false;
-      return 2000;
+      const data = query?.state?.data;
+      if (!data) return 2000;
+      if (TERMINAL.has(data.status)) return false;
+      return 3000;
     },
-    staleTime: 1000,
+    staleTime: 0,
+    cacheTime: 0,
   });
 };

@@ -1,104 +1,106 @@
 // src/features/sentinel/components/SentinelLibrary.jsx
-//
-// کتابخانه محلی تصاویر آماده. فقط نمایش است، بدون ایجاد job.
-// برای انتخاب asset به parent از طریق onSelectScene خبر می‌دهد.
+import { useState } from 'react';
+import { Download, Eye, Loader2, HardDrive, FolderOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSentinelAreas, useSentinelScenes } from '../hooks/useSentinelLibrary';
 import { useSentinelPreview } from '../hooks/useSentinelPreview';
-import { getAnalysisMeta } from '../constants';
+import { downloadGeotiffAsFile } from '../services/sentinelApi';
+
+const formatBytes = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 const PreviewThumb = ({ assetId }) => {
   const { url, loading } = useSentinelPreview(assetId);
-
-  if (loading) {
+  if (loading || !url) {
     return (
-      <div className="w-16 h-16 bg-gray-100 rounded animate-pulse shrink-0" />
+      <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+        <Loader2 size={14} className="animate-spin text-slate-400" />
+      </div>
     );
   }
-  if (!url) {
-    return <div className="w-16 h-16 bg-gray-100 rounded shrink-0" />;
-  }
+  return <img src={url} alt="preview" className="w-12 h-12 rounded-lg object-cover shrink-0 border border-slate-200" />;
+};
+
+const SceneRow = ({ scene, geotiffAsset, onSelectScene }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleShow = () => onSelectScene?.({ assetId: scene.id, bounds: scene.bounds, analysis: scene.analysis });
+
+  const handleDownload = async () => {
+    if (!geotiffAsset || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      await downloadGeotiffAsFile(geotiffAsset.id, `sentinel_${geotiffAsset.analysis}_${geotiffAsset.id}.tif`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
-    <img
-      src={url}
-      alt="preview"
-      className="w-16 h-16 rounded object-cover shrink-0"
-    />
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-white border border-slate-100 hover:border-primary-200 transition-colors">
+      <PreviewThumb assetId={scene.id} />
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-bold text-slate-800 truncate">{scene.analysis || '—'}</div>
+        <div className="text-[10px] text-slate-500" dir="ltr">{scene.acquisition_at?.slice(0, 10) || '—'}</div>
+        {geotiffAsset && (
+          <div className="flex items-center gap-1 mt-0.5 text-[9px] text-slate-500">
+            <HardDrive size={10} /> <span>{formatBytes(geotiffAsset.size_bytes)}</span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button onClick={handleShow} className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg" title="نمایش">
+          <Eye size={14} strokeWidth={2.2} />
+        </button>
+        {geotiffAsset && (
+          <button onClick={handleDownload} disabled={isDownloading} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50" title="دانلود">
+            {isDownloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} strokeWidth={2.2} />}
+          </button>
+        )}
+      </div>
+    </div>
   );
 };
 
 const AreaBlock = ({ area, onSelectScene }) => {
-  const { data: scenes = [], isLoading } = useSentinelScenes(area.id);
-  const previewScenes = scenes.filter((s) => s.kind === 'preview_png');
+  const [expanded, setExpanded] = useState(false);
+  const { data: scenes = [] } = useSentinelScenes(expanded ? area.id : null);
 
-  const handleClick = (scene) => {
-    // ⚠️ بدون bounds، overlay روی نقشه نمایش داده نمی‌شود
-    if (!Array.isArray(scene.bounds) || scene.bounds.length !== 4) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[SentinelLibrary] scene has no valid bounds:',
-        scene.id,
-      );
-      return;
-    }
-    if (!onSelectScene) return;
-
-    onSelectScene({
-      assetId: scene.id,
-      bounds: scene.bounds,
-      analysis: scene.analysis,
-    });
-  };
+  const previews = scenes.filter((s) => s.kind === 'preview_png');
+  const geotiffs = scenes.filter((s) => s.kind === 'geotiff');
+  const geotiffByAnalysis = {};
+  for (const g of geotiffs) if (g.analysis) geotiffByAnalysis[g.analysis] = g;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-3">
-      <div className="text-xs font-bold text-gray-800">
-        محدوده #{area.id}
-        {area.label ? ` — ${area.label}` : ''}
-      </div>
-      <div className="text-[10px] text-gray-500 mt-0.5" dir="ltr">
-        {area.area_km2?.toFixed(2)} km²
-      </div>
-
-      {isLoading ? (
-        <div className="text-[10px] text-gray-400 mt-2">
-          در حال بارگذاری تصاویر...
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <FolderOpen size={16} className="text-primary-600" />
+          <span className="text-sm font-bold text-slate-800">محدوده #{area.id}</span>
         </div>
-      ) : previewScenes.length === 0 ? (
-        <div className="text-[10px] text-gray-400 mt-2">
-          تصویری آماده نیست
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-500" dir="ltr">{area.area_km2?.toFixed(2)} km²</span>
+          {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
         </div>
-      ) : (
-        <div className="mt-2 grid grid-cols-1 gap-1">
-          {previewScenes.map((scene) => {
-            const meta = getAnalysisMeta(scene.analysis);
-            const hasBounds =
-              Array.isArray(scene.bounds) && scene.bounds.length === 4;
-
-            return (
-              <button
-                key={scene.id}
-                type="button"
-                onClick={() => handleClick(scene)}
-                disabled={!hasBounds}
-                title={
-                  hasBounds
-                    ? 'نمایش روی نقشه'
-                    : 'این تصویر bounds معتبر ندارد'
-                }
-                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-emerald-50 text-right disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <PreviewThumb assetId={scene.id} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-bold text-gray-800 truncate">
-                    {meta?.label || scene.analysis}
-                  </div>
-                  <div className="text-[10px] text-gray-500">
-                    {scene.acquisition_at?.slice(0, 10) || '—'}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+      </button>
+      {expanded && (
+        <div className="p-2 space-y-2 border-t border-slate-100">
+          {previews.length === 0 ? (
+            <div className="text-xs text-slate-400 text-center py-4">تصویری آماده نیست.</div>
+          ) : (
+            previews.map((scene) => (
+              <SceneRow key={scene.id} scene={scene} geotiffAsset={geotiffByAnalysis[scene.analysis]} onSelectScene={onSelectScene} />
+            ))
+          )}
         </div>
       )}
     </div>
@@ -108,29 +110,13 @@ const AreaBlock = ({ area, onSelectScene }) => {
 const SentinelLibrary = ({ onSelectScene }) => {
   const { data: areas = [], isLoading } = useSentinelAreas();
 
-  if (isLoading) {
-    return (
-      <div className="text-xs text-gray-500">
-        در حال بارگذاری کتابخانه...
-      </div>
-    );
-  }
-  if (areas.length === 0) {
-    return (
-      <div className="text-xs text-gray-500 bg-white border border-gray-200 rounded-xl p-6 text-center">
-        هنوز تصویری در کتابخانه نیست.
-      </div>
-    );
-  }
+  if (isLoading) return <div className="text-xs text-slate-500 p-4 text-center">در حال بارگذاری...</div>;
+  if (areas.length === 0) return <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center text-xs text-slate-400">هنوز فایلی در کتابخانه نیست.</div>;
 
   return (
     <div className="space-y-2" dir="rtl">
       {areas.map((area) => (
-        <AreaBlock
-          key={area.id}
-          area={area}
-          onSelectScene={onSelectScene}
-        />
+        <AreaBlock key={area.id} area={area} onSelectScene={onSelectScene} />
       ))}
     </div>
   );

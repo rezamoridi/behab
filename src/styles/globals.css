@@ -849,3 +849,10 @@ input[type="number"] {
 .farm-panel-header--edit-animate {
   animation: edit-mode-pulse 1s ease-out;
 }
+
+/* استایل برای تصویر Sentinel */
+.leaflet-image-layer.sentinel-overlay-img {
+  image-rendering: -webkit-optimize-contrast; /* برای کروم و سافاری */
+  image-rendering: crisp-edges; /* فایرفاکس */
+  image-rendering: high-quality; /* استاندارد جدید */
+}

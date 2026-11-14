@@ -1,10 +1,4 @@
 // src/features/sentinel/components/SentinelSettingsTab.jsx
-//
-// نمایش و تنظیمات نمایش asset انتخاب‌شده.
-// انتخاب asset در SentinelPage انجام می‌شود.
-// تاریخ/شاخص آزاد اینجا وجود ندارد — assetId خودش analysis و
-// acquisition را تعیین کرده است.
-import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 
 const SentinelSettingsTab = ({
@@ -18,6 +12,11 @@ const SentinelSettingsTab = ({
   onOpacityChange,
 }) => {
   const isActive = !!visible && !!assetId;
+
+  const goToSentinel = () => {
+    // چون در createRoot جدا هستیم، از window.location استفاده می‌کنیم
+    window.location.href = '/sentinel';
+  };
 
   return (
     <div className="p-3 space-y-3" dir="rtl">
@@ -33,14 +32,7 @@ const SentinelSettingsTab = ({
             }}
             aria-hidden="true"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#059669"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="9" />
               <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
             </svg>
@@ -59,9 +51,7 @@ const SentinelSettingsTab = ({
             : 'cursor-not-allowed bg-gray-100 border-gray-200 opacity-60'
         }`}
       >
-        <span className="text-[12px] font-bold text-gray-800">
-          فعال‌سازی لایه
-        </span>
+        <span className="text-[12px] font-bold text-gray-800">فعال‌سازی لایه</span>
         <input
           type="checkbox"
           checked={!!visible}
@@ -82,33 +72,26 @@ const SentinelSettingsTab = ({
               #{assetId}
             </span>
           </div>
-
           {analysis && (
             <div className="text-[10px] text-gray-700">
-              شاخص:{' '}
-              <span className="font-bold" dir="ltr">
-                {analysis}
-              </span>
+              شاخص: <span className="font-bold" dir="ltr">{analysis}</span>
             </div>
           )}
-
           {Array.isArray(bounds) && bounds.length === 4 && (
-            <div
-              className="text-[9px] text-gray-500 font-mono leading-relaxed"
-              dir="ltr"
-            >
+            <div className="text-[9px] text-gray-500 font-mono leading-relaxed" dir="ltr">
               [{bounds.map((b) => Number(b).toFixed(4)).join(', ')}]
             </div>
           )}
-
           <div className="flex items-center gap-2 pt-1">
-            <Link
-              to="/sentinel"
+            {/* ✅ تغییر: Link → button با window.location */}
+            <button
+              type="button"
+              onClick={goToSentinel}
               className="text-[10px] text-emerald-700 hover:underline inline-flex items-center gap-1"
             >
               <ExternalLink size={10} />
               انتخاب تصویر دیگر
-            </Link>
+            </button>
             <button
               type="button"
               onClick={onClear}
@@ -121,9 +104,14 @@ const SentinelSettingsTab = ({
       ) : (
         <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 leading-relaxed">
           برای نمایش، از صفحه{' '}
-          <Link to="/sentinel" className="underline font-bold">
+          {/* ✅ تغییر: Link → button */}
+          <button
+            type="button"
+            onClick={goToSentinel}
+            className="underline font-bold"
+          >
             تصاویر ماهواره‌ای
-          </Link>{' '}
+          </button>{' '}
           یک تصویر انتخاب کنید.
         </div>
       )}
@@ -131,13 +119,8 @@ const SentinelSettingsTab = ({
       {/* Opacity */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] font-bold text-gray-700">
-            شفافیت لایه
-          </span>
-          <span
-            className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200"
-            dir="ltr"
-          >
+          <span className="text-[11px] font-bold text-gray-700">شفافیت لایه</span>
+          <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" dir="ltr">
             {Math.round((opacity || 0.7) * 100)}%
           </span>
         </div>
@@ -154,14 +137,12 @@ const SentinelSettingsTab = ({
         />
       </div>
 
-      {/* وضعیت */}
       {assetId && !visible && (
         <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
           تصویر انتخاب شده ولی لایه غیرفعال است.
         </div>
       )}
 
-      {/* Attribution */}
       <div className="text-[9px] leading-relaxed text-gray-400 border-t border-gray-200 pt-2">
         Contains modified Copernicus Sentinel data (CDSE).
       </div>

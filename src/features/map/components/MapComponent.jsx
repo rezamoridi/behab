@@ -186,6 +186,7 @@ const MapComponent = ({
   sentinelAssetId = null,
   sentinelBounds = null,
   sentinelOpacity = 0.7,
+  sentinelFitBounds = false, 
   onSentinelVisibleChange,
   onSentinelOpacityChange,
   onSentinelClear,
@@ -262,13 +263,14 @@ const MapComponent = ({
 
       <ViewportSaver disabled={shouldDisableViewportSaver} />
 
-      {/* ─── Sentinel: pane + overlay ─── */}
+      {/* ─── Sentinel: pane + overlay (باید قبل از لایه‌های برداری باشد) ─── */}
       <SentinelPaneInit />
       <SentinelLayer
         visible={sentinelVisible}
         assetId={sentinelAssetId}
         bounds={sentinelBounds}
         opacity={sentinelOpacity}
+        fitBounds={sentinelFitBounds}
       />
 
       <VillagesLayer

@@ -8,7 +8,8 @@ export const ROUTES = {
   LOGIN: "/login",
   HOME: "/",
   MAP: "/map",
-  SENTINEL: "/sentinel", // ✅ SENTINEL
+  SENTINEL: "/sentinel",
+  SENTINEL_FILES: "/sentinel/files",
   LANDS: "/lands",
   FARMERS: "/farmers",
   AGRI: "/agri",
@@ -23,7 +24,10 @@ export const ROUTES = {
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const DashboardPage = lazy(() => import("../pages/DashboardPage"));
 const MapViewPage = lazy(() => import("../pages/MapViewPage"));
-const SentinelPage = lazy(() => import("../pages/SentinelPage")); // ✅ SENTINEL
+const SentinelPage = lazy(() => import("../pages/SentinelPage"));
+const SentinelFilesPage = lazy(
+  () => import("../features/sentinel/pages/SentinelFilesPage"),
+);
 const LandsPage = lazy(() => import("../pages/LandsPage"));
 const FarmersPage = lazy(() => import("../pages/FarmersPage"));
 const AgriPage = lazy(() => import("../pages/AgriPage"));
@@ -35,7 +39,8 @@ export const ROUTE_COMPONENTS = {
   [ROUTES.LOGIN]: LoginPage,
   [ROUTES.HOME]: DashboardPage,
   [ROUTES.MAP]: MapViewPage,
-  [ROUTES.SENTINEL]: SentinelPage, // ✅ SENTINEL
+  [ROUTES.SENTINEL]: SentinelPage,
+  [ROUTES.SENTINEL_FILES]: SentinelFilesPage,
   [ROUTES.LANDS]: LandsPage,
   [ROUTES.FARMERS]: FarmersPage,
   [ROUTES.AGRI]: AgriPage,
@@ -82,10 +87,19 @@ export const ROUTE_DEFINITIONS = [
     redirectTo: null,
   },
 
-  // ✅ SENTINEL — صفحه جستجو/کتابخانه/وضعیت
+  // ─── ماهواره: جستجو ───
   {
     path: ROUTES.SENTINEL,
     Component: ROUTE_COMPONENTS[ROUTES.SENTINEL],
+    permission: ["sentinel", "view"],
+    isPublic: false,
+    redirectTo: ROUTES.NO_ACCESS,
+  },
+
+  // ─── ماهواره: مدیریت فایل‌ها ───
+  {
+    path: ROUTES.SENTINEL_FILES,
+    Component: ROUTE_COMPONENTS[ROUTES.SENTINEL_FILES],
     permission: ["sentinel", "view"],
     isPublic: false,
     redirectTo: ROUTES.NO_ACCESS,
@@ -132,13 +146,6 @@ export const ROUTE_DEFINITIONS = [
     path: ROUTES.SETTINGS,
     Component: ROUTE_COMPONENTS[ROUTES.SETTINGS],
     permission: ["settings", "view"],
-    isPublic: false,
-    redirectTo: null,
-  },
-  {
-    path: ROUTES.SENTINEL,
-    Component: ROUTE_COMPONENTS[ROUTES.SENTINEL],
-    permission: ["sentinel", "view"],
     isPublic: false,
     redirectTo: null,
   },
