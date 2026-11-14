@@ -1,20 +1,16 @@
 // src/pages/SentinelPage.jsx
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
 import SentinelDashboard from './SentinelDashboard';
-import {
-  useSentinelSearch,
-} from '../features/sentinel/hooks/useSentinelSearch';
-import {
-  useSentinelAreas,
-} from '../features/sentinel/hooks/useSentinelLibrary';
-import {
-  useSentinelJob,
-} from '../features/sentinel/hooks/useSentinelJobs';
+import { useSentinelSearch } from '../features/sentinel/hooks/useSentinelSearch';
+import { useSentinelAreas } from '../features/sentinel/hooks/useSentinelLibrary';
 import {
   createSentinelJob,
   downloadGeotiffAsFile,
-  downloadGeotiffByJob,
   deleteAsset,
+  getCdseCredentialStatus,
+  setCdseCredential,
+  clearCdseCredential,
 } from '../features/sentinel/services/sentinelApi';
 
 export default function SentinelPage() {
@@ -22,12 +18,14 @@ export default function SentinelPage() {
   const searchMut = useSentinelSearch();
   const { data: areas = [], refetch: refetchAreas } = useSentinelAreas();
 
-  // آماده‌سازی داده‌های کتابخانه برای Dashboard
-  const libraryData = (areas || []).map((area) => ({
-    id: area.id,
-    area_km2: area.area_km2,
-    files: [], // اینجا باید از useSentinelScenes استفاده کنید
-  }));
+  const [credentialsStatus, setCredentialsStatus] = useState(null);
+
+  // ✅ بارگذاری وضعیت اعتبارنامه در mount
+  useEffect(() => {
+    getCdseCredentialStatus()
+      .then(setCredentialsStatus)
+      .catch(() => setCredentialsStatus({ configured: false }));
+  }, []);
 
   const handleSearch = async (payload) => {
     try {
@@ -69,18 +67,32 @@ export default function SentinelPage() {
     navigate('/map', { state: { drawSentinelBbox: true } });
   };
 
+  // ✅ ذخیره اعتبارنامه
+  const handleSaveCredentials = useCallback(async ({ email, password }) => {
+    const status = await setCdseCredential({ email, password });
+    setCredentialsStatus(status);
+  }, []);
+
+  // ✅ حذف اعتبارنامه
+  const handleClearCredentials = useCallback(async () => {
+    await clearCdseCredential();
+    setCredentialsStatus({ configured: false });
+  }, []);
+
   return (
     <SentinelDashboard
-      library={libraryData}
       searchResults={searchMut.data?.items || []}
       loading={searchMut.isPending}
       error={searchMut.error?.message || null}
+      credentialsStatus={credentialsStatus}
       onSearch={handleSearch}
       onShowOnMap={handleShowOnMap}
       onDownload={handleDownload}
       onDelete={handleDelete}
       onDrawOnMap={handleDrawOnMap}
       onRefresh={refetchAreas}
+      onSaveCredentials={handleSaveCredentials}
+      onClearCredentials={handleClearCredentials}
     />
   );
 }
