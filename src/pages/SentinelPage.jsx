@@ -5,7 +5,6 @@ import SentinelDashboard from './SentinelDashboard';
 import { useSentinelSearch } from '../features/sentinel/hooks/useSentinelSearch';
 import { useSentinelAreas } from '../features/sentinel/hooks/useSentinelLibrary';
 import {
-  createSentinelJob,
   downloadGeotiffAsFile,
   deleteAsset,
   getCdseCredentialStatus,
@@ -20,7 +19,6 @@ export default function SentinelPage() {
 
   const [credentialsStatus, setCredentialsStatus] = useState(null);
 
-  // ✅ بارگذاری وضعیت اعتبارنامه در mount
   useEffect(() => {
     getCdseCredentialStatus()
       .then(setCredentialsStatus)
@@ -67,13 +65,11 @@ export default function SentinelPage() {
     navigate('/map', { state: { drawSentinelBbox: true } });
   };
 
-  // ✅ ذخیره اعتبارنامه
   const handleSaveCredentials = useCallback(async ({ email, password }) => {
     const status = await setCdseCredential({ email, password });
     setCredentialsStatus(status);
   }, []);
 
-  // ✅ حذف اعتبارنامه
   const handleClearCredentials = useCallback(async () => {
     await clearCdseCredential();
     setCredentialsStatus({ configured: false });

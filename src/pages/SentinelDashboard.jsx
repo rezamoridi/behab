@@ -1,33 +1,21 @@
 // src/pages/SentinelDashboard.jsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Satellite, Map as MapIcon, Target, FolderOpen,
-  Settings2, Search, Calendar, ChevronDown, ChevronUp,
-  Loader2, ImageIcon, Download, Eye, Trash2, AlertCircle,
-  RefreshCw, Filter, Mail, Lock,
+  Settings2, Search, Calendar, Loader2, ImageIcon,
+  AlertCircle, Mail, Lock,
 } from 'lucide-react';
-
 import SentinelFilesPage from '../features/sentinel/pages/SentinelFilesPage';
+import { SENTINEL_SENSORS } from '../features/sentinel/constants';
 
 // ═══════════════════════════════════════════════════════════
-// داده‌های نمونه
-// ═══════════════════════════════════════════════════════════
-const MOCK_SEARCH_RESULTS = [
-  { id: 'S2C_MSIL2A_20261112', sensor: 'SENTINEL-2', date: '2026-11-12', cloud: 5, thumbnail: null },
-  { id: 'S2C_MSIL2A_20261108', sensor: 'SENTINEL-2', date: '2026-11-08', cloud: 12, thumbnail: null },
-  { id: 'S2C_MSIL2A_20261104', sensor: 'SENTINEL-2', date: '2026-11-04', cloud: 25, thumbnail: null },
-];
-
-// ═══════════════════════════════════════════════════════════
-// توابع کمکی
+// Helper
 // ═══════════════════════════════════════════════════════════
 const calculateArea = (w, s, e, n) => {
   const lat = ((s + n) / 2) * (Math.PI / 180);
   const mPerDegLat = 111132.0;
   const mPerDegLon = 111320.0 * Math.cos(lat);
-  const widthM = (e - w) * mPerDegLon;
-  const heightM = (n - s) * mPerDegLat;
-  return Math.abs(widthM * heightM) / 1_000_000;
+  return Math.abs((e - w) * mPerDegLon * (n - s) * mPerDegLat) / 1_000_000;
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -39,13 +27,11 @@ const TabButton = ({ label, icon: Icon, isActive, onClick }) => (
     role="tab"
     aria-selected={isActive}
     onClick={onClick}
-    className={`
-      group relative flex items-center gap-2.5 px-5 py-2.5 rounded-xl
-      text-sm font-bold transition-all duration-200 cursor-pointer whitespace-nowrap
-      ${isActive
+    className={`group relative flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
+      isActive
         ? 'bg-primary-600 text-white shadow-[0_4px_14px_rgba(46,125,50,0.35)]'
-        : 'bg-white/60 text-slate-700 hover:bg-white/90 hover:shadow-sm'}
-    `}
+        : 'bg-white/60 text-slate-700 hover:bg-white/90 hover:shadow-sm'
+    }`}
   >
     {Icon && (
       <Icon
@@ -86,43 +72,63 @@ const Thumbnail = ({ src, alt = 'preview' }) => {
 // ═══════════════════════════════════════════════════════════
 // SearchResultRow
 // ═══════════════════════════════════════════════════════════
-const SearchResultRow = ({ item, isSelected, onSelect }) => (
-  <button
-    type="button"
-    onClick={() => onSelect(item)}
-    className={`
-      w-full flex items-center gap-3 p-2.5 rounded-lg border text-right transition-all
-      ${isSelected
-        ? 'bg-primary-50 border-primary-400 shadow-sm ring-1 ring-primary-300'
-        : 'bg-white border-slate-200 hover:border-primary-300 hover:bg-primary-50/30'}
-    `}
-  >
-    <Thumbnail src={item.thumbnail} />
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between mb-0.5">
-        <span className={`text-xs font-bold ${isSelected ? 'text-primary-900' : 'text-slate-800'}`}>
-          {item.date || '—'}
-        </span>
-        {item.cloud != null && (
-          <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-            ابر: {item.cloud.toFixed(1)}%
+const SearchResultRow = ({ item, isSelected, onSelect }) => {
+  // ✅ باگ ۹: پشتیبانی از thumbnail_url و thumbnail
+  const thumbSrc = item.thumbnail_url || item.thumbnail || null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item)}
+      className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-right transition-all ${
+        isSelected
+          ? 'bg-primary-50 border-primary-400 shadow-sm ring-1 ring-primary-300'
+          : 'bg-white border-slate-200 hover:border-primary-300 hover:bg-primary-50/30'
+      }`}
+    >
+      <Thumbnail src={thumbSrc} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-0.5">
+          <span className={`text-xs font-bold ${isSelected ? 'text-primary-900' : 'text-slate-800'}`}>
+            {item.acquisition_at?.slice(0, 10) || item.date || '—'}
           </span>
-        )}
+          {item.cloud_cover != null && (
+            <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+              ابر: {item.cloud_cover.toFixed(1)}%
+            </span>
+          )}
+        </div>
+        <div className="text-[9px] text-slate-500 font-mono truncate" dir="ltr">
+          {item.provider_product_id || item.id}
+        </div>
       </div>
-      <div className="text-[9px] text-slate-500 font-mono truncate" dir="ltr">{item.id}</div>
-    </div>
-  </button>
-);
+    </button>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════
-// SearchForm
+// SearchForm (با باگ ۱۰ fix: initialBbox با JSON.stringify)
 // ═══════════════════════════════════════════════════════════
-const SearchForm = ({ onSubmit, loading }) => {
+const SearchForm = ({ onSubmit, loading, initialBbox }) => {
   const [sensor, setSensor] = useState('SENTINEL-2');
   const [bbox, setBbox] = useState({ w: '48.285', s: '33.680', e: '48.300', n: '33.688' });
   const [dateFrom, setDateFrom] = useState('2026-10-13');
   const [dateTo, setDateTo] = useState('2026-11-13');
   const [cloud, setCloud] = useState(30);
+
+  // ✅ باگ ۱۰: JSON.stringify برای تشخیص تغییر
+  const bboxKey = JSON.stringify(initialBbox);
+  useEffect(() => {
+    if (initialBbox && initialBbox.length === 4) {
+      setBbox({
+        w: initialBbox[0].toFixed(4),
+        s: initialBbox[1].toFixed(4),
+        e: initialBbox[2].toFixed(4),
+        n: initialBbox[3].toFixed(4),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bboxKey]);
 
   const areaKm2 = useMemo(() => {
     const w = parseFloat(bbox.w); const s = parseFloat(bbox.s);
@@ -137,8 +143,12 @@ const SearchForm = ({ onSubmit, loading }) => {
     e.preventDefault();
     onSubmit?.({
       bbox: [parseFloat(bbox.w), parseFloat(bbox.s), parseFloat(bbox.e), parseFloat(bbox.n)],
-      sensor, date_from: `${dateFrom}T00:00:00Z`, date_to: `${dateTo}T23:59:59Z`,
-      cloud_max: sensor === 'SENTINEL-2' ? cloud : null, page: 1, page_size: 20,
+      sensor,
+      date_from: `${dateFrom}T00:00:00Z`,
+      date_to: `${dateTo}T23:59:59Z`,
+      cloud_max: sensor === 'SENTINEL-2' ? cloud : null,
+      page: 1,
+      page_size: 20,
     });
   };
 
@@ -147,8 +157,9 @@ const SearchForm = ({ onSubmit, loading }) => {
       <div>
         <label className="block text-[11px] font-bold text-slate-700 mb-1">سنسور</label>
         <select value={sensor} onChange={(e) => setSensor(e.target.value)} className={inputCls}>
-          <option value="SENTINEL-2">Sentinel-2 (نوری)</option>
-          <option value="SENTINEL-1">Sentinel-1 (رادار)</option>
+          {SENTINEL_SENSORS.map((s) => (
+            <option key={s.id} value={s.id}>{s.label}</option>
+          ))}
         </select>
       </div>
 
@@ -213,14 +224,18 @@ const SearchForm = ({ onSubmit, loading }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// CdseCredentialsForm (inline)
+// CdseCredentialsForm — فرم اعتبارنامه با onSave/onClear
 // ═══════════════════════════════════════════════════════════
-const CdseCredentialsForm = ({ onSave, onClear, status, loading }) => {
+const CdseCredentialsForm = ({ status, onSave, onClear }) => {
   const [email, setEmail] = useState(status?.email || '');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  useEffect(() => {
+    setEmail(status?.email || '');
+  }, [status?.email]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -268,11 +283,7 @@ const CdseCredentialsForm = ({ onSave, onClear, status, loading }) => {
         <label className="block text-[11px] font-bold text-slate-700 mb-1">ایمیل CDSE</label>
         <div className="relative">
           <Mail size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            required className={inputCls} dir="ltr" autoComplete="username"
-            placeholder="your-email@example.com"
-          />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={inputCls} dir="ltr" autoComplete="username" placeholder="your-email@example.com" />
         </div>
       </div>
 
@@ -280,11 +291,7 @@ const CdseCredentialsForm = ({ onSave, onClear, status, loading }) => {
         <label className="block text-[11px] font-bold text-slate-700 mb-1">پسورد CDSE</label>
         <div className="relative">
           <Lock size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-            required className={inputCls} dir="ltr" autoComplete="current-password"
-            placeholder="••••••••"
-          />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className={inputCls} dir="ltr" autoComplete="current-password" placeholder="••••••••" />
         </div>
         <div className="text-[9px] text-slate-500 mt-1">پسورد با SECRET_KEY رمزنگاری می‌شود.</div>
       </div>
@@ -293,18 +300,12 @@ const CdseCredentialsForm = ({ onSave, onClear, status, loading }) => {
       {success && <div className="text-[11px] text-primary-700 bg-primary-50 border border-primary-200 rounded-lg p-2">{success}</div>}
 
       <div className="flex gap-2">
-        <button
-          type="submit" disabled={busy || loading}
-          className="flex-1 px-3 py-2 rounded-lg bg-primary-600 text-white text-xs font-bold hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2"
-        >
+        <button type="submit" disabled={busy} className="flex-1 px-3 py-2 rounded-lg bg-primary-600 text-white text-xs font-bold hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2">
           {busy ? <Loader2 size={14} className="animate-spin" /> : null}
           {busy ? 'در حال بررسی...' : 'ذخیره و تأیید'}
         </button>
         {status?.configured && (
-          <button
-            type="button" onClick={handleClear} disabled={busy}
-            className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50"
-          >
+          <button type="button" onClick={handleClear} disabled={busy} className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50">
             حذف
           </button>
         )}
@@ -317,7 +318,7 @@ const CdseCredentialsForm = ({ onSave, onClear, status, loading }) => {
 // SentinelDashboard
 // ═══════════════════════════════════════════════════════════
 export default function SentinelDashboard({
-  searchResults = MOCK_SEARCH_RESULTS,
+  searchResults = [],
   loading = false,
   error = null,
   credentialsStatus = null,
@@ -333,20 +334,10 @@ export default function SentinelDashboard({
   const [tab, setTab] = useState('search');
   const [showCredentials, setShowCredentials] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-
-  const handleDeleteClick = (file) => setConfirmDelete(file);
-  const handleConfirmDelete = () => {
-    if (confirmDelete) {
-      onDelete?.(confirmDelete);
-      setConfirmDelete(null);
-    }
-  };
 
   return (
     <div className="h-full overflow-y-auto pt-20 md:pt-24 pb-28 px-4 md:px-5 bg-[#F8FAFC]" dir="rtl">
       <div className="max-w-[1600px] mx-auto space-y-4">
-
         {/* هدر */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -355,9 +346,7 @@ export default function SentinelDashboard({
             </div>
             <div className="min-w-0">
               <h1 className="text-base font-bold text-slate-800 truncate">تصاویر ماهواره‌ای</h1>
-              <p className="text-[11px] text-slate-500 truncate">
-                جستجو، دریافت و مدیریت فایل‌ها — Sentinel-1 / Sentinel-2
-              </p>
+              <p className="text-[11px] text-slate-500 truncate">جستجو، دریافت و مدیریت فایل‌ها — Sentinel-1 / Sentinel-2</p>
             </div>
           </div>
           <button
@@ -398,7 +387,6 @@ export default function SentinelDashboard({
                       status={credentialsStatus}
                       onSave={onSaveCredentials}
                       onClear={onClearCredentials}
-                      loading={loading}
                     />
                   </div>
                 )}
@@ -435,11 +423,11 @@ export default function SentinelDashboard({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {searchResults.map((item) => (
+                    {searchResults.map((item, idx) => (
                       <SearchResultRow
-                        key={item.id}
+                        key={item.provider_product_id || item.id || idx}
                         item={item}
-                        isSelected={selectedProduct?.id === item.id}
+                        isSelected={selectedProduct?.provider_product_id === item.provider_product_id}
                         onSelect={setSelectedProduct}
                       />
                     ))}
@@ -459,37 +447,6 @@ export default function SentinelDashboard({
           )}
         </div>
       </div>
-
-      {/* تأیید حذف */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setConfirmDelete(null)}>
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
-                <AlertCircle size={20} strokeWidth={2.2} />
-              </div>
-              <h3 className="text-sm font-bold text-slate-800">حذف فایل</h3>
-            </div>
-            <p className="text-xs text-slate-600 mb-4">
-              آیا از حذف فایل «{confirmDelete.analysis}» مطمئن هستید؟ این عمل قابل بازگشت نیست.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button" onClick={() => setConfirmDelete(null)}
-                className="flex-1 px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors"
-              >
-                انصراف
-              </button>
-              <button
-                type="button" onClick={handleConfirmDelete}
-                className="flex-1 px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors"
-              >
-                حذف
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

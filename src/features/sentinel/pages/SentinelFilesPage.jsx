@@ -1,9 +1,10 @@
 // src/features/sentinel/pages/SentinelFilesPage.jsx
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FolderOpen, FolderPlus, ImageIcon, Download, Trash2, Eye, Loader2,
-  ChevronDown, ChevronUp, Filter, RefreshCw, Tag, X,
-  MoreVertical, AlertCircle, FileImage, GripVertical, CheckSquare,
+  ChevronDown, ChevronUp, RefreshCw, Tag, X,
+  MoreVertical, FileImage, GripVertical, CheckSquare,
   Square, Search,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,9 +17,6 @@ import {
 } from "../services/sentinelApi";
 import { useSentinelPreview } from "../hooks/useSentinelPreview";
 
-// ═══════════════════════════════════════════════════════════
-// Helper
-// ═══════════════════════════════════════════════════════════
 const formatBytes = (bytes) => {
   if (!bytes || bytes === 0) return "0 B";
   const k = 1024;
@@ -40,7 +38,7 @@ const PreviewThumb = ({ assetId }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// FolderSidebar — Drag target
+// FolderSidebar
 // ═══════════════════════════════════════════════════════════
 const FolderSidebar = ({
   folders, selectedFolderId, onSelect, onAdd, onDelete,
@@ -142,7 +140,7 @@ const FolderSidebar = ({
 };
 
 // ═══════════════════════════════════════════════════════════
-// FileCard — Drag source
+// FileCard
 // ═══════════════════════════════════════════════════════════
 const FileCard = ({
   file, folders, onMoveToFolder, onUpdateTags, onDownload, onDelete, onShow,
@@ -173,7 +171,6 @@ const FileCard = ({
   };
 
   const handleDragStart = (e) => {
-    // اگر فایل در انتخاب چندگانه است، همه را بفرست
     const ids = isSelected && selectionMode ? Array.from(selectionMode) : [file.id];
     e.dataTransfer.setData("application/json", JSON.stringify({ assetIds: ids }));
     e.dataTransfer.effectAllowed = "move";
@@ -279,11 +276,11 @@ const FileCard = ({
 };
 
 // ═══════════════════════════════════════════════════════════
-// AreaGroup
+// AreaGroup (باگ ۷: onRefresh پاس داده می‌شود)
 // ═══════════════════════════════════════════════════════════
 const AreaGroup = ({
   area, folders, filter, onMoveToFolder, onUpdateTags, onDownload, onDelete, onShow,
-  selection, onToggleSelect,
+  selection, onToggleSelect, onRefresh,
 }) => {
   const [expanded, setExpanded] = useState(true);
   const { data: scenes = [] } = useSentinelAreaScenes(area.id);
@@ -345,7 +342,7 @@ const AreaGroup = ({
 // ═══════════════════════════════════════════════════════════
 // SentinelFilesPage
 // ═══════════════════════════════════════════════════════════
-export default function SentinelFilesPage({ onShowOnMap, onDownload, onDelete }) {
+export default function SentinelFilesPage({ onShowOnMap, onDownload, onDelete, onRefresh }) {
   const { data: areas = [], isLoading, refetch } = useSentinelFiles();
   const [folders, setFolders] = useState([]);
   const [selectedFolderId, setSelectedFolderId] = useState(null);
@@ -391,6 +388,7 @@ export default function SentinelFilesPage({ onShowOnMap, onDownload, onDelete })
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: sentinelFilesKeys.all });
     refetch();
+    onRefresh?.();
   };
 
   const handleDragOver = (folderId) => setDragOverFolderId(folderId);
@@ -508,6 +506,7 @@ export default function SentinelFilesPage({ onShowOnMap, onDownload, onDelete })
                 onShow={onShowOnMap}
                 selection={selection}
                 onToggleSelect={handleToggleSelect}
+                onRefresh={handleRefresh}
               />
             ))
           )}
