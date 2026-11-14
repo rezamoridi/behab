@@ -186,7 +186,7 @@ const MapComponent = ({
   sentinelAssetId = null,
   sentinelBounds = null,
   sentinelOpacity = 0.7,
-  sentinelFitBounds = false, 
+  sentinelFitBounds = false,
   onSentinelVisibleChange,
   onSentinelOpacityChange,
   onSentinelClear,
@@ -263,9 +263,10 @@ const MapComponent = ({
 
       <ViewportSaver disabled={shouldDisableViewportSaver} />
 
-      {/* ─── Sentinel: pane + overlay (باید قبل از لایه‌های برداری باشد) ─── */}
-      <SentinelPaneInit />
+      {/* ─── Sentinel: pane + overlay ─── */}
+      <SentinelPaneInit key="sentinel-pane" />
       <SentinelLayer
+        key="sentinel-layer"
         visible={sentinelVisible}
         assetId={sentinelAssetId}
         bounds={sentinelBounds}
@@ -306,7 +307,6 @@ const MapComponent = ({
         hidden={snapToggleHidden}
       />
 
-      {/* ─── پنل تنظیمات نقشه (شامل تب Sentinel) ─── */}
       <MapSettingsControl
         hidden={snapToggleHidden}
         sentinelVisible={sentinelVisible}

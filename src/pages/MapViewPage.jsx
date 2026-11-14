@@ -220,11 +220,22 @@ const MapViewPage = () => {
     const st = location.state;
     if (!st?.sentinelAssetId) return;
 
+    // ✅ اعتبارسنجی bounds
+    const bounds = st.sentinelBounds;
+    const isValidBounds =
+      Array.isArray(bounds) &&
+      bounds.length === 4 &&
+      bounds.every((v) => Number.isFinite(Number(v)));
+
+    if (!isValidBounds) {
+      console.warn("[MapViewPage] Invalid sentinelBounds received:", bounds);
+    }
+
     setSentinelAssetId(st.sentinelAssetId);
-    setSentinelBounds(st.sentinelBounds || null);
+    setSentinelBounds(isValidBounds ? bounds : null);
     setSentinelAnalysis(st.sentinelAnalysis || null);
     setSentinelVisible(true);
-    setSentinelFitBounds(true);
+    setSentinelFitBounds(isValidBounds);
 
     navigate(location.pathname, { replace: true, state: {} });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -543,9 +554,13 @@ const MapViewPage = () => {
 
       if (drawSentinelMode && next.count > 0 && next.geojsons.length > 0) {
         const geojson = next.geojsons[0];
-        const coords = geojson.geometry?.coordinates?.[0] || geojson.coordinates?.[0];
+        const coords =
+          geojson.geometry?.coordinates?.[0] || geojson.coordinates?.[0];
         if (coords && coords.length > 0) {
-          let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+          let minLng = Infinity,
+            minLat = Infinity,
+            maxLng = -Infinity,
+            maxLat = -Infinity;
           for (const [lng, lat] of coords) {
             if (lng < minLng) minLng = lng;
             if (lat < minLat) minLat = lat;

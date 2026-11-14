@@ -17,6 +17,9 @@ import {
 } from "../services/sentinelApi";
 import { useSentinelPreview } from "../hooks/useSentinelPreview";
 
+// ═══════════════════════════════════════════════════════════
+// Helper
+// ═══════════════════════════════════════════════════════════
 const formatBytes = (bytes) => {
   if (!bytes || bytes === 0) return "0 B";
   const k = 1024;
@@ -24,6 +27,11 @@ const formatBytes = (bytes) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
+
+const isValidBounds = (b) =>
+  Array.isArray(b) &&
+  b.length === 4 &&
+  b.every((v) => Number.isFinite(Number(v)));
 
 const PreviewThumb = ({ assetId }) => {
   const { url, loading } = useSentinelPreview(assetId);
@@ -177,6 +185,15 @@ const FileCard = ({
     setIsDragging(true);
   };
 
+  // ✅ اطمینان از اینکه فقط با bounds معتبر onShow صدا زده می‌شود
+  const handleShowClick = () => {
+    if (!isValidBounds(file.bounds)) {
+      alert("این فایل مختصات (bounds) معتبر ندارد و قابل نمایش روی نقشه نیست. لطفاً دوباره پردازش کنید.");
+      return;
+    }
+    onShow?.(file);
+  };
+
   return (
     <div
       draggable
@@ -224,7 +241,7 @@ const FileCard = ({
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onShow?.(file)} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg" title="نمایش">
+        <button onClick={handleShowClick} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg" title="نمایش">
           <Eye size={16} />
         </button>
         <button onClick={handleDownload} disabled={isDownloading} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50" title="دانلود">
@@ -276,11 +293,11 @@ const FileCard = ({
 };
 
 // ═══════════════════════════════════════════════════════════
-// AreaGroup (باگ ۷: onRefresh پاس داده می‌شود)
+// AreaGroup
 // ═══════════════════════════════════════════════════════════
 const AreaGroup = ({
   area, folders, filter, onMoveToFolder, onUpdateTags, onDownload, onDelete, onShow,
-  selection, onToggleSelect, onRefresh,
+  selection, onToggleSelect,
 }) => {
   const [expanded, setExpanded] = useState(true);
   const { data: scenes = [] } = useSentinelAreaScenes(area.id);
@@ -316,6 +333,7 @@ const AreaGroup = ({
         <div className="p-3 pt-0 space-y-2 border-t border-slate-100">
           {filteredPreviews.map((scene) => {
             const gt = geotiffByAnalysis[scene.analysis];
+            // ✅ merge preview + geotiff (both bounds and folder_id/tags از geotiff اولویت دارد)
             const file = { ...scene, ...(gt || {}), id: scene.id };
             return (
               <FileCard
@@ -506,7 +524,6 @@ export default function SentinelFilesPage({ onShowOnMap, onDownload, onDelete, o
                 onShow={onShowOnMap}
                 selection={selection}
                 onToggleSelect={handleToggleSelect}
-                onRefresh={handleRefresh}
               />
             ))
           )}
