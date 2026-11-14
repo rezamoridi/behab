@@ -3,10 +3,11 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   Satellite, Map as MapIcon, Target, FolderOpen,
   Settings2, Search, Calendar, Loader2, ImageIcon,
-  AlertCircle, Mail, Lock,
+  AlertCircle, Mail, Lock, Download, Clock, HardDrive,
+  Activity, CheckCircle2, XCircle,
 } from 'lucide-react';
 import SentinelFilesPage from '../features/sentinel/pages/SentinelFilesPage';
-import { SENTINEL_SENSORS } from '../features/sentinel/constants';
+import { SENTINEL_SENSORS, getAnalysesForSensor } from '../features/sentinel/constants';
 
 // ═══════════════════════════════════════════════════════════
 // Helper
@@ -16,6 +17,14 @@ const calculateArea = (w, s, e, n) => {
   const mPerDegLat = 111132.0;
   const mPerDegLon = 111320.0 * Math.cos(lat);
   return Math.abs((e - w) * mPerDegLon * (n - s) * mPerDegLat) / 1_000_000;
+};
+
+const formatBytes = (bytes) => {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -61,8 +70,7 @@ const Thumbnail = ({ src, alt = 'preview' }) => {
   }
   return (
     <img
-      src={src}
-      alt={alt}
+      src={src} alt={alt}
       className="w-16 h-16 rounded-lg object-cover border border-slate-200 shrink-0"
       onError={() => setError(true)}
     />
@@ -73,9 +81,7 @@ const Thumbnail = ({ src, alt = 'preview' }) => {
 // SearchResultRow
 // ═══════════════════════════════════════════════════════════
 const SearchResultRow = ({ item, isSelected, onSelect }) => {
-  // ✅ باگ ۹: پشتیبانی از thumbnail_url و thumbnail
   const thumbSrc = item.thumbnail_url || item.thumbnail || null;
-
   return (
     <button
       type="button"
@@ -107,7 +113,7 @@ const SearchResultRow = ({ item, isSelected, onSelect }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// SearchForm (با باگ ۱۰ fix: initialBbox با JSON.stringify)
+// SearchForm
 // ═══════════════════════════════════════════════════════════
 const SearchForm = ({ onSubmit, loading, initialBbox }) => {
   const [sensor, setSensor] = useState('SENTINEL-2');
@@ -116,7 +122,6 @@ const SearchForm = ({ onSubmit, loading, initialBbox }) => {
   const [dateTo, setDateTo] = useState('2026-11-13');
   const [cloud, setCloud] = useState(30);
 
-  // ✅ باگ ۱۰: JSON.stringify برای تشخیص تغییر
   const bboxKey = JSON.stringify(initialBbox);
   useEffect(() => {
     if (initialBbox && initialBbox.length === 4) {
@@ -143,12 +148,8 @@ const SearchForm = ({ onSubmit, loading, initialBbox }) => {
     e.preventDefault();
     onSubmit?.({
       bbox: [parseFloat(bbox.w), parseFloat(bbox.s), parseFloat(bbox.e), parseFloat(bbox.n)],
-      sensor,
-      date_from: `${dateFrom}T00:00:00Z`,
-      date_to: `${dateTo}T23:59:59Z`,
-      cloud_max: sensor === 'SENTINEL-2' ? cloud : null,
-      page: 1,
-      page_size: 20,
+      sensor, date_from: `${dateFrom}T00:00:00Z`, date_to: `${dateTo}T23:59:59Z`,
+      cloud_max: sensor === 'SENTINEL-2' ? cloud : null, page: 1, page_size: 20,
     });
   };
 
@@ -179,12 +180,7 @@ const SearchForm = ({ onSubmit, loading, initialBbox }) => {
           ].map(({ key, label }) => (
             <div key={key}>
               <label className="block text-[10px] text-slate-500 mb-0.5">{label}</label>
-              <input
-                type="number" step="0.0001"
-                value={bbox[key]}
-                onChange={(e) => setBbox({ ...bbox, [key]: e.target.value })}
-                className={inputCls} dir="ltr"
-              />
+              <input type="number" step="0.0001" value={bbox[key]} onChange={(e) => setBbox({ ...bbox, [key]: e.target.value })} className={inputCls} dir="ltr" />
             </div>
           ))}
         </div>
@@ -212,10 +208,7 @@ const SearchForm = ({ onSubmit, loading, initialBbox }) => {
         </div>
       )}
 
-      <button
-        type="submit" disabled={loading}
-        className="w-full px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-700 shadow-[0_4px_14px_rgba(46,125,50,0.35)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
+      <button type="submit" disabled={loading} className="w-full px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-700 shadow-[0_4px_14px_rgba(46,125,50,0.35)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
         {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
         {loading ? 'در حال جستجو...' : 'جستجو'}
       </button>
@@ -224,7 +217,93 @@ const SearchForm = ({ onSubmit, loading, initialBbox }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// CdseCredentialsForm — فرم اعتبارنامه با onSave/onClear
+// AnalysisPicker
+// ═══════════════════════════════════════════════════════════
+const AnalysisPicker = ({ value, onChange, sensor, disabled }) => {
+  const analyses = getAnalysesForSensor(sensor);
+  const current = analyses.find((a) => a.id === value);
+  return (
+    <div>
+      <label className="block text-[11px] font-bold text-slate-700 mb-1">شاخص / نوع خروجی</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs focus:border-primary-500 outline-none disabled:opacity-50">
+        {analyses.map((a) => (
+          <option key={a.id} value={a.id}>{a.label} ({a.resolution}m)</option>
+        ))}
+      </select>
+      {current?.description && (
+        <div className="mt-1.5 text-[10px] leading-relaxed text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2">
+          {current.description}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
+// JobProgressCard
+// ═══════════════════════════════════════════════════════════
+const JobProgressCard = ({ job, onDownload }) => {
+  if (!job) return null;
+  const isRunning = job.status === 'running' || job.status === 'pending';
+  const isFailed = job.status === 'failed';
+  const isSucceeded = job.status === 'succeeded';
+  const total = job.total_bytes || 0;
+  const downloaded = job.downloaded_bytes || 0;
+  const percent = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : (isRunning ? 5 : 0);
+
+  let statusText = 'در حال پردازش...';
+  let statusIcon = <Loader2 size={14} className="text-blue-600 animate-spin" />;
+  if (job.status === 'pending') {
+    statusText = 'در صف (منتظر Worker)...';
+    statusIcon = <Clock size={14} className="text-amber-600" />;
+  } else if (isSucceeded) {
+    statusText = 'پردازش تکمیل شد';
+    statusIcon = <CheckCircle2 size={14} className="text-emerald-600" />;
+  } else if (isFailed) {
+    statusText = 'خطا در پردازش';
+    statusIcon = <XCircle size={14} className="text-red-600" />;
+  }
+
+  return (
+    <div className="bg-white border border-blue-200 rounded-xl p-3 shadow-sm mt-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {statusIcon}
+          <span className="text-xs font-bold text-slate-800">{statusText}</span>
+        </div>
+        {!isSucceeded && <span className="text-[10px] font-bold text-blue-600">{percent}%</span>}
+      </div>
+      {!isSucceeded && (
+        <>
+          <div className="w-full bg-slate-100 rounded-full h-1.5 mb-2">
+            <div className={`h-1.5 rounded-full transition-all duration-300 ${isFailed ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${percent}%` }} />
+          </div>
+          <div className="grid grid-cols-3 gap-1 text-[9px] text-slate-600">
+            <div className="flex items-center gap-1"><HardDrive size={10} /><span dir="ltr">{formatBytes(downloaded)} / {formatBytes(total)}</span></div>
+            <div className="flex items-center gap-1"><Activity size={10} /><span dir="ltr">—</span></div>
+            <div className="flex items-center gap-1"><Clock size={10} /><span>—</span></div>
+          </div>
+          {job.status === 'pending' && (
+            <div className="mt-2 text-[10px] text-amber-700 bg-amber-50 p-1.5 rounded text-center">
+              اگر بیش از ۱ دقیقه در صف ماند، مطمئن شوید Worker روشن است.
+            </div>
+          )}
+        </>
+      )}
+      {isSucceeded && (
+        <button onClick={onDownload} className="w-full mt-1 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+          <Download size={14} /> دانلود فایل GeoTIFF
+        </button>
+      )}
+      {job.error_message && (
+        <div className="mt-2 text-[9px] text-red-600 bg-red-50 p-1.5 rounded">{job.error_message}</div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
+// CdseCredentialsForm
 // ═══════════════════════════════════════════════════════════
 const CdseCredentialsForm = ({ status, onSave, onClear }) => {
   const [email, setEmail] = useState(status?.email || '');
@@ -233,9 +312,7 @@ const CdseCredentialsForm = ({ status, onSave, onClear }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  useEffect(() => {
-    setEmail(status?.email || '');
-  }, [status?.email]);
+  useEffect(() => { setEmail(status?.email || ''); }, [status?.email]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -246,9 +323,7 @@ const CdseCredentialsForm = ({ status, onSave, onClear }) => {
       setSuccess('اعتبارنامه ذخیره و تأیید شد.');
     } catch (err) {
       setError(err?.response?.data?.detail || err.message);
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   };
 
   const handleClear = async () => {
@@ -260,9 +335,7 @@ const CdseCredentialsForm = ({ status, onSave, onClear }) => {
       setSuccess('اعتبارنامه حذف شد.');
     } catch (err) {
       setError(err?.response?.data?.detail || err.message);
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   };
 
   const inputCls = 'w-full pr-9 pl-3 py-2 rounded-lg border border-slate-300 text-xs focus:border-primary-500 outline-none';
@@ -270,13 +343,9 @@ const CdseCredentialsForm = ({ status, onSave, onClear }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       {status?.configured ? (
-        <div className="bg-primary-50 border border-primary-200 rounded-lg p-2.5 text-[11px] text-primary-800">
-          متصل — {status.email}
-        </div>
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-2.5 text-[11px] text-primary-800">متصل — {status.email}</div>
       ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-800">
-          تنظیم نشده — بدون اعتبارنامه، جستجو و پردازش کار نمی‌کند.
-        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-800">تنظیم نشده — بدون اعتبارنامه، جستجو و پردازش کار نمی‌کند.</div>
       )}
 
       <div>
@@ -305,9 +374,7 @@ const CdseCredentialsForm = ({ status, onSave, onClear }) => {
           {busy ? 'در حال بررسی...' : 'ذخیره و تأیید'}
         </button>
         {status?.configured && (
-          <button type="button" onClick={handleClear} disabled={busy} className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50">
-            حذف
-          </button>
+          <button type="button" onClick={handleClear} disabled={busy} className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50">حذف</button>
         )}
       </div>
     </form>
@@ -330,10 +397,20 @@ export default function SentinelDashboard({
   onRefresh,
   onSaveCredentials,
   onClearCredentials,
+  onRequestProcessing,
+  job,
+  isCreatingJob,
+  createError,
 }) {
   const [tab, setTab] = useState('search');
   const [showCredentials, setShowCredentials] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [sensor, setSensor] = useState('SENTINEL-2');
+  const [analysis, setAnalysis] = useState('TRUE_COLOR');
+
+  useEffect(() => {
+    setAnalysis(sensor === 'SENTINEL-1' ? 'VV' : 'TRUE_COLOR');
+  }, [sensor]);
 
   return (
     <div className="h-full overflow-y-auto pt-20 md:pt-24 pb-28 px-4 md:px-5 bg-[#F8FAFC]" dir="rtl">
@@ -349,11 +426,7 @@ export default function SentinelDashboard({
               <p className="text-[11px] text-slate-500 truncate">جستجو، دریافت و مدیریت فایل‌ها — Sentinel-1 / Sentinel-2</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onDrawOnMap}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-700 border border-slate-200 text-sm font-bold hover:bg-slate-50 transition-colors self-start sm:self-auto shrink-0"
-          >
+          <button type="button" onClick={onDrawOnMap} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-700 border border-slate-200 text-sm font-bold hover:bg-slate-50 transition-colors self-start sm:self-auto shrink-0">
             <MapIcon size={16} strokeWidth={2.2} />
             رسم محدوده روی نقشه
           </button>
@@ -371,11 +444,7 @@ export default function SentinelDashboard({
             <>
               {/* تنظیمات CDSE */}
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(31,38,135,0.04)]">
-                <button
-                  type="button"
-                  onClick={() => setShowCredentials(!showCredentials)}
-                  className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors"
-                >
+                <button type="button" onClick={() => setShowCredentials(!showCredentials)} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                     <Settings2 size={14} strokeWidth={2.2} /> تنظیمات اتصال به CDSE
                   </div>
@@ -383,11 +452,7 @@ export default function SentinelDashboard({
                 </button>
                 {showCredentials && (
                   <div className="p-3 border-t border-slate-100">
-                    <CdseCredentialsForm
-                      status={credentialsStatus}
-                      onSave={onSaveCredentials}
-                      onClear={onClearCredentials}
-                    />
+                    <CdseCredentialsForm status={credentialsStatus} onSave={onSaveCredentials} onClear={onClearCredentials} />
                   </div>
                 )}
               </div>
@@ -397,7 +462,7 @@ export default function SentinelDashboard({
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700 mb-3">
                   <Search size={14} strokeWidth={2.2} /> جستجوی تصویر جدید
                 </div>
-                <SearchForm onSubmit={onSearch} loading={loading} />
+                <SearchForm onSubmit={(p) => { setSensor(p.sensor); onSearch?.(p); }} loading={loading} />
               </div>
 
               {error && (
@@ -434,16 +499,60 @@ export default function SentinelDashboard({
                   </div>
                 )}
               </div>
+
+              {/* ✅ پنل محصول انتخاب‌شده + پردازش */}
+              {selectedProduct && (
+                <div className="bg-white border-2 border-primary-500 rounded-2xl p-4 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                    <span className="text-sm font-bold text-primary-900">محصول انتخاب‌شده</span>
+                    <span className="text-[10px] text-slate-500 font-mono bg-primary-50 px-2 py-1 rounded">
+                      {selectedProduct.provider_product_id}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600 mb-3">
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">تاریخ</span>
+                      <span dir="ltr">{selectedProduct.acquisition_at?.slice(0, 10) || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">سنسور</span>
+                      {selectedProduct.sensor}
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">ابری</span>
+                      {selectedProduct.cloud_cover != null ? `${selectedProduct.cloud_cover.toFixed(1)}%` : '—'}
+                    </div>
+                  </div>
+
+                  <AnalysisPicker value={analysis} onChange={setAnalysis} sensor={sensor} disabled={isCreatingJob || !!job} />
+
+                  <div className="mt-3">
+                    {!job ? (
+                      <button
+                        type="button"
+                        onClick={() => onRequestProcessing?.({ product: selectedProduct, analysis, sensor })}
+                        disabled={isCreatingJob}
+                        className="w-full px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isCreatingJob ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        {isCreatingJob ? 'در حال ایجاد...' : 'درخواست دریافت و پردازش'}
+                      </button>
+                    ) : (
+                      <JobProgressCard job={job} onDownload={() => onDownload?.(job)} />
+                    )}
+                  </div>
+
+                  {createError && (
+                    <div className="mt-2 bg-red-50 text-red-800 text-xs p-2 rounded border border-red-200">{createError}</div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
           {tab === 'files' && (
-            <SentinelFilesPage
-              onShowOnMap={onShowOnMap}
-              onDownload={onDownload}
-              onDelete={onDelete}
-              onRefresh={onRefresh}
-            />
+            <SentinelFilesPage onShowOnMap={onShowOnMap} onDownload={onDownload} onDelete={onDelete} onRefresh={onRefresh} />
           )}
         </div>
       </div>
