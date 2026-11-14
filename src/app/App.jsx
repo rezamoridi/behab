@@ -1,22 +1,17 @@
 // src/app/App.jsx
-import { Suspense, useMemo } from 'react';
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-} from 'react-router-dom';
+import { Suspense, useMemo } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import ProtectedLayout from './ProtectedLayout';
-import ErrorBoundary from '../shared/components/ErrorBoundary/ErrorBoundary';
-import LoadingSpinner from '../shared/components/LoadingSpinner/LoadingSpinner';
-import ProtectedRoute from '../features/auth/components/ProtectedRoute';
-import { AuthProvider } from '../context/AuthContext';
-import { QueryProvider } from '../providers/QueryProvider';
-import { ToastProvider } from '../shared/components/Toast/ToastProvider';
-import { ConfirmDialogProvider } from '../shared/components/ConfirmDialog/ConfirmDialogProvider';
+import ProtectedLayout from "./ProtectedLayout";
+import ErrorBoundary from "../shared/components/ErrorBoundary/ErrorBoundary";
+import LoadingSpinner from "../shared/components/LoadingSpinner/LoadingSpinner";
+import ProtectedRoute from "../features/auth/components/ProtectedRoute";
+import { AuthProvider } from "../context/AuthContext";
+import { QueryProvider } from "../providers/QueryProvider";
+import { ToastProvider } from "../shared/components/Toast/ToastProvider";
+import { ConfirmDialogProvider } from "../shared/components/ConfirmDialog/ConfirmDialogProvider";
 
-import { ROUTE_DEFINITIONS, ROUTES } from './routes';
+import { ROUTE_DEFINITIONS, ROUTES } from "./routes";
 
 // ═══════════════════════════════════════════════════════════
 // NoAccessPage — وقتی کاربر به هیچ صفحه‌ای دسترسی ندارد
@@ -30,12 +25,9 @@ const NoAccessPage = () => (
       <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 text-xl">
         🚫
       </div>
-      <h2 className="text-base font-bold text-gray-900 mb-2">
-        دسترسی محدود
-      </h2>
+      <h2 className="text-base font-bold text-gray-900 mb-2">دسترسی محدود</h2>
       <p className="text-xs text-gray-500 leading-relaxed">
-        شما به هیچ بخشی از سیستم دسترسی ندارید. لطفاً با مدیر
-        ارشد تماس بگیرید.
+        شما به هیچ بخشی از سیستم دسترسی ندارید. لطفاً با مدیر ارشد تماس بگیرید.
       </p>
     </div>
   </div>
@@ -98,33 +90,23 @@ const App = () => {
                   <Routes>
                     {/* ─── عمومی ─── */}
                     {publicRoutes.map(({ path, Component }) => (
-                      <Route
-                        key={path}
-                        path={path}
-                        element={<Component />}
-                      />
+                      <Route key={path} path={path} element={<Component />} />
                     ))}
 
                     {/* ─── محافظت‌شده ─── */}
                     <Route element={<ProtectedLayout />}>
                       {protectedGroups.map((group, idx) => {
-                        const {
-                          permission,
-                          redirectTo,
-                          routes,
-                        } = group;
+                        const { permission, redirectTo, routes } = group;
 
                         // بدون permission → همه
                         if (!permission) {
-                          return routes.map(
-                            ({ path, Component }) => (
-                              <Route
-                                key={`${idx}-${path}`}
-                                path={path}
-                                element={<Component />}
-                              />
-                            )
-                          );
+                          return routes.map(({ path, Component }) => (
+                            <Route
+                              key={`${idx}-${path}`}
+                              path={path}
+                              element={<Component />}
+                            />
+                          ));
                         }
 
                         // با permission → ProtectedRoute
@@ -138,31 +120,26 @@ const App = () => {
                               />
                             }
                           >
-                            {routes.map(
-                              ({ path, Component }) => (
-                                <Route
-                                  key={`${idx}-${path}`}
-                                  path={path}
-                                  element={<Component />}
-                                />
-                              )
-                            )}
+                            {routes.map(({ path, Component }) => (
+                              <Route
+                                key={`${idx}-${path}`}
+                                path={path}
+                                element={<Component />}
+                              />
+                            ))}
                           </Route>
                         );
                       })}
                     </Route>
 
                     {/* ─── No Access ─── */}
-                    <Route
-                      path="/no-access"
-                      element={<NoAccessPage />}
-                    />
+                    <Route path="/no-access" element={<NoAccessPage />} />
 
                     {/* ─── Fallback ─── */}
                     <Route
                       path="*"
                       element={
-                        <Navigate to={ROUTES.HOME} replace />
+                        <Navigate to={ROUTES.LANDING || "/home"} replace />
                       }
                     />
                   </Routes>
