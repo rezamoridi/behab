@@ -1,16 +1,16 @@
 // src/pages/SentinelDashboard.jsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Satellite, Map as MapIcon, Target, FolderOpen,
   Settings2, Search, Calendar, ChevronDown, ChevronUp,
   Loader2, ImageIcon, Download, Eye, Trash2, AlertCircle,
-  RefreshCw, Filter,
+  RefreshCw, Filter, Mail, Lock,
 } from 'lucide-react';
 
 import SentinelFilesPage from '../features/sentinel/pages/SentinelFilesPage';
 
 // ═══════════════════════════════════════════════════════════
-// داده‌های نمونه (mock) — بعداً از API جایگزین می‌شوند
+// داده‌های نمونه
 // ═══════════════════════════════════════════════════════════
 const MOCK_SEARCH_RESULTS = [
   { id: 'S2C_MSIL2A_20261112', sensor: 'SENTINEL-2', date: '2026-11-12', cloud: 5, thumbnail: null },
@@ -213,18 +213,122 @@ const SearchForm = ({ onSubmit, loading }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
+// CdseCredentialsForm (inline)
+// ═══════════════════════════════════════════════════════════
+const CdseCredentialsForm = ({ onSave, onClear, status, loading }) => {
+  const [email, setEmail] = useState(status?.email || '');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setError(null); setSuccess(null);
+    try {
+      await onSave({ email, password });
+      setPassword('');
+      setSuccess('اعتبارنامه ذخیره و تأیید شد.');
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!window.confirm('اعتبارنامه CDSE حذف شود؟')) return;
+    setBusy(true); setError(null); setSuccess(null);
+    try {
+      await onClear();
+      setEmail(''); setPassword('');
+      setSuccess('اعتبارنامه حذف شد.');
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inputCls = 'w-full pr-9 pl-3 py-2 rounded-lg border border-slate-300 text-xs focus:border-primary-500 outline-none';
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {status?.configured ? (
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-2.5 text-[11px] text-primary-800">
+          متصل — {status.email}
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-800">
+          تنظیم نشده — بدون اعتبارنامه، جستجو و پردازش کار نمی‌کند.
+        </div>
+      )}
+
+      <div>
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">ایمیل CDSE</label>
+        <div className="relative">
+          <Mail size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            required className={inputCls} dir="ltr" autoComplete="username"
+            placeholder="your-email@example.com"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">پسورد CDSE</label>
+        <div className="relative">
+          <Lock size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+            required className={inputCls} dir="ltr" autoComplete="current-password"
+            placeholder="••••••••"
+          />
+        </div>
+        <div className="text-[9px] text-slate-500 mt-1">پسورد با SECRET_KEY رمزنگاری می‌شود.</div>
+      </div>
+
+      {error && <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">{error}</div>}
+      {success && <div className="text-[11px] text-primary-700 bg-primary-50 border border-primary-200 rounded-lg p-2">{success}</div>}
+
+      <div className="flex gap-2">
+        <button
+          type="submit" disabled={busy || loading}
+          className="flex-1 px-3 py-2 rounded-lg bg-primary-600 text-white text-xs font-bold hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {busy ? <Loader2 size={14} className="animate-spin" /> : null}
+          {busy ? 'در حال بررسی...' : 'ذخیره و تأیید'}
+        </button>
+        {status?.configured && (
+          <button
+            type="button" onClick={handleClear} disabled={busy}
+            className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50"
+          >
+            حذف
+          </button>
+        )}
+      </div>
+    </form>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
 // SentinelDashboard
 // ═══════════════════════════════════════════════════════════
 export default function SentinelDashboard({
   searchResults = MOCK_SEARCH_RESULTS,
   loading = false,
   error = null,
+  credentialsStatus = null,
   onSearch,
   onShowOnMap,
   onDownload,
   onDelete,
   onDrawOnMap,
   onRefresh,
+  onSaveCredentials,
+  onClearCredentials,
 }) {
   const [tab, setTab] = useState('search');
   const [showCredentials, setShowCredentials] = useState(false);
@@ -232,7 +336,6 @@ export default function SentinelDashboard({
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const handleDeleteClick = (file) => setConfirmDelete(file);
-
   const handleConfirmDelete = () => {
     if (confirmDelete) {
       onDelete?.(confirmDelete);
@@ -290,8 +393,13 @@ export default function SentinelDashboard({
                   <span className="text-[10px] text-slate-500">{showCredentials ? 'بستن' : 'باز کردن'}</span>
                 </button>
                 {showCredentials && (
-                  <div className="p-3 border-t border-slate-100 text-xs text-slate-500">
-                    فرم اعتبارنامه CDSE (email/password) اینجا قرار می‌گیرد.
+                  <div className="p-3 border-t border-slate-100">
+                    <CdseCredentialsForm
+                      status={credentialsStatus}
+                      onSave={onSaveCredentials}
+                      onClear={onClearCredentials}
+                      loading={loading}
+                    />
                   </div>
                 )}
               </div>
@@ -367,15 +475,13 @@ export default function SentinelDashboard({
             </p>
             <div className="flex gap-2">
               <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
+                type="button" onClick={() => setConfirmDelete(null)}
                 className="flex-1 px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors"
               >
                 انصراف
               </button>
               <button
-                type="button"
-                onClick={handleConfirmDelete}
+                type="button" onClick={handleConfirmDelete}
                 className="flex-1 px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors"
               >
                 حذف
